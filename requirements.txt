@@ -5,3 +5,4 @@ tqdm
 torchinfo
 scipy
 torch_geometric
+tensorboard
