@@ -1,6 +1,7 @@
-torch-geometric>=2.3.0
-numpy>=1.21.0
-matplotlib>=3.4.0
-torchinfo>=1.8.0
-librosa
 scipy
+librosa
+tqdm
+torchinfo
+scipy
+torch_geometric
+tensorboard
