@@ -254,17 +254,19 @@ def test(mix_dir:str, out_dir:str, model_path:str):
     filelist_mixdown = my_func.get_file_list(mix_dir)
     print('number of mixdown file', len(filelist_mixdown))
 
+
     # ディレクトリを作成
     my_func.make_dir(out_dir)
 
-    # model_path, _ = my_func.get_file_name(model_path)
+    model_dir = my_func.get_dir_name(model_path)
+    model_name, _ = my_func.get_file_name(model_path)
 
     # モデルの読み込み
     model = URelNet(n_channels=1, n_classes=1, k_neighbors=8).to(device)
     # model = U_Net().to(device)
 
     # TasNet_model.load_state_dict(torch.load('./pth/model/' + model_path + '.pth'))
-    model.load_state_dict(torch.load(model_path))
+    model.load_state_dict(torch.load(os.path.join(model_dir, f"BEST_{model_name}.pth")))
     # TCN_model.load_state_dict(torch.load('reverb_03_snr20_reverb1020_snr20-clean_DNN-WPE_TCN_100.pth'))
 
     for fmixdown in tqdm(filelist_mixdown):  # filelist_mixdownを全て確認して、それぞれをfmixdownに代入
@@ -330,9 +332,9 @@ def test(mix_dir:str, out_dir:str, model_path:str):
 
 if __name__ == '__main__':
     # "C:\Users\kataoka-lab\Desktop\sound_data\dataset\subset_DEMAND_hoth_1010dB_1ch\subset_DEMAND_hoth_1010dB_05sec_1ch\noise_reverbe"
-    train(dataset_path=f"{const.DATASET_DIR}/subset_DEMAND_hoth_1010dB_1ch/subset_DEMAND_hoth_1010dB_05sec_1ch/reverbe_only",
-         out_path=f"{const.PTH_DIR}/URelNet/subset_DEMAND_hoth_1010dB_05sec_1ch_reverbe_only.pth")
+    # train(dataset_path=f"{const.DATASET_DIR}/subset_DEMAND_hoth_1010dB_1ch/subset_DEMAND_hoth_1010dB_05sec_1ch/reverbe_only",
+    #      out_path=f"{const.PTH_DIR}/URelNet/subset_DEMAND_hoth_1010dB_05sec_1ch_reverbe_only.pth")
     
-    test(mix_dir=f"{const.MIX_DATA_DIR}/subset_DEMAND_hoth_1010dB_1ch/subset_DEMAND_hoth_1010dB_05sec_1ch/test/reverbe_only",
-         out_dir=f"{const.OUTPUT_WAV_DIR}/URelNet/subset_DEMAND_hoth_1010dB_05sec_1ch_reverbe_only/",
-         model_path=f"{const.PTH_DIR}/URelNet/subset_DEMAND_hoth_1010dB_05sec_1ch_reverbe_only.pth")
+    test(mix_dir=f"{const.MIX_DATA_DIR}/subset_DEMAND_hoth_1010dB_1ch/subset_DEMAND_hoth_1010dB_05sec_1ch/test/noise_reverbe",
+         out_dir=f"{const.OUTPUT_WAV_DIR}/URelNet/subset_DEMAND_hoth_1010dB_05sec_1ch_noise_reverbe/",
+         model_path=f"{const.PTH_DIR}/URelNet/subset_DEMAND_hoth_1010dB_05sec_1ch_noise_reverbe.pth")
