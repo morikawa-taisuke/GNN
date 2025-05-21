@@ -123,7 +123,7 @@ def train(dataset_path:str, out_path:str="./RESULT/pth/result.pth", loss_func:st
 
 
     """ ネットワークの生成 """
-    model = URelNet(n_channels=1, n_classes=1, k_neighbors=4).to(device)
+    model = URelNet(n_channels=1, n_classes=1, k_neighbors=8).to(device)
     # model = U_Net().to(device)
     # print(f"\nmodel:{model}\n")                           # モデルのアーキテクチャの出力
     optimizer = optim.Adam(model.parameters(), lr=0.001)    # optimizerを選択(Adam)
@@ -254,17 +254,19 @@ def test(mix_dir:str, out_dir:str, model_path:str):
     filelist_mixdown = my_func.get_file_list(mix_dir)
     print('number of mixdown file', len(filelist_mixdown))
 
+
     # ディレクトリを作成
     my_func.make_dir(out_dir)
 
-    # model_path, _ = my_func.get_file_name(model_path)
+    model_dir = my_func.get_dir_name(model_path)
+    model_name, _ = my_func.get_file_name(model_path)
 
     # モデルの読み込み
-    model = URelNet(n_channels=1, n_classes=1, k_neighbors=8).to(device)
+    model = URelNet(n_channels=1, n_classes=1, k_neighbors=5).to(device)
     # model = U_Net().to(device)
 
     # TasNet_model.load_state_dict(torch.load('./pth/model/' + model_path + '.pth'))
-    model.load_state_dict(torch.load(model_path))
+    model.load_state_dict(torch.load(os.path.join(model_dir, f"BEST_{model_name}.pth")))
     # TCN_model.load_state_dict(torch.load('reverb_03_snr20_reverb1020_snr20-clean_DNN-WPE_TCN_100.pth'))
 
     for fmixdown in tqdm(filelist_mixdown):  # filelist_mixdownを全て確認して、それぞれをfmixdownに代入
