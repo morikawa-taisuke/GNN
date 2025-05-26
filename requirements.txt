@@ -1,0 +1,7 @@
+scipy
+librosa
+tqdm
+torchinfo
+scipy
+torch_geometric
+tensorboard
