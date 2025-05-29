@@ -5,6 +5,7 @@ import torch
 from torch.utils.data import DataLoader
 import torchaudio
 import csv
+import torch.nn.functional as F
 
 from mymodule import my_func
 
@@ -298,6 +299,7 @@ class TasNet_dataset(torch.utils.data.Dataset):
         self.len = len(self.mix_list)  # 学習データの個数
         # print('# len', self.len)
         # print('# number of patterns', self.__len__())
+        self.max_length = 241793
 
     def __len__(self):
         """　データの個数を返す
@@ -316,24 +318,25 @@ class TasNet_dataset(torch.utils.data.Dataset):
         target_data = self.target_list[i]
         # print(f'mix_data.shape:{np.array(self.mix_list).shape}')  # 入力信号の形状
         # print(f'target_data.shape:{np.array(self.target_list).shape}')  # 目的信号の形状
-        """変数の型の変更"""
-        # mix_data.dtype = "float32"
-        # target_data.dtype = "float32"
-        # print("mix_data.dtype",mix_data.dtype)
-        # print("target_data.dtype", target_data.shape)
-        """変数の次元の変更　(2次元から3次元へ)"""
-        # mix_data = mix_data[np.newaxis, :, :]
-        # target_data = target_data[np.newaxis, :, :]
-
-        # mix_data = np.log(np.square(np.abs(mix_data)))
-        # target_data = np.log(np.square(np.abs(target_data)))
-        # print("mix_data.dtype", mix_data.dtype)
-        # print("target_data.dtype", target_data.dtype)
         """型の変更(numpy型からtorch型)"""
         mix_data = torch.from_numpy(mix_data)
         target_data = torch.from_numpy(target_data)
+        # mix_data の長さを調整
+        if mix_data.size(-1) > self.max_length:
+            mix_data = mix_data[..., :self.max_length]  # トリミング
+        else:
+            pad_len = self.max_length - mix_data.size(-1)
+            mix_data = F.pad(mix_data, (0, pad_len))  # パディング
+
+        # target_data の長さを調整
+        if target_data.size(-1) > self.max_length:
+            target_data = target_data[..., :self.max_length]
+        else:
+            pad_len = self.max_length - target_data.size(-1)
+            target_data = F.pad(target_data, (0, pad_len))
 
         return mix_data, target_data
+
 
     def get_all(self):
         mix_list = []

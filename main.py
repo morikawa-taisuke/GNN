@@ -123,7 +123,7 @@ def train(dataset_path:str, out_path:str="./RESULT/pth/result.pth", loss_func:st
 
 
     """ ネットワークの生成 """
-    model = URelNet(n_channels=1, n_classes=1, k_neighbors=8).to(device)
+    model = URelNet(n_channels=batchsize, n_classes=1, k_neighbors=8).to(device)
     # model = U_Net().to(device)
     # print(f"\nmodel:{model}\n")                           # モデルのアーキテクチャの出力
     optimizer = optim.Adam(model.parameters(), lr=0.001)    # optimizerを選択(Adam)

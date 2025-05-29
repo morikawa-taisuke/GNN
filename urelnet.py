@@ -176,7 +176,7 @@ def main():
     num_mic = 1  # 入力サイズを縮小
     length = 128000  # 入力サイズを縮小
     
-    # ランダムな入力画像を作成
+    # ランダムな入力音声を作成
     x = torch.randn(batch, num_mic, length).to(device)
 
     # モデルの初期化とデバイスへの移動
