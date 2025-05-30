@@ -1,2 +1,7 @@
 __pycache__/
 *.pyc
+*/__pycache__/
+*/.idea/
+*/.vscode/
+*/.DS_Store
+*/mac_GPU.py
