@@ -28,8 +28,8 @@ from mymodule import my_func, const
 os.environ['PYTORCH_CUDA_ALLOC_CONF'] = 'expandable_segments:True'
 
 # CUDAの可用性をチェック
-device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-# device = "mps"
+# device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+device = "mps"
 print(f"Using device: {device}")
 
 def padding_tensor(tensor1, tensor2):
