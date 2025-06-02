@@ -11,7 +11,8 @@ from mymodule import const
 os.environ['PYTORCH_CUDA_ALLOC_CONF'] = 'expandable_segments:True'
 
 # CUDAの可用性をチェック
-device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+# device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+device = "mps"
 print(f"Using device: {device}")
 
 class RelNet(nn.Module):
@@ -161,6 +162,28 @@ class URelNet(nn.Module):
         out = self.decoder(out)
         return out
 
+class URelNet_2(URelNet):
+    def forward(self, x):
+        # エンコーダ
+        # print("x: ", x.shape)
+        x = self.encoder(x)
+        # print("encoder out: ", x.shape)
+        # エンコーダ
+        x = x.unsqueeze(dim=1)
+        x1 = self.inc(x)
+        x2 = self.down1(x1)
+        x3 = self.down2(x2)
+        x4 = self.down3(x3)
+        
+        # ボトルネック（RelNet）
+        batch_size, channels, height, width = x4.size()
+        x4_reshaped = x4.view(batch_size, channels, -1).permute(0, 2, 1)
+        x4_reshaped = x4_reshaped.reshape(-1, channels)
+
+        return x4_reshaped.size(0)
+
+
+
 def print_model_summary(model, batch_size, channels, length):
     # サンプル入力データを作成
     x = torch.randn(batch_size, channels, length).to(device)
@@ -180,16 +203,19 @@ def main():
     x = torch.randn(batch, num_mic, length).to(device)
 
     # モデルの初期化とデバイスへの移動
-    model = URelNet(n_channels=num_mic, n_classes=num_mic, k_neighbors=8).to(device)
+    # model = URelNet(n_channels=num_mic, n_classes=num_mic, k_neighbors=8).to(device)
+    model = URelNet_2(n_channels=num_mic, n_classes=num_mic, k_neighbors=8).to(device)
     
     # モデルのサマリーを表示
     print_model_summary(model, batch, num_mic, length)
     
     # フォワードパス
     output = model(x)
-    print(f"\nInput shape: {x.shape}")
-    print(f"Output shape: {output.shape}")
+    # print(f"\nInput shape: {x.shape}")
+    # print(f"Output shape: {output.shape}")
     
+    
+
     # メモリ使用量の表示
     if torch.cuda.is_available():
         print(f"\nGPU Memory Usage:")

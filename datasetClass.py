@@ -333,7 +333,7 @@ class TasNet_dataset(torch.utils.data.Dataset):
         mix_data = torch.from_numpy(mix_data)
         target_data = torch.from_numpy(target_data)
 
-        return mix_data, target_data
+        return i, mix_data, target_data
 
     def get_all(self):
         mix_list = []
@@ -452,7 +452,6 @@ class TasNet_dataset_csv(torch.utils.data.Dataset):
         wave_data = torch.reshape(torch.t(wave_data), (-1, length))  # 分割
         # print("split_data\n")    # 確認用
         return wave_data
-
 
 class TasNet_dataset_csv_separate(TasNet_dataset_csv):
     """
