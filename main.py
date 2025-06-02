@@ -7,7 +7,6 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
 from torch.utils.data import DataLoader
-import datasetClass
 import numpy as np
 from tqdm.contrib import tenumerate
 from tqdm import tqdm
@@ -21,6 +20,7 @@ from torchinfo import summary
 import os
 from pathlib import Path
 
+import datasetClass
 from mymodule import my_func, const
 
 
@@ -119,7 +119,7 @@ def train(dataset_path:str, out_path:str="./RESULT/pth/result.pth", loss_func:st
 
     """ Load dataset データセットの読み込み """
     # dataset = datasetClass.TasNet_dataset_csv(args.dataset, channel=channel, device=device) # データセットの読み込み
-    dataset = datasetClass.TasNet_dataset(dataset_path) # データセットの読み込み
+    dataset = datasetClass.GNN_dataset(dataset_path) # データセットの読み込み
     dataset_loader = DataLoader(dataset, batch_size=batchsize, shuffle=True, pin_memory=True)
 
 
@@ -163,7 +163,7 @@ def train(dataset_path:str, out_path:str="./RESULT/pth/result.pth", loss_func:st
     for epoch in range(start_epoch, train_count+1):   # 学習回数
         model_loss_sum = 0              # 総損失の初期化
         print("Train Epoch:", epoch)    # 学習回数の表示
-        for _, (mix_data, target_data) in tenumerate(dataset_loader):
+        for _, (mix_data, target_data, edge_idx) in tenumerate(dataset_loader):
             """ モデルの読み込み """
             mix_data, target_data = mix_data.to(device), target_data.to(device) # データをGPUに移動
 
@@ -178,7 +178,7 @@ def train(dataset_path:str, out_path:str="./RESULT/pth/result.pth", loss_func:st
             # print("mix:", mix_data.shape)
 
             """ モデルに通す(予測値の計算) """
-            estimate_data = model(mix_data) # モデルに通す
+            estimate_data = model(mix_data, edge_idx) # モデルに通す
 
             """ データの整形 """
             # print("estimation:", estimate_data.shape)
@@ -334,10 +334,10 @@ def test(mix_dir:str, out_dir:str, model_path:str):
 if __name__ == '__main__':
     # "C:\Users\kataoka-lab\Desktop\sound_data\dataset\subset_DEMAND_hoth_1010dB_1ch\subset_DEMAND_hoth_1010dB_05sec_1ch\noise_reverbe"
     # コンフリクトの解消
-    for i in range(1, 2):
+    for i in range(4, 5):
         train(dataset_path=f"{const.DATASET_DIR}/DEMAND_1ch/condition_{i}/noise_reverbe",
              out_path=f"{const.PTH_DIR}/URelNet/DEMAND_1ch/condition_{i}/noise_reverbe.pth", batchsize=8)
 
-    # test(mix_dir=f"{const.MIX_DATA_DIR}/subset_DEMAND_hoth_1010dB_1ch/subset_DEMAND_hoth_1010dB_05sec_1ch/test/reverbe_only",
-    #      out_dir=f"{const.OUTPUT_WAV_DIR}/URelNet/subset_DEMAND_hoth_1010dB_05sec_1ch_reverbe_only/",
-    #      model_path=f"{const.PTH_DIR}/URelNet/subset_DEMAND_hoth_1010dB_05sec_1ch_reverbe_only.pth")
+        test(mix_dir=f"{const.MIX_DATA_DIR}/subset_DEMAND_hoth_1010dB_1ch/subset_DEMAND_hoth_1010dB_05sec_1ch/test/reverbe_only",
+             out_dir=f"{const.OUTPUT_WAV_DIR}/URelNet/subset_DEMAND_hoth_1010dB_05sec_1ch_reverbe_only/",
+             model_path=f"{const.PTH_DIR}/URelNet/subset_DEMAND_hoth_1010dB_05sec_1ch_reverbe_only.pth")
