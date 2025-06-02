@@ -20,7 +20,7 @@ from torchinfo import summary
 import os
 from pathlib import Path
 
-import datasetClass
+import UGNNNet_DatasetClass
 from mymodule import my_func, const
 
 
@@ -99,7 +99,7 @@ def si_sdr_loss(ests, egs):
     return -torch.sum(max_perutt) / N
 
 
-def train(dataset_path:str, out_path:str="./RESULT/pth/result.pth", loss_func:str="SISDR", batchsize:int=const.BATCHSIZE, checkpoint_path:str=None, train_count:int=const.EPOCH, earlystopping_threshold:int=5):
+def train(clean_path:str, noisy_path:str, out_path:str="./RESULT/pth/result.pth", loss_func:str="SISDR", batchsize:int=const.BATCHSIZE, checkpoint_path:str=None, train_count:int=const.EPOCH, earlystopping_threshold:int=5):
     """ GPUの設定 """
     device = "cuda" if torch.cuda.is_available() else "cpu" # GPUが使えれば使う
     """ その他の設定 """
@@ -111,7 +111,7 @@ def train(dataset_path:str, out_path:str="./RESULT/pth/result.pth", loss_func:st
     csv_path = f"{const.LOG_DIR}\\{out_name}\\{out_name}_{now}.csv"
     my_func.make_dir(csv_path)
     with open(csv_path, "w") as csv_file:  # ファイルオープン
-        csv_file.write(f"dataset,out_name,loss_func\n{dataset_path},{out_path},{loss_func}")
+        csv_file.write(f"dataset,out_name,loss_func\n{noisy_path},{out_path},{loss_func}")
 
     """ Early_Stoppingの設定 """
     best_loss = np.inf  # 損失関数の最小化が目的の場合，初めのbest_lossを無限大にする
@@ -119,7 +119,7 @@ def train(dataset_path:str, out_path:str="./RESULT/pth/result.pth", loss_func:st
 
     """ Load dataset データセットの読み込み """
     # dataset = datasetClass.TasNet_dataset_csv(args.dataset, channel=channel, device=device) # データセットの読み込み
-    dataset = datasetClass.GNN_dataset(dataset_path) # データセットの読み込み
+    dataset = UGNNNet_DatasetClass.AudioDataset(clean_path, noisy_path) # データセットの読み込み
     dataset_loader = DataLoader(dataset, batch_size=batchsize, shuffle=True, pin_memory=True)
 
 
@@ -151,7 +151,7 @@ def train(dataset_path:str, out_path:str="./RESULT/pth/result.pth", loss_func:st
     print("====================")
     print("device: ", device)
     print("out_path: ", out_path)
-    print("dataset: ", dataset_path)
+    print("dataset: ", noisy_path)
     print("loss_func: ", loss_func)
     print("====================")
 
@@ -163,7 +163,7 @@ def train(dataset_path:str, out_path:str="./RESULT/pth/result.pth", loss_func:st
     for epoch in range(start_epoch, train_count+1):   # 学習回数
         model_loss_sum = 0              # 総損失の初期化
         print("Train Epoch:", epoch)    # 学習回数の表示
-        for _, (mix_data, target_data, edge_idx) in tenumerate(dataset_loader):
+        for _, (mix_data, target_data) in tenumerate(dataset_loader):
             """ モデルの読み込み """
             mix_data, target_data = mix_data.to(device), target_data.to(device) # データをGPUに移動
 
@@ -173,12 +173,13 @@ def train(dataset_path:str, out_path:str="./RESULT/pth/result.pth", loss_func:st
             """ データの整形 """
             mix_data = mix_data.to(torch.float32)   # target_dataのタイプを変換 int16→float32
             target_data = target_data.to(torch.float32) # target_dataのタイプを変換 int16→float32
-            mix_data = mix_data.unsqueeze(dim=0)    # [バッチサイズ, マイク数，音声長]
+            # mix_data = mix_data.unsqueeze(dim=0)    # [バッチサイズ, マイク数，音声長]
             # target_data = target_data[np.newaxis, :, :] # 次元を増やす[1,音声長]→[1,1,音声長]
             # print("mix:", mix_data.shape)
 
             """ モデルに通す(予測値の計算) """
-            estimate_data = model(mix_data, edge_idx) # モデルに通す
+            # print("model_input", mix_data.shape)
+            estimate_data = model(mix_data) # モデルに通す
 
             """ データの整形 """
             # print("estimation:", estimate_data.shape)
@@ -334,10 +335,12 @@ def test(mix_dir:str, out_dir:str, model_path:str):
 if __name__ == '__main__':
     # "C:\Users\kataoka-lab\Desktop\sound_data\dataset\subset_DEMAND_hoth_1010dB_1ch\subset_DEMAND_hoth_1010dB_05sec_1ch\noise_reverbe"
     # コンフリクトの解消
-    for i in range(4, 5):
-        train(dataset_path=f"{const.DATASET_DIR}/DEMAND_1ch/condition_{i}/noise_reverbe",
-             out_path=f"{const.PTH_DIR}/URelNet/DEMAND_1ch/condition_{i}/noise_reverbe.pth", batchsize=8)
+    # for i in range(4, 5):
+    # "C:\Users\kataoka-lab\Desktop\sound_data\mix_data\subset_DEMAND_1ch\condition_1\train\clean"
+    train(clean_path=f"{const.MIX_DATA_DIR}/subset_DEMAND_1ch/condition_1/train/clean",
+          noisy_path=f"{const.MIX_DATA_DIR}/subset_DEMAND_1ch/condition_1/train/reverbe_only",
+          out_path=f"{const.PTH_DIR}/URelNet/subset_DEMAND_1ch/condition_{1}/noise_reverbe.pth", batchsize=1)
 
-        test(mix_dir=f"{const.MIX_DATA_DIR}/subset_DEMAND_hoth_1010dB_1ch/subset_DEMAND_hoth_1010dB_05sec_1ch/test/reverbe_only",
-             out_dir=f"{const.OUTPUT_WAV_DIR}/URelNet/subset_DEMAND_hoth_1010dB_05sec_1ch_reverbe_only/",
-             model_path=f"{const.PTH_DIR}/URelNet/subset_DEMAND_hoth_1010dB_05sec_1ch_reverbe_only.pth")
+    # test(mix_dir=f"{const.MIX_DATA_DIR}/subset_DEMAND_hoth_1010dB_1ch/subset_DEMAND_hoth_1010dB_05sec_1ch/test/reverbe_only",
+    #      out_dir=f"{const.OUTPUT_WAV_DIR}/URelNet/subset_DEMAND_hoth_1010dB_05sec_1ch_reverbe_only/",
+    #      model_path=f"{const.PTH_DIR}/URelNet/subset_DEMAND_hoth_1010dB_05sec_1ch_reverbe_only.pth")

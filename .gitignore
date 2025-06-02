@@ -1,6 +1,8 @@
+*/__pycache__/
+*/*.pyc
+*./.idea/
 __pycache__/
 *.pyc
-*/__pycache__/
 */.idea/
 */.vscode/
 */.DS_Store
