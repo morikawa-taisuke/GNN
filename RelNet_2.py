@@ -1,8 +1,8 @@
 import torch
 from torch import nn
-import torch.nn.functional as F
 import os
 from torchinfo import summary
+import torch.nn.functional as F
 
 
 
@@ -188,6 +188,30 @@ def print_model_summary(model, batch_size, channels, length):
     summary(model, input_data=x)
 
 
+def padding_tensor(tensor1, tensor2):
+    """
+    最後の次元（例: 時系列長）が異なる2つのテンソルに対して、
+    短い方を末尾にゼロパディングして長さをそろえる。
+
+    Args:
+        tensor1, tensor2 (torch.Tensor): 任意の次元数のテンソル
+
+    Returns:
+        padded_tensor1, padded_tensor2 (torch.Tensor)
+    """
+    len1 = tensor1.size(-1)
+    len2 = tensor2.size(-1)
+    max_len = max(len1, len2)
+
+    pad1 = [0, max_len - len1]  # 最後の次元だけパディング
+    pad2 = [0, max_len - len2]
+
+    padded_tensor1 = F.pad(tensor1, pad1)
+    padded_tensor2 = F.pad(tensor2, pad2)
+
+    return padded_tensor1, padded_tensor2
+
+
 def main():
     print("main")
     # サンプルデータの作成（入力サイズを縮小）
@@ -202,7 +226,7 @@ def main():
     model = URelNet(n_channels=num_mic, n_classes=num_mic, k_neighbors=8).to(device)
 
     # モデルのサマリーを表示
-    print_model_summary(model, batch, num_mic, length)
+    # print_model_summary(model, batch, num_mic, length)
 
     # フォワードパス
     output = model(x)
@@ -214,6 +238,7 @@ def main():
         print(f"\nGPU Memory Usage:")
         print(f"Allocated: {torch.cuda.memory_allocated(device) / 1024 ** 2:.2f} MB")
         print(f"Cached: {torch.cuda.memory_reserved(device) / 1024 ** 2:.2f} MB")
+
 
 if __name__ == '__main__':
     main()
