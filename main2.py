@@ -206,7 +206,7 @@ def train(clean_path:str, noisy_path:str, out_path:str="./RESULT/pth/result.pth"
             optimizer.step()                # 勾配の更新
 
             del mix_data, target_data, estimate_data, model_loss    # 使用していない変数の削除
-            # torch.cuda.empty_cache()    # メモリの解放 1iterationごとに解放
+            torch.cuda.empty_cache()    # メモリの解放 1iterationごとに解放
 
         """ チェックポイントの作成 """
         torch.save({"epoch": epoch,
@@ -219,7 +219,7 @@ def train(clean_path:str, noisy_path:str, out_path:str="./RESULT/pth/result.pth"
         #writer.add_scalar(str(str_name[0]) + "_" + str(a) + "_sisdr-sisnr", model_loss_sum, epoch)
         print(f"[{epoch}]model_loss_sum:{model_loss_sum}")  # 損失の出力
 
-        # torch.cuda.empty_cache()    # メモリの解放 1iterationごとに解放
+        torch.cuda.empty_cache()    # メモリの解放 1iterationごとに解放
         with open(csv_path, "a") as out_file:  # ファイルオープン
             out_file.write(f"{model_loss_sum}\n")  # 書き込み
         # torch.cuda.empty_cache()    # メモリの解放 1epochごとに解放-
@@ -337,10 +337,20 @@ if __name__ == '__main__':
     # コンフリクトの解消
     # for i in range(4, 5):
     # "C:\Users\kataoka-lab\Desktop\sound_data\mix_data\subset_DEMAND_1ch\condition_1\train\clean"
-    train(clean_path=f"{const.MIX_DATA_DIR}/subset_DEMAND_1ch/condition_1/train/clean",
-          noisy_path=f"{const.MIX_DATA_DIR}/subset_DEMAND_1ch/condition_1/train/reverbe_only",
-          out_path=f"{const.PTH_DIR}/URelNet/subset_DEMAND_1ch/condition_{1}/noise_reverbe.pth", batchsize=1)
+    # C:\Users\kataoka - lab\Desktop\sound_data\mix_data\subset_DEMAND_hoth_1010dB_1ch\subset_DEMAND_hoth_1010dB_05sec_1ch\train\reverbe_only
+    train(clean_path=f"{const.MIX_DATA_DIR}/subset_DEMAND_hoth_1010dB_1ch/subset_DEMAND_hoth_1010dB_05sec_1ch/train/clean",
+          noisy_path=f"{const.MIX_DATA_DIR}/subset_DEMAND_hoth_1010dB_1ch/subset_DEMAND_hoth_1010dB_05sec_1ch/train/reverbe_only",
+          out_path=f"{const.PTH_DIR}/URelNet/subset_DEMAND_1ch/reverbe_only.pth", batchsize=1)
 
-    # test(mix_dir=f"{const.MIX_DATA_DIR}/subset_DEMAND_hoth_1010dB_1ch/subset_DEMAND_hoth_1010dB_05sec_1ch/test/reverbe_only",
-    #      out_dir=f"{const.OUTPUT_WAV_DIR}/URelNet/subset_DEMAND_hoth_1010dB_05sec_1ch_reverbe_only/",
-    #      model_path=f"{const.PTH_DIR}/URelNet/subset_DEMAND_hoth_1010dB_05sec_1ch_reverbe_only.pth")
+    test(mix_dir=f"{const.MIX_DATA_DIR}/subset_DEMAND_hoth_1010dB_1ch/subset_DEMAND_hoth_1010dB_05sec_1ch/test/reverbe_only",
+         out_dir=f"{const.OUTPUT_WAV_DIR}/URelNet/subset_DEMAND_1ch/condition_1/test/reverbe_only2",
+         model_path=f"{const.PTH_DIR}/URelNet/subset_DEMAND_1ch/reverbe_only.pth")
+
+
+    train(clean_path=f"{const.MIX_DATA_DIR}/subset_DEMAND_hoth_1010dB_1ch/subset_DEMAND_hoth_1010dB_05sec_1ch/train/clean",
+          noisy_path=f"{const.MIX_DATA_DIR}/subset_DEMAND_hoth_1010dB_1ch/subset_DEMAND_hoth_1010dB_05sec_1ch/train/noise_reverbe",
+          out_path=f"{const.PTH_DIR}/URelNet/subset_DEMAND_1ch/noise_reverbe.pth", batchsize=1)
+
+    test(mix_dir=f"{const.MIX_DATA_DIR}/subset_DEMAND_hoth_1010dB_1ch/subset_DEMAND_hoth_1010dB_05sec_1ch/test/noise_reverbe",
+         out_dir=f"{const.OUTPUT_WAV_DIR}/URelNet/subset_DEMAND_1ch/test/noise_reverbe",
+         model_path=f"{const.PTH_DIR}/URelNet/subset_DEMAND_1ch/noise_reverbe.pth")
