@@ -27,6 +27,7 @@ def load_dataset(dataset_path:str):
     # print('dataset_list:', len(dataset_list))
     mix_list = []
     target_list = []
+    edge_idx = []
     for dataset_file in dataset_list:
         dat = np.load(dataset_file)  # datファイルの読み込み
         # print(f'dat:{dat.files}')
@@ -35,10 +36,11 @@ def load_dataset(dataset_path:str):
         mix_list.append(dat['mix'])  # 入力データの追加
         # target_list.append(dat[const.DATASET_KEY_TARGET])  # 正解データの追加
         target_list.append(dat['target'])  # 正解データの追加
+        edge_idx.append(dat['edge_index'])  # 正解データの追加
     # print('load:np.array(mix_list.shape):', np.array(mix_list).shape)
     # print('load:np.array(target_list.shape):', np.array(target_list).shape)
     # print('load_dataset\n')
-    return mix_list, target_list
+    return mix_list, target_list, edge_idx
 
 def load_dataset_csv(dataset_path:str):
     """
@@ -333,7 +335,7 @@ class TasNet_dataset(torch.utils.data.Dataset):
         mix_data = torch.from_numpy(mix_data)
         target_data = torch.from_numpy(target_data)
 
-        return mix_data, target_data
+        return i, mix_data, target_data
 
     def get_all(self):
         mix_list = []
@@ -344,6 +346,112 @@ class TasNet_dataset(torch.utils.data.Dataset):
             target_list.append(target_data)
 
         return mix_list, target_list
+
+class TasNet_dataset2(TasNet_dataset):
+    """
+    :param
+        batchsize   : 1度に読み込むデータの個数
+        patchlength : 1つのデータの長さ大きさ
+        path_stft   : stftを保存したnpzファイルの場所
+    :return
+        なし
+    """
+    def __getitem__(self, i):
+        """i番目の要素(データ)を返す
+
+        :param i: 要素番号(インデックス)
+        :return: i番目の要素(データ)
+        """
+        mix_data = self.mix_list[i]
+        target_data = self.target_list[i]
+
+        mix_data = torch.from_numpy(mix_data)
+        target_data = torch.from_numpy(target_data)
+
+        return mix_data, target_data, i
+
+    def get_all(self):
+        mix_list = []
+        target_list = []
+        for idx in range(len(self.mix_list)):
+            mix_data, target_data = self.__getitem__(idx)
+            mix_list.append(mix_data)
+            target_list.append(target_data)
+
+        return mix_list, target_list
+
+class GNN_dataset(torch.utils.data.Dataset):
+    """
+    :param
+        batchsize   : 1度に読み込むデータの個数
+        patchlength : 1つのデータの長さ大きさ
+        path_stft   : stftを保存したnpzファイルの場所
+    :return
+        なし
+    """
+    def __init__(self, dataset_path:str):
+        """
+        初期化
+
+        Parameters
+        ----------
+        dataset_path(str):データセットのパス
+        """
+        """ データの読み込み """
+        self.mix_list, self.target_list, self.edge_idx = load_dataset(dataset_path)
+        # print(f'mix_list:{np.array(self.mix_list).shape}')
+        # print(f'target_list:{np.array(self.target_list).shape}')
+        self.len = len(self.mix_list)  # 学習データの個数
+        # print('# len', self.len)
+        # print('# number of patterns', self.__len__())
+
+    def __len__(self):
+        """　データの個数を返す
+
+        :return: データの個数
+        """
+        return len(self.mix_list)
+
+    def __getitem__(self, i):
+        """i番目の要素(データ)を返す
+
+        :param i: 要素番号(インデックス)
+        :return: i番目の要素(データ)
+        """
+        mix_data = self.mix_list[i]
+        target_data = self.target_list[i]
+        edge_idx = self.edge_idx[i]
+        # print(f'mix_data.shape:{np.array(self.mix_list).shape}')  # 入力信号の形状
+        # print(f'target_data.shape:{np.array(self.target_list).shape}')  # 目的信号の形状
+        """変数の型の変更"""
+        # mix_data.dtype = "float32"
+        # target_data.dtype = "float32"
+        # print("mix_data.dtype",mix_data.dtype)
+        # print("target_data.dtype", target_data.shape)
+        """変数の次元の変更　(2次元から3次元へ)"""
+        # mix_data = mix_data[np.newaxis, :, :]
+        # target_data = target_data[np.newaxis, :, :]
+
+        # mix_data = np.log(np.square(np.abs(mix_data)))
+        # target_data = np.log(np.square(np.abs(target_data)))
+        # print("mix_data.dtype", mix_data.dtype)
+        # print("target_data.dtype", target_data.dtype)
+        """型の変更(numpy型からtorch型)"""
+        mix_data = torch.from_numpy(mix_data)
+        target_data = torch.from_numpy(target_data)
+
+        return mix_data, target_data, edge_idx
+
+    def get_all(self):
+        mix_list = []
+        target_list = []
+        for idx in range(len(self.mix_list)):
+            mix_data, target_data = self.__getitem__(idx)
+            mix_list.append(mix_data)
+            target_list.append(target_data)
+
+        return mix_list, target_list
+
 
 class TasNet_dataset_csv(torch.utils.data.Dataset):
     """
@@ -452,7 +560,6 @@ class TasNet_dataset_csv(torch.utils.data.Dataset):
         wave_data = torch.reshape(torch.t(wave_data), (-1, length))  # 分割
         # print("split_data\n")    # 確認用
         return wave_data
-
 
 class TasNet_dataset_csv_separate(TasNet_dataset_csv):
     """

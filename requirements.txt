@@ -5,3 +5,4 @@ torchinfo
 scipy
 torch_geometric
 tensorboard
+pandas

@@ -3,7 +3,13 @@ from torch import nn
 import os
 from torchinfo import summary
 import torch.nn.functional as F
+import torch.optim as optim
+from torch.utils.data import DataLoader
+from tqdm.contrib import tenumerate
 
+
+from mymodule import const
+import datasetClass
 
 
 # CUDAのメモリ管理設定
@@ -88,9 +94,9 @@ class RelNet(nn.Module):
         return out
 
 
-class URelNet(nn.Module):
+class URelNet2(nn.Module):
     def __init__(self, n_channels, n_classes, hidden_dim=32, k_neighbors=8):
-        super(URelNet, self).__init__()
+        super(URelNet2, self).__init__()
         self.n_channels = n_channels
         self.n_classes = n_classes
         self.k_neighbors = k_neighbors
@@ -157,26 +163,7 @@ class URelNet(nn.Module):
         x4_reshaped = x4.view(batch_size, channels, -1).permute(0, 2, 1)
         x4_reshaped = x4_reshaped.reshape(-1, channels)
 
-        if edge_index is None:
-            # スパースグラフを作成
-            num_nodes = x4_reshaped.size(0)
-            # edge_index = self.create_sparse_graph(num_nodes)  # GCNのとき
-            edge_index = num_nodes  # GCN不使用
-
-        x4_processed = self.relnet(x4_reshaped)
-        x4_processed = x4_processed.view(batch_size, height, width, channels).permute(0, 3, 1, 2)
-
-        d3 = self.up1(x4_processed, x3)
-        d2 = self.up2(d3, x2)
-        d1 = self.up3(d2, x1)
-        logits = self.outc(d1)
-        # print("x: ", x.shape)
-        # マスクの適用
-        out = x * logits
-        out = out.squeeze()
-        # デコーダ
-        out = self.decoder(out)
-        return out
+        return x4_reshaped.size(0)
 
 
 def print_model_summary(model, batch_size, channels, length):
@@ -213,31 +200,54 @@ def padding_tensor(tensor1, tensor2):
 
 
 def main():
-    print("main")
-    # サンプルデータの作成（入力サイズを縮小）
-    batch = 1  # const.BATCHSIZE
-    num_mic = 1  # 入力サイズを縮小
-    length = 128000  # 入力サイズを縮小
+    dataset_path = f"{const.DATASET_DIR}/DEMAND_1ch/condition_4/noise_reverbe"
+    out_path: str = "./RESULT/pth/result.pth"
+    loss_func:str = "SISDR"
+    batchsize:int = const.BATCHSIZE
+    csv_path = f"{const.DATASET_DIR}/DEMAND_1ch/condition_4/condition4_data_length.csv"
 
-    # ランダムな入力データを作成
-    x = torch.randn(batch, num_mic, length).to(device)
+    """ GPUの設定 """
+    device = "cuda" if torch.cuda.is_available() else "cpu"  # GPUが使えれば使う
 
-    # モデルの初期化とデバイスへの移動
-    model = URelNet(n_channels=num_mic, n_classes=num_mic, k_neighbors=8).to(device)
+    with open(csv_path, "w") as csv_file:  # ファイルオープン
+        csv_file.write(f"data_idx,data_length\n")
 
-    # モデルのサマリーを表示
-    # print_model_summary(model, batch, num_mic, length)
+    """ Load dataset データセットの読み込み """
+    # dataset = datasetClass.TasNet_dataset_csv(args.dataset, channel=channel, device=device) # データセットの読み込み
+    dataset = datasetClass.TasNet_dataset2(dataset_path)  # データセットの読み込み
+    dataset_loader = DataLoader(dataset, batch_size=batchsize, shuffle=True, pin_memory=True)
 
-    # フォワードパス
-    output = model(x)
-    print(f"\nInput shape: {x.shape}")
-    print(f"Output shape: {output.shape}")
+    """ ネットワークの生成 """
+    model = URelNet2(n_channels=1, n_classes=1, k_neighbors=8).to(device)
+    # model = U_Net().to(device)
+    # print(f"\nmodel:{model}\n")                           # モデルのアーキテクチャの出力
+    optimizer = optim.Adam(model.parameters(), lr=0.001)  # optimizerを選択(Adam)
+    if loss_func != "SISDR":
+        loss_function = nn.MSELoss().to(device)  # 損失関数に使用する式の指定(最小二乗誤差)
 
-    # メモリ使用量の表示
-    if torch.cuda.is_available():
-        print(f"\nGPU Memory Usage:")
-        print(f"Allocated: {torch.cuda.memory_allocated(device) / 1024 ** 2:.2f} MB")
-        print(f"Cached: {torch.cuda.memory_reserved(device) / 1024 ** 2:.2f} MB")
+    # model.train()  # 学習モードに設定
+
+    for _, (mix_data, target_data, idx) in tenumerate(dataset_loader):
+        """ モデルの読み込み """
+        mix_data, target_data = mix_data.to(device), target_data.to(device)  # データをGPUに移動
+
+        """ 勾配のリセット """
+        # optimizer.zero_grad()  # optimizerの初期化
+
+        """ データの整形 """
+        mix_data = mix_data.to(torch.float32)  # target_dataのタイプを変換 int16→float32
+        target_data = target_data.to(torch.float32)  # target_dataのタイプを変換 int16→float32
+        mix_data = mix_data.unsqueeze(dim=0)  # [バッチサイズ, マイク数，音声長]
+        # target_data = target_data[np.newaxis, :, :] # 次元を増やす[1,音声長]→[1,1,音声長]
+        # print("mix:", mix_data.shape)
+
+        """ モデルに通す(予測値の計算) """
+        estimate_data = model(mix_data)  # モデルに通す
+
+        with open(csv_path, "a") as out_file:  # ファイルオープン
+            out_file.write(f"{idx}, {estimate_data}\n")  # 書き込み
+        # torch.cuda.empty_cache()    # メモリの解放 1epochごとに解放-
+
 
 
 if __name__ == '__main__':
