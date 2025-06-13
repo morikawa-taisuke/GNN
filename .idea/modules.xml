@@ -2,7 +2,11 @@
 <project version="4">
   <component name="ProjectModuleManager">
     <modules>
+<<<<<<< HEAD
+      <module fileurl="file://$PROJECT_DIR$/.idea/GNN-main.iml" filepath="$PROJECT_DIR$/.idea/GNN-main.iml" />
+=======
       <module fileurl="file://$PROJECT_DIR$/.idea/GNN.iml" filepath="$PROJECT_DIR$/.idea/GNN.iml" />
+>>>>>>> origin/main
     </modules>
   </component>
 </project>

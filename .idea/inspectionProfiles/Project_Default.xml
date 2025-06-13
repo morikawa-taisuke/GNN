@@ -4,6 +4,15 @@
     <inspection_tool class="PyPackageRequirementsInspection" enabled="true" level="WARNING" enabled_by_default="true">
       <option name="ignoredPackages">
         <value>
+<<<<<<< HEAD
+          <list size="6">
+            <item index="0" class="java.lang.String" itemvalue="pandas" />
+            <item index="1" class="java.lang.String" itemvalue="importlib_metadata" />
+            <item index="2" class="java.lang.String" itemvalue="lazy_loader" />
+            <item index="3" class="java.lang.String" itemvalue="importlib_resources" />
+            <item index="4" class="java.lang.String" itemvalue="tzdata" />
+            <item index="5" class="java.lang.String" itemvalue="pytz" />
+=======
           <list size="27">
             <item index="0" class="java.lang.String" itemvalue="scipy" />
             <item index="1" class="java.lang.String" itemvalue="tensorboard" />
@@ -32,6 +41,7 @@
             <item index="24" class="java.lang.String" itemvalue="Cython" />
             <item index="25" class="java.lang.String" itemvalue="msgpack" />
             <item index="26" class="java.lang.String" itemvalue="torchaudio" />
+>>>>>>> origin/main
           </list>
         </value>
       </option>

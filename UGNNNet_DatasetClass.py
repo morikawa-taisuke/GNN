@@ -3,11 +3,10 @@ from torch.utils.data import Dataset, DataLoader
 import torchaudio
 import os
 import glob  # ファイルパスのパターンマッチングに便利
-
 from mymodule import my_func
 
 class AudioDataset(Dataset):
-    def __init__(self, noisy_audio_dir, clean_audio_dir, sample_rate=16000, max_length_sec=5):
+    def __init__(self, noisy_audio_dir, clean_audio_dir, sample_rate=16000, max_length_sec=4):
         """
         オーディオデータセットクラス
 
@@ -35,13 +34,13 @@ class AudioDataset(Dataset):
             raise ValueError("The number of noisy and clean audio files does not match.")
 
         # ファイル名のペアリングを確認（これも重要）
-        for i in range(len(self.noisy_file_paths)):
-            # noisy_filename = os.path.basename(self.noisy_file_paths[i])
-            # clean_filename = os.path.basename(self.clean_file_paths[i])
-            noisy_filename = my_func.get_file_name(self.noisy_file_paths[i])[0]
-            clean_filename = my_func.get_file_name(self.clean_file_paths[i])[0]
-            if not(noisy_filename in clean_filename):
-                raise ValueError(f"Mismatched filenames: {noisy_filename} != {clean_filename} at index {i}")
+        # for i in range(len(self.noisy_file_paths)):
+        #     # noisy_filename = os.path.basename(self.noisy_file_paths[i])
+        #     # clean_filename = os.path.basename(self.clean_file_paths[i])
+        #     noisy_filename = my_func.get_file_name(self.noisy_file_paths[i])[0]
+        #     clean_filename = my_func.get_file_name(self.clean_file_paths[i])[0]
+        #     if not(noisy_filename in clean_filename):
+        #         raise ValueError(f"Mismatched filenames: {noisy_filename} != {clean_filename} at index {i}")
 
         print(f"Found {len(self.noisy_file_paths)} audio pairs.")
 

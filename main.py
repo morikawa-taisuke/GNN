@@ -320,7 +320,7 @@ def test(mix_dir:str, out_dir:str, model_path:str):
         # 混合データを保存
         # mask = mask*mix
         my_func.save_wav(fname, separate, prm)
-        torch.cuda.empty_cache()    # メモリの解放 1音声ごとに解放
+        # torch.cuda.empty_cache()    # メモリの解放 1音声ごとに解放
         # torchaudio.save(
         #     fname,
         #     separate.detach().numpy(),
@@ -331,13 +331,14 @@ def test(mix_dir:str, out_dir:str, model_path:str):
         # )
 
 
+
 if __name__ == '__main__':
     # "C:\Users\kataoka-lab\Desktop\sound_data\dataset\subset_DEMAND_hoth_1010dB_1ch\subset_DEMAND_hoth_1010dB_05sec_1ch\noise_reverbe"
     # コンフリクトの解消
-    for i in range(4, 5):
-        train(dataset_path=f"{const.DATASET_DIR}/DEMAND_1ch/condition_{i}/noise_reverbe",
-             out_path=f"{const.PTH_DIR}/URelNet/DEMAND_1ch/condition_{i}/noise_reverbe.pth", batchsize=8)
-
-        test(mix_dir=f"{const.MIX_DATA_DIR}/subset_DEMAND_hoth_1010dB_1ch/subset_DEMAND_hoth_1010dB_05sec_1ch/test/reverbe_only",
-             out_dir=f"{const.OUTPUT_WAV_DIR}/URelNet/subset_DEMAND_hoth_1010dB_05sec_1ch_reverbe_only/",
-             model_path=f"{const.PTH_DIR}/URelNet/subset_DEMAND_hoth_1010dB_05sec_1ch_reverbe_only.pth")
+    # for i in range(4, 5):
+    #     train(dataset_path=f"{const.DATASET_DIR}/DEMAND_1ch/condition_{i}/noise_reverbe",
+    #          out_path=f"{const.PTH_DIR}/URelNet/DEMAND_1ch/condition_{i}/noise_reverbe.pth", batchsize=8)
+    # "C:\Users\kataoka-lab\Desktop\sound_data\RESULT\pth\URelNet\subset_DEMAND_1ch\condition_1\BEST_noise_only.pth"
+    test(mix_dir=f"{const.MIX_DATA_DIR}/subset_DEMAND_hoth_1010dB_1ch/subset_DEMAND_hoth_1010dB_05sec_1ch/test/noise_only",
+         out_dir=f"{const.OUTPUT_WAV_DIR}/URelNet/subset_DEMAND_1ch/condition_1/noise_only",
+         model_path=f"{const.PTH_DIR}/URelNet/subset_DEMAND_1ch/condition_1/noise_only.pth")

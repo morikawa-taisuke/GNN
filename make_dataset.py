@@ -999,6 +999,116 @@ def GNN_dataset(mix_dir:str, target_dir:str, csv_path, out_dir:str, is_wave:bool
             # print(f"saving...{out_name}")
             np.savez(out_path, mix=spectrogram_mix, target=spectrogram_target)  # 保存
 
+def GNN_dataset2(mix_dir:str, target_dir:str, csv_path, out_dir:str, is_wave:bool=True, FFT_SIZE=const.FFT_SIZE, H=const.H)->None:
+    """
+    音源強調用のデータセットを作成する
+
+    Parameters
+    ----------
+    mix_dir(str):機械学習への入力信号(雑音付き信号)
+    target_dir(str):教師データ(目的信号)
+    out_dir(str):出力先
+    is_wave(bool):TasNetの場合はTreu, STFTが必要な場合はFalse(UNet,LSTM)
+    FFT_SIZE:FFTの窓長
+    H
+
+    Returns
+    -------
+
+    """
+    """ ファイルリストの作成 """
+    print("dataset")
+    print(f"mix_dir:{mix_dir}")
+    print(f"target_dir:{target_dir}")
+    mix_list = my_func.get_file_list(mix_dir, ext=".wav")   # 入力データ
+    target_list = my_func.get_file_list(target_dir, ext=".wav") # 教師データ
+    print(f"len(mix_list):{len(mix_list)}")
+    print(f"len(target_list):{len(target_list)}")
+    """ 出力先の作成 """
+    my_func.make_dir(out_dir)
+    #scaler = StandardScaler()
+    #scaler = MinMaxScaler()
+    df = pd.read_csv(csv_path)
+    for ((_, row), mix_file, target_file) in tzip(df.iterrows(),mix_list, target_list, total=len(df)):
+        """ データの読み込み """
+        mix_data, prm = my_func.load_wav(mix_file)  # 入力データ
+        target_data, _ = my_func.load_wav(target_file)  # 教師データ
+        """  データタイプの変更"""
+        mix_data = mix_data.astype(np.float32)
+        target_data = target_data.astype(np.float32)
+        # print(f"mix_data:{mix_data.shape}")
+        # print(f"target_data:{target_data.shape}")
+        """ 音声長の調整 """
+        min_length = min(len(mix_data), len(target_data), 128000)
+        mix_data = mix_data[:min_length]
+        target_data = target_data[:min_length]
+
+        data_length = int(row["data_length"])
+        edge_index = create_sparse_graph(k_neighbors=8, num_nodes=data_length)
+        # print(type(edge_index))
+
+        # """ 残響の影響で音声長が違う場合 """
+        # mix_data = mix_data[:min([len(mix_data), len(target_data)])]
+        # target_data = target_data[:min([len(mix_data), len(target_data)])]
+        # mix_length = len(mix_data)
+        # target_length = len(target_data)
+        # print_name_type_shape("mix_length", mix_length)
+        # print_name_type_shape("target_length", target_length)
+
+        """ プリエンファシスフィルタをかける """
+        # p = 0.05  # プリエンファシス係数
+        # mix_data = preEmphasis(mix_data, p)
+        # mix_data = mix_data.astype(np.float32)
+        # target_data = preEmphasis(target_data, p)
+        # target_data = target_data.astype(np.float32)
+        # print("mix_data", mix_data.dtype)
+        # print(mix_data.shape)
+        # print("data_waveform", data_waveform.dtype)
+        # print(data_waveform.shape)
+        # # Scaling to -1-1
+        # mix_data = mix_data / (np.iinfo(np.int16).max - 1)
+        # target_data = target_data / (np.iinfo(np.int16).max - 1)
+        """
+        # 短時間FFTスペクトルの計算 (scipyを使用した時: WPDのPSD推定時に用いる)
+        f, t, spectrogram_mix = sp.stft(mix_data, fs=16000, window="hann", nperseg=2048, noverlap=2048 - 512)
+        print("spectrogram_mix", spectrogram_mix.shape)
+        print(spectrogram_mix.dtype)
+        print(spectrogram_mix.real ** 2 + spectrogram_mix.imag ** 2)
+        f, t, spectrogram_target = sp.stft(target_data, fs=16000, window="hann", nperseg=2048, noverlap=2048 - 512)
+        """
+
+        if is_wave: # 時間領域のデータセット (TasNet,Conv-TasNet)
+            # print(f"mix_data:{mix_data}")
+            # print(f"target_data:{target_data}")
+            """ 保存 """
+            out_name, _ = my_func.get_file_name(mix_file)   # ファイル名の取得
+            # print(f"saving...{out_name}")
+            out_path = f"{out_dir}/{out_name}.npz"  # ファイルパスの作成
+            # print(f"out:{out_path}")
+            np.savez(out_path, mix=mix_data, target=target_data, edge_index=edge_index.to('cpu').detach().numpy())    # 保存
+
+        else:   # スペクトログラムのデータセット (UNet,LSTM)
+            """ 短時間FFTスペクトルの計算 """
+            spectrogram_mix = np.abs(stft(mix_data, n_fft=FFT_SIZE, hop_length=H, win_length=FFT_SIZE)).astype(np.float32)
+            spectrogram_target = np.abs(stft(target_data, n_fft=FFT_SIZE, hop_length=H, win_length=FFT_SIZE)).astype(np.float32)
+            """ データの整形 [特徴量(513),音声長] → [チャンネル数(1), 特徴量(513), 音声長] """
+            spectrogram_mix = spectrogram_mix[np.newaxis, :, :]
+            spectrogram_target = spectrogram_target[np.newaxis, :, :]
+            """ スペクトルの最大値で正規化する(0~1) """
+            # norm = spectrogram_mix.max()
+            # spectrogram_mix /= norm
+            # spectrogram_target /= norm
+            spectrogram_mix =  spectrogram_mix/spectrogram_mix.max()
+            spectrogram_target = spectrogram_target/spectrogram_target.max()
+            print(f"mix:{spectrogram_mix}")
+            print(f"target:{spectrogram_target}")
+            """ 保存 """
+            out_name, _ = my_func.get_file_name(mix_file)   # ファイル名の取得
+            out_path = f"{out_dir}/{out_name}_stft.npz" # ファイル名の作成
+            # print(f"saving...{out_name}")
+            np.savez(out_path, mix=spectrogram_mix, target=spectrogram_target)  # 保存
+
+
 if __name__ == "__main__":
     print("start")
 

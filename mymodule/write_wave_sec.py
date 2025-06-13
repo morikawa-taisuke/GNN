@@ -16,7 +16,7 @@ def get_wav_duration(file_path):
 
 def write_durations_to_csv(input_dir, output_csv):
     wav_files = [f for f in os.listdir(input_dir) if f.endswith('.wav')]
-
+    length = []
     with open(output_csv, mode='w', newline='') as csv_file:
         csv_writer = csv.writer(csv_file)
         csv_writer.writerow(['Filename', 'Duration (sec)'])
@@ -24,14 +24,16 @@ def write_durations_to_csv(input_dir, output_csv):
         for wav_file in wav_files:
             file_path = os.path.join(input_dir, wav_file)
             duration = get_wav_duration(file_path)
+            length.append(duration)
             csv_writer.writerow([wav_file, duration])
             # print(f"{wav_file}, {duration}")
+    print('max:', max(length))
 
 
 if __name__ == "__main__":
-    dir_name = 'C:\\Users\\kataoka-lab\\Desktop\\sound_data\\mix_data\\sebset_DEMAND_hoth_1010dB_05sec_4ch\\train'
+    dir_name = 'C:/Users/kataoka-lab/Desktop/sound_data/mix_data/subset_DEMAND_1ch/condition_1/train/'
     subdir_list = my_func.get_subdir_list(dir_name)
     for subdir in subdir_list:
         input_dir = os.path.join(dir_name, subdir)  # 入力ディレクトリ
-        output_csv = f'{subdir}.csv'  # 出力CSVファイル
+        output_csv = f'./{subdir}.csv'  # 出力CSVファイル
         write_durations_to_csv(input_dir, output_csv)

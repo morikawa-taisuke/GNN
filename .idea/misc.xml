@@ -1,7 +1,13 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project version="4">
   <component name="Black">
+<<<<<<< HEAD
+    <option name="sdkName" value="GNN" />
+  </component>
+  <component name="ProjectRootManager" version="2" project-jdk-name="GNN" project-jdk-type="Python SDK" />
+=======
     <option name="sdkName" value="GNN_RelNet" />
   </component>
   <component name="ProjectRootManager" version="2" project-jdk-name="GNN_RelNet" project-jdk-type="Python SDK" />
+>>>>>>> origin/main
 </project>

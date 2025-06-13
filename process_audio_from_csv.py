@@ -177,11 +177,12 @@ def noise_only(csv_path, speech_dir, noise_dir, ir_dir, output_dir):
         noise_file = os.path.basename(row['noise_path'])
         speech_ir_file = os.path.basename(row['speech_IR'])
         noise_ir_file = os.path.basename(row['noise_IR'])
-        snr = float(row['snr'])
+        # snr = float(row['snr'])
+        snr = 5.0
 
         # ファイルパス生成
-        speech_path = os.path.join(speech_dir, speech_file)
-        noise_path = os.path.join(noise_dir, noise_file)
+        speech_path = os.path.join(speech_dir, speech_file + ".wav")
+        noise_path = os.path.join(noise_dir, noise_file + ".wav")
         speech_ir_path = os.path.join(ir_dir, "speech", speech_ir_file + ".wav")
         noise_ir_path = os.path.join(ir_dir, "noise", noise_ir_file + ".wav")
 
@@ -217,7 +218,7 @@ if __name__ == '__main__':
     parser.add_argument('--output_dir', type=str, help='出力先ディレクトリ')
     args = parser.parse_args()
 
-    test_train = "train"
+    test_train = "test"
     for i in range(1, 2):
         # "C:\Users\kataoka-lab\Desktop\sound_data\sample_data\speech\GNN\subset_DEMAND\condition\train\condition_1.csv"
         # csv_path = f"{const.SAMPLE_DATA_DIR}/speech/GNN/subset_DEMAND/condition/{test_train}/condition_{i}.csv"
@@ -239,8 +240,8 @@ if __name__ == '__main__':
         output_dir =  f"/Users/a/Documents/sound_data/mix_data/subset_DEMAND_1ch/condition_{i}/{test_train}/clean"
         clean(csv_path, speech_dir, ir_dir, output_dir)
 
-        noise_dir = "/Users/a/Documents/sound_data/sample_data/noise/hoth.wav"
-        ir_dir = f"/Users/a/Documents/sound_data/sample_data/IR/1ch_0cm_liner/reverbe_only"
-        output_dir =  f"/Users/a/Documents/sound_data/mix_data/subset_DEMAND_1ch/condition_{i}/{test_train}/noise_reverbe"
-        noise_reverbe(csv_path, speech_dir, noise_dir, ir_dir, output_dir)
-        
+        noise_dir = "C:/Users/kataoka-lab/Desktop/sound_data/sample_data/noise/DEMAND/"
+        ir_dir = f"{const.SAMPLE_DATA_DIR}/IR/1ch_0cm_liner/clean"
+        output_dir =  f"{const.MIX_DATA_DIR}/subset_DEMAND_1ch/condition_{i}/{test_train}/noise_only"
+        # reverbe_only(csv_path, speech_dir, ir_dir, output_dir)
+        noise_only(csv_path, speech_dir, noise_dir, ir_dir, output_dir)
