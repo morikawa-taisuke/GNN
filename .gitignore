@@ -3,7 +3,7 @@
 *./.idea/
 __pycache__/
 *.pyc
-*/.idea/
+.idea/
 */.vscode/
 */.DS_Store
 */mac_GPU.py
