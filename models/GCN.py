@@ -197,6 +197,93 @@ class UGCNNet(nn.Module):
         return out
 
 
+class UGCNNet2(UGCNNet):
+    def create_knn_graph(self, x, k, batch_size, num_nodes_per_sample):
+        # x: [batch_size * num_nodes_per_sample, num_features]
+        batch_indices = torch.arange(batch_size, device=x.device).repeat_interleave(num_nodes_per_sample)
+        edge_index = knn_graph(x=x, k=k, batch=batch_indices, loop=False)
+        return edge_index
+        
+    def forward(self, x):
+        # 1. 生波形を時間-周波数表現にエンコード
+        # x: [batch_size, n_channels, length]
+        x_encoded = self.encoder(x)  # [batch_size, encoder_dim, L_encoded]
+
+        # 2. U-Netの入力形式に変換
+        # U-NetはConv2dを使うため、[batch_size, channels, H, W]の形式が必要
+        # x_encoded: [batch_size, encoder_dim, L_encoded]
+        # H=encoder_dim, W=L_encodedと解釈されるように次元を追加
+        # [batch_size, 1, encoder_dim, L_encoded]
+        x_unet_input = x_encoded.unsqueeze(dim=1)
+
+        # 3. U-Net エンコーダー部分
+        x1 = self.inc(x_unet_input)  # [B, 64, H1, W1]
+        x2 = self.down1(x1)  # [B, 128, H2, W2]
+        x3 = self.down2(x2)  # [B, 256, H3, W3]
+        x4 = self.down3(x3)  # [B, 512, H4, W4]
+
+        # 4. ボトルネック（RelNet）
+        batch_size, channels, height, width = x4.size()  # H4, W4
+
+        # RelNetの入力形式にリシェイプ: [B*H*W, C]
+        # x4: [B, C, H, W] -> [B, H*W, C] -> [B*H*W, C]
+        x4_reshaped = x4.view(batch_size, channels, -1).permute(0, 2, 1).reshape(-1, channels)
+
+        # RelNet用のグラフを動的に構築
+        num_nodes_per_sample = height * width
+        edge_index = self.create_knn_graph(x4_reshaped, self.k_neighbors, batch_size, num_nodes_per_sample)
+
+        # RelNetを適用
+        x4_processed = self.relnet(x4_reshaped, edge_index)
+
+        # RelNet処理後の特徴を元のU-Netの形状に戻す
+        # [B*H*W, C] -> [B, H, W, C] -> [B, C, H, W]
+        x4_processed = x4_processed.view(batch_size, height, width, channels).permute(0, 3, 1, 2)
+
+        # 5. U-Net デコーダー部分
+        d3 = self.up1(x4_processed, x3)
+        d2 = self.up2(d3, x2)
+        d1 = self.up3(d2, x1)
+
+        # 6. マスクの生成
+        # logits: [batch_size, n_classes, H_x1, W_x1] (x1の空間次元に対応)
+        mask = self.outc(d1)
+
+        # 7. マスクの適用（`x_encoded`に）
+        # `mask`の空間次元を`x_encoded`の空間次元`L_encoded`に合わせる
+        # `mask`: [B, n_classes, H_x1, W_x1]
+        # `x_encoded`: [B, encoder_dim, L_encoded]
+
+        # まず、`mask`の空間次元 (H_x1, W_x1) をフラット化し、`L_mask`とする
+        # H_x1 * W_x1 が `x_encoded` の `L_encoded` と一致するはずですが、
+        # そうでない場合のために補間（interpolate）します。
+        mask_flat_spatial_dim = mask.view(batch_size, self.n_classes, -1)  # [B, n_classes, H_x1*W_x1]
+
+        target_length = x_encoded.size(2)  # `x_encoded`のL_encoded
+
+        # マスクをターゲットの長さにリサイズ
+        # mode='linear' (1D) または 'bilinear' (2D) が適していますが、
+        # ここでは mask_flat_spatial_dim が [B, C, L'] の形なので 'linear' が適切
+        mask_upsampled = F.interpolate(mask_flat_spatial_dim, size=target_length, mode='linear', align_corners=False)
+        # mask_upsampled: [B, n_classes, L_encoded]
+
+        # `n_classes`が1の場合を前提とする
+        if self.n_classes == 1:
+            # `mask_upsampled`は`[B, 1, L_encoded]`
+            # `x_encoded`は`[B, encoder_dim, L_encoded]`
+            # マスクを`x_encoded`の各チャネルにブロードキャストして適用
+            masked_x_encoded = x_encoded * mask_upsampled  # ブロードキャストにより`encoder_dim`次元に適用
+        else:
+            # `n_classes`が1でない場合の処理（例：各チャネルのマスクが異なる意味を持つ場合など）
+            # モデルの設計意図に依存しますが、雑音抑圧では通常`n_classes=1`です
+            raise ValueError("For noise reduction, n_classes is typically 1 for a single mask.")
+
+        # 8. マスク適用後の時間-周波数表現を波形にデコード
+        output_waveform = self.decoder(masked_x_encoded)
+
+        return output_waveform
+
+
 def print_model_summary(model, batch_size, channels, length):
     # サンプル入力データを作成
     x = torch.randn(batch_size, channels, length).to(device)
