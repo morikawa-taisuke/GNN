@@ -130,7 +130,7 @@ class URelNet(nn.Module):
         self.outc = nn.Conv2d(64, n_classes, kernel_size=1, stride=1, padding=0)
 
     def create_sparse_graph(self, num_nodes):
-        # 各ノードに対してk個の近傍ノードを選択
+        # 各ノードに対してk個のノードを選択
         edge_index = torch.zeros((2, num_nodes * self.k_neighbors), dtype=torch.long, device=device)
         for i in range(num_nodes):
             # ランダムにk個の近傍を選択（自分自身は除外）

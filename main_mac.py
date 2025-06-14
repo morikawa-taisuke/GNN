@@ -29,7 +29,7 @@ os.environ['PYTORCH_CUDA_ALLOC_CONF'] = 'expandable_segments:True'
 
 # CUDAの可用性をチェック
 # device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-device = "mps"
+device = torch.device("mps")
 print(f"Using device: {device}")
 
 def padding_tensor(tensor1, tensor2):
@@ -339,8 +339,8 @@ if __name__ == '__main__':
     # "C:\Users\kataoka-lab\Desktop\sound_data\mix_data\subset_DEMAND_1ch\condition_1\train\clean"
     train(clean_path=f"/Users/a/Documents/sound_data/mix_data/subset_DEMAND_1ch/condition_1/train/clean",
           noisy_path=f"/Users/a/Documents/sound_data/mix_data/subset_DEMAND_1ch/condition_1/train/noise_reverbe",
-          out_path=f"./RESULT/pth/noise_reverbe.pth", batchsize=1)
+          out_path=f"./RESULT/pth/noise_reverbe.pth", batchsize=8, train_count=200)
 
-    # test(mix_dir=f"{const.MIX_DATA_DIR}/subset_DEMAND_hoth_1010dB_1ch/subset_DEMAND_hoth_1010dB_05sec_1ch/test/reverbe_only",
-    #      out_dir=f"{const.OUTPUT_WAV_DIR}/URelNet/subset_DEMAND_hoth_1010dB_05sec_1ch_reverbe_only/",
-    #      model_path=f"{const.PTH_DIR}/URelNet/subset_DEMAND_hoth_1010dB_05sec_1ch_reverbe_only.pth")
+    test(mix_dir=f"{const.MIX_DATA_DIR}/subset_DEMAND_hoth_1010dB_1ch/subset_DEMAND_hoth_1010dB_05sec_1ch/test/reverbe_only",
+         out_dir=f"{const.OUTPUT_WAV_DIR}/URelNet/subset_DEMAND_hoth_1010dB_05sec_1ch_reverbe_only/",
+         model_path=f"{const.PTH_DIR}/URelNet/subset_DEMAND_hoth_1010dB_05sec_1ch_reverbe_only.pth")
