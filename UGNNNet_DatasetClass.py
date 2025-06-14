@@ -7,7 +7,7 @@ import glob  # ファイルパスのパターンマッチングに便利
 from mymodule import my_func
 
 class AudioDataset(Dataset):
-    def __init__(self, noisy_audio_dir, clean_audio_dir, sample_rate=16000, max_length_sec=4):
+    def __init__(self, noisy_audio_dir, clean_audio_dir, sample_rate=16000, max_length_sec=3):
         """
         オーディオデータセットクラス
 
