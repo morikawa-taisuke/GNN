@@ -1,5 +1,5 @@
 from wave_unet import U_Net
-from GCN import UGCNNet
+from models.GCN import UGCNNet2
 import time             # 時間
 # from librosa.core import stft, istft
 import torch
@@ -28,8 +28,8 @@ from mymodule import my_func, const
 os.environ['PYTORCH_CUDA_ALLOC_CONF'] = 'expandable_segments:True'
 
 # CUDAの可用性をチェック
-device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-# device = "mps"
+# device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+device = torch.device("mps")
 print(f"Using device: {device}")
 
 def padding_tensor(tensor1, tensor2):
@@ -124,7 +124,7 @@ def train(clean_path:str, noisy_path:str, out_path:str="./RESULT/pth/result.pth"
 
 
     """ ネットワークの生成 """
-    model = UGCNNet(n_channels=1, n_classes=1, k_neighbors=8).to(device)
+    model = UGCNNet2(n_channels=1, n_classes=1, k_neighbors=8).to(device)
     # model = U_Net().to(device)
     # print(f"\nmodel:{model}\n")                           # モデルのアーキテクチャの出力
     optimizer = optim.Adam(model.parameters(), lr=0.001)    # optimizerを選択(Adam)
@@ -264,7 +264,7 @@ def test(mix_dir:str, out_dir:str, model_path:str):
     model_name, _ = my_func.get_file_name(model_path)
 
     # モデルの読み込み
-    model = UGCNNet(n_channels=1, n_classes=1, k_neighbors=8).to(device)
+    model = UGCNNet2(n_channels=1, n_classes=1, k_neighbors=8).to(device)
     # model = U_Net().to(device)
 
     # TasNet_model.load_state_dict(torch.load('./pth/model/' + model_path + '.pth'))
