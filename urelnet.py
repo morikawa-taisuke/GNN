@@ -13,8 +13,8 @@ from torch_geometric.nn import knn_graph
 os.environ['PYTORCH_CUDA_ALLOC_CONF'] = 'expandable_segments:True'
 
 # CUDAの可用性をチェック
-# device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-device = "mps"
+device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+# device = "mps"
 print(f"Using device: {device}")
 
 
