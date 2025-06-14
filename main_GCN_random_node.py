@@ -20,7 +20,7 @@ from torchinfo import summary
 import os
 from pathlib import Path
 
-import datasetClass
+import UGNNNet_DatasetClass
 from mymodule import my_func, const
 
 
@@ -99,7 +99,7 @@ def si_sdr_loss(ests, egs):
     return -torch.sum(max_perutt) / N
 
 
-def train(dataset_path:str, out_path:str="./RESULT/pth/result.pth", loss_func:str="SISDR", batchsize:int=const.BATCHSIZE, checkpoint_path:str=None, train_count:int=const.EPOCH, earlystopping_threshold:int=5):
+def train(clean_path:str, noisy_path:str, out_path:str="./RESULT/pth/result.pth", loss_func:str="SISDR", batchsize:int=const.BATCHSIZE, checkpoint_path:str=None, train_count:int=const.EPOCH, earlystopping_threshold:int=5):
     """ GPUの設定 """
     device = "cuda" if torch.cuda.is_available() else "cpu" # GPUが使えれば使う
     """ その他の設定 """
@@ -111,7 +111,7 @@ def train(dataset_path:str, out_path:str="./RESULT/pth/result.pth", loss_func:st
     csv_path = f"{const.LOG_DIR}\\{out_name}\\{out_name}_{now}.csv"
     my_func.make_dir(csv_path)
     with open(csv_path, "w") as csv_file:  # ファイルオープン
-        csv_file.write(f"dataset,out_name,loss_func\n{dataset_path},{out_path},{loss_func}")
+        csv_file.write(f"dataset,out_name,loss_func\n{noisy_path},{out_path},{loss_func}")
 
     """ Early_Stoppingの設定 """
     best_loss = np.inf  # 損失関数の最小化が目的の場合，初めのbest_lossを無限大にする
@@ -119,7 +119,7 @@ def train(dataset_path:str, out_path:str="./RESULT/pth/result.pth", loss_func:st
 
     """ Load dataset データセットの読み込み """
     # dataset = datasetClass.TasNet_dataset_csv(args.dataset, channel=channel, device=device) # データセットの読み込み
-    dataset = datasetClass.GNN_dataset(dataset_path) # データセットの読み込み
+    dataset = UGNNNet_DatasetClass.AudioDataset(clean_path, noisy_path) # データセットの読み込み
     dataset_loader = DataLoader(dataset, batch_size=batchsize, shuffle=True, pin_memory=True)
 
 
@@ -151,7 +151,7 @@ def train(dataset_path:str, out_path:str="./RESULT/pth/result.pth", loss_func:st
     print("====================")
     print("device: ", device)
     print("out_path: ", out_path)
-    print("dataset: ", dataset_path)
+    print("dataset: ", noisy_path)
     print("loss_func: ", loss_func)
     print("====================")
 
@@ -163,7 +163,7 @@ def train(dataset_path:str, out_path:str="./RESULT/pth/result.pth", loss_func:st
     for epoch in range(start_epoch, train_count+1):   # 学習回数
         model_loss_sum = 0              # 総損失の初期化
         print("Train Epoch:", epoch)    # 学習回数の表示
-        for _, (mix_data, target_data, edge_idx) in tenumerate(dataset_loader):
+        for _, (mix_data, target_data) in tenumerate(dataset_loader):
             """ モデルの読み込み """
             mix_data, target_data = mix_data.to(device), target_data.to(device) # データをGPUに移動
 
@@ -173,12 +173,13 @@ def train(dataset_path:str, out_path:str="./RESULT/pth/result.pth", loss_func:st
             """ データの整形 """
             mix_data = mix_data.to(torch.float32)   # target_dataのタイプを変換 int16→float32
             target_data = target_data.to(torch.float32) # target_dataのタイプを変換 int16→float32
-            mix_data = mix_data.unsqueeze(dim=0)    # [バッチサイズ, マイク数，音声長]
+            # mix_data = mix_data.unsqueeze(dim=0)    # [バッチサイズ, マイク数，音声長]
             # target_data = target_data[np.newaxis, :, :] # 次元を増やす[1,音声長]→[1,1,音声長]
             # print("mix:", mix_data.shape)
 
             """ モデルに通す(予測値の計算) """
-            estimate_data = model(mix_data, edge_idx) # モデルに通す
+            # print("model_input", mix_data.shape)
+            estimate_data = model(mix_data) # モデルに通す
 
             """ データの整形 """
             # print("estimation:", estimate_data.shape)
@@ -205,7 +206,7 @@ def train(dataset_path:str, out_path:str="./RESULT/pth/result.pth", loss_func:st
             optimizer.step()                # 勾配の更新
 
             del mix_data, target_data, estimate_data, model_loss    # 使用していない変数の削除
-            # torch.cuda.empty_cache()    # メモリの解放 1iterationごとに解放
+            torch.cuda.empty_cache()    # メモリの解放 1iterationごとに解放
 
         """ チェックポイントの作成 """
         torch.save({"epoch": epoch,
@@ -218,7 +219,7 @@ def train(dataset_path:str, out_path:str="./RESULT/pth/result.pth", loss_func:st
         #writer.add_scalar(str(str_name[0]) + "_" + str(a) + "_sisdr-sisnr", model_loss_sum, epoch)
         print(f"[{epoch}]model_loss_sum:{model_loss_sum}")  # 損失の出力
 
-        # torch.cuda.empty_cache()    # メモリの解放 1iterationごとに解放
+        torch.cuda.empty_cache()    # メモリの解放 1iterationごとに解放
         with open(csv_path, "a") as out_file:  # ファイルオープン
             out_file.write(f"{model_loss_sum}\n")  # 書き込み
         # torch.cuda.empty_cache()    # メモリの解放 1epochごとに解放-
@@ -263,7 +264,7 @@ def test(mix_dir:str, out_dir:str, model_path:str):
     model_name, _ = my_func.get_file_name(model_path)
 
     # モデルの読み込み
-    model = UGCNNet(n_channels=1, n_classes=1, k_neighbors=5).to(device)
+    model = UGCNNet(n_channels=1, n_classes=1, k_neighbors=8).to(device)
     # model = U_Net().to(device)
 
     # TasNet_model.load_state_dict(torch.load('./pth/model/' + model_path + '.pth'))
@@ -320,7 +321,7 @@ def test(mix_dir:str, out_dir:str, model_path:str):
         # 混合データを保存
         # mask = mask*mix
         my_func.save_wav(fname, separate, prm)
-        # torch.cuda.empty_cache()    # メモリの解放 1音声ごとに解放
+        torch.cuda.empty_cache()    # メモリの解放 1音声ごとに解放
         # torchaudio.save(
         #     fname,
         #     separate.detach().numpy(),
