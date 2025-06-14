@@ -335,22 +335,22 @@ def test(mix_dir:str, out_dir:str, model_path:str):
 if __name__ == '__main__':
     # "C:\Users\kataoka-lab\Desktop\sound_data\dataset\subset_DEMAND_hoth_1010dB_1ch\subset_DEMAND_hoth_1010dB_05sec_1ch\noise_reverbe"
     # コンフリクトの解消
-    # for i in range(4, 5):
-    # "C:\Users\kataoka-lab\Desktop\sound_data\mix_data\subset_DEMAND_1ch\condition_1\train\clean"
-    # C:\Users\kataoka - lab\Desktop\sound_data\mix_data\subset_DEMAND_hoth_1010dB_1ch\subset_DEMAND_hoth_1010dB_05sec_1ch\train\reverbe_only
-    train(clean_path=f"{const.MIX_DATA_DIR}/subset_DEMAND_hoth_1010dB_1ch/subset_DEMAND_hoth_1010dB_05sec_1ch/train/clean",
-          noisy_path=f"{const.MIX_DATA_DIR}/subset_DEMAND_hoth_1010dB_1ch/subset_DEMAND_hoth_1010dB_05sec_1ch/train/reverbe_only",
-          out_path=f"{const.PTH_DIR}/URelNet/subset_DEMAND_1ch/reverbe_only.pth", batchsize=1)
+    # for i in range(4, 5): C:\Users\kataoka-lab\Desktop\sound_data\sample_data\speech\subset_DEMAND\train
+    # C:\Users\kataoka-lab\Desktop\sound_data\mix_data\subset_DEMAND_hoth_1010dB_05sec_1ch_0cm\train
+    train(clean_path=f"{const.MIX_DATA_DIR}/subset_DEMAND_hoth_1010dB_05sec_1ch_0cm/train/clean",
+          noisy_path=f"{const.MIX_DATA_DIR}/subset_DEMAND_hoth_1010dB_05sec_1ch_0cm/train/reverbe_only",
+          out_path=f"{const.PTH_DIR}/GNN/subset_DEMAND_hoth_1010dB_05sec_1ch_0cm/reverbe_only.pth", batchsize=1)
 
-    test(mix_dir=f"{const.MIX_DATA_DIR}/subset_DEMAND_hoth_1010dB_1ch/subset_DEMAND_hoth_1010dB_05sec_1ch/test/reverbe_only",
-         out_dir=f"{const.OUTPUT_WAV_DIR}/URelNet/subset_DEMAND_1ch/condition_1/test/reverbe_only2",
-         model_path=f"{const.PTH_DIR}/URelNet/subset_DEMAND_1ch/reverbe_only.pth")
+    test(mix_dir=f"{const.MIX_DATA_DIR}/subset_DEMAND_hoth_1010dB_05sec_1ch_0cm/test/clean",
+         out_dir=f"{const.OUTPUT_WAV_DIR}/GNN/subset_DEMAND_hoth_1010dB_05sec_1ch_0cm/reverbe_only",
+         model_path=f"{const.PTH_DIR}/GNN/subset_DEMAND_hoth_1010dB_05sec_1ch_0cm/reverbe_only.pth")
 
 
-    train(clean_path=f"{const.MIX_DATA_DIR}/subset_DEMAND_hoth_1010dB_1ch/subset_DEMAND_hoth_1010dB_05sec_1ch/train/clean",
-          noisy_path=f"{const.MIX_DATA_DIR}/subset_DEMAND_hoth_1010dB_1ch/subset_DEMAND_hoth_1010dB_05sec_1ch/train/noise_reverbe",
-          out_path=f"{const.PTH_DIR}/URelNet/subset_DEMAND_1ch/noise_reverbe.pth", batchsize=1)
 
-    test(mix_dir=f"{const.MIX_DATA_DIR}/subset_DEMAND_hoth_1010dB_1ch/subset_DEMAND_hoth_1010dB_05sec_1ch/test/noise_reverbe",
-         out_dir=f"{const.OUTPUT_WAV_DIR}/URelNet/subset_DEMAND_1ch/test/noise_reverbe",
-         model_path=f"{const.PTH_DIR}/URelNet/subset_DEMAND_1ch/noise_reverbe.pth")
+    # train(clean_path=f"{const.MIX_DATA_DIR}/subset_DEMAND_hoth_1010dB_1ch/subset_DEMAND_hoth_1010dB_05sec_1ch/train/clean",
+    #       noisy_path=f"{const.MIX_DATA_DIR}/subset_DEMAND_hoth_1010dB_1ch/subset_DEMAND_hoth_1010dB_05sec_1ch/train/noise_reverbe",
+    #       out_path=f"{const.PTH_DIR}/URelNet/subset_DEMAND_1ch/noise_reverbe.pth", batchsize=1)
+    #
+    # test(mix_dir=f"{const.MIX_DATA_DIR}/subset_DEMAND_hoth_1010dB_1ch/subset_DEMAND_hoth_1010dB_05sec_1ch/test/noise_reverbe",
+    #      out_dir=f"{const.OUTPUT_WAV_DIR}/URelNet/subset_DEMAND_1ch/test/noise_reverbe",
+    #      model_path=f"{const.PTH_DIR}/URelNet/subset_DEMAND_1ch/noise_reverbe.pth")
