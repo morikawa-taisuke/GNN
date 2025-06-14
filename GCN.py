@@ -241,7 +241,7 @@ def main():
     x = torch.randn(batch, num_mic, length).to(device)
 
     # モデルの初期化とデバイスへの移動
-    model = URelNet(n_channels=num_mic, n_classes=num_mic, k_neighbors=8).to(device)
+    model = GCN(n_channels=num_mic, n_classes=num_mic, k_neighbors=8).to(device)
 
     # モデルのサマリーを表示
     # print_model_summary(model, batch, num_mic, length)
