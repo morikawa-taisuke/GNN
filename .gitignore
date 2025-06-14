@@ -7,4 +7,5 @@ __pycache__/
 */.vscode/
 */.DS_Store
 */mac_GPU.py
+/RESULT
 .iml
