@@ -99,7 +99,7 @@ def si_sdr_loss(ests, egs):
     return -torch.sum(max_perutt) / N
 
 
-def train(clean_path:str, noisy_path:str, out_path:str="./RESULT/pth/result.pth", loss_func:str="SISDR", batchsize:int=const.BATCHSIZE, checkpoint_path:str=None, train_count:int=const.EPOCH, earlystopping_threshold:int=5):
+def train(clean_path:str, noisy_path:str, out_path:str="./RESULT/pth/result.pth", loss_func:str="stft_MSE", batchsize:int=const.BATCHSIZE, checkpoint_path:str=None, train_count:int=const.EPOCH, earlystopping_threshold:int=5):
     """ GPUの設定 """
     device = "cuda" if torch.cuda.is_available() else "cpu" # GPUが使えれば使う
     """ その他の設定 """
@@ -195,8 +195,8 @@ def train(clean_path:str, noisy_path:str, out_path:str="./RESULT/pth/result.pth"
                     model_loss = loss_function(estimate_data, target_data)  # 時間波形上でMSEによる損失関数の計算
                 case "stft_MSE":
                     """ 周波数軸に変換 """
-                    stft_estimate_data = torch.stft(estimate_data[0, 0, :], n_fft=1024, return_complex=True)
-                    stft_target_data = torch.stft(target_data[0, 0, :], n_fft=1024, return_complex=True)
+                    stft_estimate_data = torch.stft(estimate_data, n_fft=1024, return_complex=False)
+                    stft_target_data = torch.stft(target_data[0], n_fft=1024, return_complex=False)
                     model_loss = loss_function(stft_estimate_data, stft_target_data)  # 時間周波数上MSEによる損失の計算
 
             model_loss_sum += model_loss  # 損失の加算
