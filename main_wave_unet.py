@@ -264,8 +264,8 @@ def test(mix_dir:str, out_dir:str, model_path:str):
     model_name, _ = my_func.get_file_name(model_path)
 
     # モデルの読み込み
-    model = UGCNNet(n_channels=1, n_classes=1, k_neighbors=8).to(device)
-    # model = U_Net().to(device)
+    # model = UGCNNet(n_channels=1, n_classes=1, k_neighbors=8).to(device)
+    model = U_Net().to(device)
 
     # TasNet_model.load_state_dict(torch.load('./pth/model/' + model_path + '.pth'))
     model.load_state_dict(torch.load(os.path.join(model_dir, f"BEST_{model_name}.pth")))
