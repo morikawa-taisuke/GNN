@@ -124,8 +124,8 @@ def train(clean_path:str, noisy_path:str, out_path:str="./RESULT/pth/result.pth"
 
 
     """ ネットワークの生成 """
-    model = UGCNNet(n_channels=1, n_classes=1, k_neighbors=8).to(device)
-    # model = U_Net().to(device)
+    # model = UGCNNet(n_channels=1, n_classes=1, k_neighbors=8).to(device)
+    model = U_Net().to(device)
     # print(f"\nmodel:{model}\n")                           # モデルのアーキテクチャの出力
     optimizer = optim.Adam(model.parameters(), lr=0.001)    # optimizerを選択(Adam)
     if loss_func != "SISDR":
@@ -345,10 +345,10 @@ if __name__ == '__main__':
     #      out_dir=f"{const.OUTPUT_WAV_DIR}/UGCN/subset_DEMAND_1ch/random_node/STFT_MSE/{wave_type}",
     #      model_path=f"{const.PTH_DIR}/UGCN/subset_DEMAND_1ch/random_node/{wave_type}2.pth")
     
-    # train(clean_path=f"{const.MIX_DATA_DIR}/subset_DEMAND_hoth_1010dB_1ch/subset_DEMAND_hoth_1010dB_05sec_1ch/train/clean",
-    #       noisy_path=f"{const.MIX_DATA_DIR}/subset_DEMAND_hoth_1010dB_1ch/subset_DEMAND_hoth_1010dB_05sec_1ch/train/{wave_type}",
-    #       out_path=f"{const.PTH_DIR}/UGCN/subset_DEMAND_1ch/random_node/{wave_type}2.pth", batchsize=1)
+    train(clean_path=f"{const.MIX_DATA_DIR}/subset_DEMAND_hoth_1010dB_1ch/subset_DEMAND_hoth_1010dB_05sec_1ch/train/clean",
+          noisy_path=f"{const.MIX_DATA_DIR}/subset_DEMAND_hoth_1010dB_1ch/subset_DEMAND_hoth_1010dB_05sec_1ch/train/{wave_type}",
+          out_path=f"{const.PTH_DIR}/WaveUNet/subset_DEMAND_hoth_1010dB_1ch/{wave_type}.pth", batchsize=1)
 
     test(mix_dir=f"{const.MIX_DATA_DIR}/subset_DEMAND_hoth_1010dB_1ch/subset_DEMAND_hoth_1010dB_05sec_1ch/test/{wave_type}",
-         out_dir=f"{const.OUTPUT_WAV_DIR}/UGCN/subset_DEMAND_1ch/random_node/subset_DEMAND_hoth_0505dB/{wave_type}",
-         model_path=f"{const.PTH_DIR}/subset_DEMAND_hoth_0505dB/subset_DEMAND_hoth_0505dB.pth")
+         out_dir=f"{const.OUTPUT_WAV_DIR}/WaveUNet/subset_DEMAND_hoth_1010dB_1ch/{wave_type}",
+         model_path=f"{const.PTH_DIR}/WaveUNet/subset_DEMAND_hoth_1010dB_1ch/{wave_type}.pth")

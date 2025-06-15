@@ -1,5 +1,5 @@
 from models.wave_unet import U_Net
-from models.GCN import UGCNNet
+from models.old_GCN import RelNet
 import time             # 時間
 # from librosa.core import stft, istft
 import torch
