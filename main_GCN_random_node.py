@@ -1,5 +1,5 @@
 from wave_unet import U_Net
-from models.GCN import UGCNNet2
+from models.GCN import UGCNNet
 import time             # 時間
 # from librosa.core import stft, istft
 import torch
@@ -28,8 +28,8 @@ from mymodule import my_func, const
 os.environ['PYTORCH_CUDA_ALLOC_CONF'] = 'expandable_segments:True'
 
 # CUDAの可用性をチェック
-# device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-device = torch.device("mps")
+device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+# device = torch.device("mps")
 print(f"Using device: {device}")
 
 def padding_tensor(tensor1, tensor2):
@@ -124,7 +124,7 @@ def train(clean_path:str, noisy_path:str, out_path:str="./RESULT/pth/result.pth"
 
 
     """ ネットワークの生成 """
-    model = UGCNNet2(n_channels=1, n_classes=1, k_neighbors=8).to(device)
+    model = UGCNNet(n_channels=1, n_classes=1, k_neighbors=8).to(device)
     # model = U_Net().to(device)
     # print(f"\nmodel:{model}\n")                           # モデルのアーキテクチャの出力
     optimizer = optim.Adam(model.parameters(), lr=0.001)    # optimizerを選択(Adam)
@@ -190,7 +190,7 @@ def train(clean_path:str, noisy_path:str, out_path:str="./RESULT/pth/result.pth"
             model_loss = 0
             match loss_func:
                 case "SISDR":
-                    model_loss = si_sdr_loss(estimate_data, target_data)
+                    model_loss = si_sdr_loss(estimate_data, target_data8)
                 case "wave_MSE":
                     model_loss = loss_function(estimate_data, target_data)  # 時間波形上でMSEによる損失関数の計算
                 case "stft_MSE":
@@ -264,7 +264,7 @@ def test(mix_dir:str, out_dir:str, model_path:str):
     model_name, _ = my_func.get_file_name(model_path)
 
     # モデルの読み込み
-    model = UGCNNet2(n_channels=1, n_classes=1, k_neighbors=8).to(device)
+    model = UGCNNet(n_channels=1, n_classes=1, k_neighbors=8).to(device)
     # model = U_Net().to(device)
 
     # TasNet_model.load_state_dict(torch.load('./pth/model/' + model_path + '.pth'))
@@ -337,10 +337,10 @@ if __name__ == '__main__':
     # "C:\Users\kataoka-lab\Desktop\sound_data\dataset\subset_DEMAND_hoth_1010dB_1ch\subset_DEMAND_hoth_1010dB_05sec_1ch\noise_reverbe"
 
     wave_type = "noise_only"
-    train(clean_path=f"{const.MIX_DATA_DIR}/subset_DEMAND_hoth_1010dB_1ch/subset_DEMAND_hoth_1010dB_05sec_1ch/train/clean",
-          noisy_path=f"{const.MIX_DATA_DIR}/subset_DEMAND_hoth_1010dB_1ch/subset_DEMAND_hoth_1010dB_05sec_1ch/train/{wave_type}",
-          out_path=f"{const.PTH_DIR}/UGCN/subset_DEMAND_1ch/random_node/{wave_type}.pth", batchsize=1)
+    # train(clean_path=f"{const.MIX_DATA_DIR}/subset_DEMAND_hoth_1010dB_1ch/subset_DEMAND_hoth_1010dB_05sec_1ch/train/clean",
+    #       noisy_path=f"{const.MIX_DATA_DIR}/subset_DEMAND_hoth_1010dB_1ch/subset_DEMAND_hoth_1010dB_05sec_1ch/train/{wave_type}",
+    #       out_path=f"{const.PTH_DIR}/UGCN/subset_DEMAND_1ch/random_node/{wave_type}.pth", batchsize=1)
 
-    test(mix_dir=f"{const.MIX_DATA_DIR}/subset_DEMAND_hoth_1010dB_1ch/subset_DEMAND_hoth_1010dB_05sec_1ch/test/{{wave_type}}",
+    test(mix_dir=f"{const.MIX_DATA_DIR}/subset_DEMAND_hoth_1010dB_1ch/subset_DEMAND_hoth_1010dB_05sec_1ch/test/{wave_type}",
          out_dir=f"{const.OUTPUT_WAV_DIR}/UGCN/subset_DEMAND_1ch/random_node/test/{wave_type}",
          model_path=f"{const.PTH_DIR}/UGCN/subset_DEMAND_1ch/random_node/{wave_type}.pth")
