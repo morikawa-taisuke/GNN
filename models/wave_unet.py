@@ -124,9 +124,9 @@ class U_Net(nn.Module):
 
     def forward(self, x):
         # encoding path
-        print("x: ", x.shape)
+        # print("x: ", x.shape)
         x = self.encoder(x)
-        print("encoder out: ", x.shape)
+        # print("encoder out: ", x.shape)
         # x = x.unsqueeze(dim=0)
         x = x.unsqueeze(dim=1)
         x1 = self.Conv1(x)
@@ -150,7 +150,7 @@ class U_Net(nn.Module):
         d1 = self.Conv_1x1(d2)
         d1 = torch.sigmoid(d1)
         out = x * d1
-        print("out: ", out.shape)
+        # print("out: ", out.shape)
         out = out.squeeze()
         out = self.decoder(out)
 
