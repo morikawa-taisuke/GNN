@@ -50,10 +50,10 @@ def main(target_dir, estimation_dir, out_path):
         target_data = np.nan_to_num(target_data, nan=0.0, posinf=0.0, neginf=0.0)
         estimation_data = np.nan_to_num(estimation_data, nan=0.0, posinf=0.0, neginf=0.0)
 
-        print("target: ", target_data)
-        print("estimation: ", estimation_data)
-        print("target: ", target_data.shape)
-        print("estimation: ", estimation_data.shape)
+        # print("target: ", target_data)
+        # print("estimation: ", estimation_data)
+        # print("target: ", target_data.shape)
+        # print("estimation: ", estimation_data.shape)
 
         """ 客観評価の計算 """
         pesq_score = pesq_evaluation(target_data, estimation_data)
@@ -83,6 +83,9 @@ def main(target_dir, estimation_dir, out_path):
 
 if __name__ == "__main__":
     print("evaluation")
-    main(target_dir=os.path.join(const.MIX_DATA_DIR, "JA_hoth_00dB",  "test", "target"),
-         estimation_dir=os.path.join(const.OUTPUT_WAV_DIR, "JA_hoth_00dB"),
-         out_path=os.path.join(const.EVALUATION_DIR, "JA_hoth_00dB.csv"))
+    target_dir = "C:/Users/kataoka-lab/Desktop/sound_data/mix_data/subset_DEMAND_hoth_1010dB_1ch/subset_DEMAND_hoth_1010dB_05sec_1ch/test/clean"
+    estimation_dir = "C:/Users/kataoka-lab/Desktop/sound_data/RESULT/output_wav/UGCN/subset_DEMAND_1ch/random_node/STFT_MSE/noise_only"
+    out_csv_name = "UGCN_random_node_STFT_MSE_noise_only.csv"
+    main(target_dir=target_dir,
+         estimation_dir=estimation_dir,
+         out_path=os.path.join(const.EVALUATION_DIR, out_csv_name))
