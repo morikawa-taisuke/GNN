@@ -1,21 +1,11 @@
 import torch
 from torch.profiler import profile, record_function, ProfilerActivity
 import torch.nn as nn
-from urelnet import URelNet
+from models.urelnet import URelNet
 import time
 
-def profile_model():
-    # デバイスの設定
-    device = "mps"
-    print(f"Using device: {device}")
-
-    # モデルのパラメータ設定
-    batch_size = 1
-    num_mic = 1
-    length = 128000
-
+def profile_model(model, device="cpu"):
     # モデルの初期化
-    model = URelNet(n_channels=num_mic, n_classes=num_mic, k_neighbors=8).to(device)
     model.eval()  # 評価モードに設定
 
     # サンプル入力データの作成
@@ -56,4 +46,15 @@ def profile_model():
     prof.export_chrome_trace("trace.json")
 
 if __name__ == '__main__':
-    profile_model() 
+    # デバイスの設定
+    device = "mps"
+    print(f"Using device: {device}")
+
+    # モデルのパラメータ設定
+    batch_size = 1
+    num_mic = 1
+    length = 128000
+
+    model = URelNet(n_channels=num_mic, n_classes=num_mic, k_neighbors=8).to(device)
+
+    profile_model(model=model, device=device) 

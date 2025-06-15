@@ -87,19 +87,23 @@ def noise_reverbe(csv_path, speech_dir, noise_dir, ir_dir, output_dir):
         # ファイル名抽出
         speech_file = os.path.basename(row['wav_path'])
         noise_file = os.path.basename(row['noise_path'])
-        speech_ir_file = os.path.basename(row['speech_IR'])
-        noise_ir_file = os.path.basename(row['noise_IR'])
-        snr = float(row['snr'])
+        # speech_ir_file = os.path.basename(row['speech_IR'])
+        # noise_ir_file = os.path.basename(row['noise_IR'])
+        # snr = float(row['snr'])
+        speech_ir_file = "050sec"
+        noise_ir_file = "050sec_000dig"
+        snr = 5.0
 
         # ファイルパス生成
-        speech_path = os.path.join(speech_dir, speech_file)
-        noise_path = os.path.join(noise_dir, noise_file)
+        speech_path = os.path.join(speech_dir, speech_file + ".wav")
+        noise_path = os.path.join(noise_dir, noise_file + ".wav")
         speech_ir_path = os.path.join(ir_dir, "speech", speech_ir_file + ".wav")
         noise_ir_path = os.path.join(ir_dir, "noise", noise_ir_file + ".wav")
 
         # 読み込み
         speech, sr = load_wav(speech_path)
-        noise, _ = load_wav(noise_path)
+        # noise, _ = load_wav(noise_path)
+        noise, _ = load_wav(noise_dir)
         speech_ir, _ = load_wav(speech_ir_path)
         noise_ir, _ = load_wav(noise_ir_path)
 
@@ -217,11 +221,23 @@ if __name__ == '__main__':
     test_train = "test"
     for i in range(1, 2):
         # "C:\Users\kataoka-lab\Desktop\sound_data\sample_data\speech\GNN\subset_DEMAND\condition\train\condition_1.csv"
-        csv_path = f"{const.SAMPLE_DATA_DIR}/speech/GNN/subset_DEMAND/condition/{test_train}/condition_{i}.csv"
-        speech_dir = f"{const.SAMPLE_DATA_DIR}/speech/subset_DEMAND/{test_train}"
+        # csv_path = f"{const.SAMPLE_DATA_DIR}/speech/GNN/subset_DEMAND/condition/{test_train}/condition_{i}.csv"
+        # speech_dir = f"{const.SAMPLE_DATA_DIR}/speech/subset_DEMAND/{test_train}"
 
-        ir_dir = f"{const.SAMPLE_DATA_DIR}/IR/1ch_0cm_liner/clean"
-        output_dir =  f"{const.MIX_DATA_DIR}/subset_DEMAND_1ch/condition_{i}/{test_train}/clean"
+        # ir_dir = f"{const.SAMPLE_DATA_DIR}/IR/1ch_0cm_liner/clean"
+        # output_dir =  f"{const.MIX_DATA_DIR}/subset_DEMAND_1ch/condition_{i}/{test_train}/clean"
+        # clean(csv_path, speech_dir, ir_dir, output_dir)
+
+        # # noise_dir = "C:/Users/kataoka-lab/Desktop/sound_data/sample_data/noise/DEMAND/"
+        # ir_dir = f"{const.SAMPLE_DATA_DIR}/IR/1ch_0cm_liner/reverbe_only"
+        # output_dir =  f"{const.MIX_DATA_DIR}/subset_DEMAND_1ch/condition_{i}/{test_train}/reverbe_only"
+        # reverbe_only(csv_path, speech_dir, ir_dir, output_dir)
+        
+        csv_path = f"/Users/a/Documents/sound_data/sample_data/speech/subset_DEMAND/condition_{i}.csv"
+        speech_dir = f"/Users/a/Documents/sound_data/sample_data/speech/subset_DEMAND/{test_train}"
+
+        ir_dir = f"/Users/a/Documents/sound_data/sample_data/IR/1ch_0cm_liner/clean"
+        output_dir =  f"/Users/a/Documents/sound_data/mix_data/subset_DEMAND_1ch/condition_{i}/{test_train}/clean"
         clean(csv_path, speech_dir, ir_dir, output_dir)
 
         noise_dir = "C:/Users/kataoka-lab/Desktop/sound_data/sample_data/noise/DEMAND/"

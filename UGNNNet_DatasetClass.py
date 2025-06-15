@@ -1,12 +1,13 @@
 import torch
 from torch.utils.data import Dataset, DataLoader
+import torch.nn.functional as F
 import torchaudio
 import os
 import glob  # ファイルパスのパターンマッチングに便利
 from mymodule import my_func
 
 class AudioDataset(Dataset):
-    def __init__(self, noisy_audio_dir, clean_audio_dir, sample_rate=16000, max_length_sec=4):
+    def __init__(self, noisy_audio_dir, clean_audio_dir, sample_rate=16000, max_length_sec=3):
         """
         オーディオデータセットクラス
 
@@ -78,10 +79,10 @@ class AudioDataset(Dataset):
         # このモデルは固定長入力を必要としないが、バッチ処理のために長さを揃える必要がある場合
         # または、常に同じ長さのサンプルを入力したい場合は、ここでパディングを行う
         # 例:
-        # if self.max_length_samples is not None and noisy_waveform.shape[1] < self.max_length_samples:
-        #     padding_amount = self.max_length_samples - noisy_waveform.shape[1]
-        #     noisy_waveform = F.pad(noisy_waveform, (0, padding_amount))
-        #     clean_waveform = F.pad(clean_waveform, (0, padding_amount))
+        if self.max_length_samples is not None and noisy_waveform.shape[1] < self.max_length_samples:
+            padding_amount = self.max_length_samples - noisy_waveform.shape[1]
+            noisy_waveform = F.pad(noisy_waveform, (0, padding_amount))
+            clean_waveform = F.pad(clean_waveform, (0, padding_amount))
 
         # 正規化（オプション）：-1から1の範囲に正規化されていることがほとんどだが、確認
         # ピーク値で正規化

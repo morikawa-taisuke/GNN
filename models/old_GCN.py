@@ -1,9 +1,9 @@
 import torch
-from torch import nn
+import torch.nn as nn
 import os
 from torchinfo import summary
 import torch.nn.functional as F
-
+from torch_geometric.nn import GCNConv
 
 
 # CUDAのメモリ管理設定
@@ -12,6 +12,7 @@ os.environ['PYTORCH_CUDA_ALLOC_CONF'] = 'expandable_segments:True'
 # CUDAの可用性をチェック
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 print(f"Using device: {device}")
+
 
 class DoubleConv(nn.Module):
     def __init__(self, in_channels, out_channels):
@@ -57,72 +58,58 @@ class Up(nn.Module):
         return self.conv(x)
 
 
-class RelNet(nn.Module):
-    def __init__(self, input_dim, hidden_dim, relation_dim, output_dim):
-        super().__init__()
-        self.relation_model = nn.Sequential(
-            nn.Linear(2 * input_dim, hidden_dim),
-            nn.ReLU(),
-            nn.Linear(hidden_dim, relation_dim),
-            nn.ReLU()
-        )
-        self.output_model = nn.Sequential(
-            nn.Linear(relation_dim, 64),
-            nn.ReLU(),
-            nn.Linear(64, output_dim)
-        )
-
-    def forward(self, node_feats=8):
-        N = node_feats.size(0)
-        relation_vectors = []
-
-        for i in range(N):
-            for j in range(N):
-                pair_feat = torch.cat([node_feats[i], node_feats[j]], dim=0)
-                r_ij = self.relation_model(pair_feat)
-                relation_vectors.append(r_ij)
-
-        relation_vectors = torch.stack(relation_vectors, dim=0)  # shape: [N*N, D]
-        R = relation_vectors.mean(dim=0)  # shape: [D]
-        out = self.output_model(R)  # shape: [output_dim]
-        return out
+class GCN(nn.Module):
+    def __init__(self, input_dim, hidden_dim, output_dim):
+        super(GCN, self).__init__()
+        self.conv1 = GCNConv(input_dim, hidden_dim)
+        self.conv2 = GCNConv(hidden_dim, hidden_dim)
+        self.conv3 = GCNConv(hidden_dim, output_dim)
+        
+    def forward(self, x, edge_index):
+        x = F.relu(self.conv1(x, edge_index))
+        x = F.dropout(x, p=0.5, training=self.training)
+        x = F.relu(self.conv2(x, edge_index))
+        x = F.dropout(x, p=0.5, training=self.training)
+        x = self.conv3(x, edge_index)
+        return x
 
 
-class URelNet(nn.Module):
+class UGCN(nn.Module):
     def __init__(self, n_channels, n_classes, hidden_dim=32, k_neighbors=8):
-        super(URelNet, self).__init__()
+        super(UGCN, self).__init__()
         self.n_channels = n_channels
         self.n_classes = n_classes
         self.k_neighbors = k_neighbors
 
-        self.encoder_dim = 512
-        self.sampling_rate = 16000
+        self.encoder_dim=512
+        self.sampling_rate=16000
         self.win = 4
-        self.win = int(self.sampling_rate * self.win / 1000)
-        self.stride = self.win // 2  # 畳み込み処理におけるフィルタが移動する幅
+        self.win=int(self.sampling_rate * self.win / 1000)
+        self.stride = self.win // 2   # 畳み込み処理におけるフィルタが移動する幅
 
         # エンコーダ
-        self.encoder = nn.Conv1d(in_channels=n_channels,  # 入力データの次元数 #=1もともとのやつ
-                                 out_channels=self.encoder_dim,  # 出力データの次元数
+        self.encoder = nn.Conv1d(in_channels=n_channels,    # 入力データの次元数 #=1もともとのやつ
+                                 out_channels=self.encoder_dim, # 出力データの次元数
                                  kernel_size=self.win,  # 畳み込みのサイズ(波形領域なので窓長なの?)
-                                 bias=False,  # バイアスの有無(出力に学習可能なバイアスの追加)
-                                 stride=self.stride)  # 畳み込み処理の移動幅
+                                 bias=False,    # バイアスの有無(出力に学習可能なバイアスの追加)
+                                 stride=self.stride)    # 畳み込み処理の移動幅
         # デコーダ
-        self.decoder = nn.ConvTranspose1d(in_channels=self.encoder_dim,  # 入力次元数
+        self.decoder = nn.ConvTranspose1d(in_channels = self.encoder_dim,   # 入力次元数
                                           out_channels=n_channels,  # 出力次元数 1もともとのやつ
-                                          kernel_size=self.win,  # カーネルサイズ
+                                          kernel_size= self.win,    # カーネルサイズ
                                           bias=False,
-                                          stride=self.stride)  # 畳み込み処理の移動幅
+                                          stride=self.stride)   # 畳み込み処理の移動幅
+
 
         # エンコーダー部分
         self.inc = DoubleConv(n_channels, 64)
         self.down1 = Down(64, 128)
         self.down2 = Down(128, 256)
         self.down3 = Down(256, 512)
-
+        
         # ボトルネック部分（RelNet）
-        self.relnet = RelNet(512, hidden_dim, hidden_dim, 512)
-
+        self.relnet = GCN(512, hidden_dim, 512)
+        
         # デコーダー部分
         self.up1 = Up(512, 256)
         self.up2 = Up(256, 128)
@@ -134,10 +121,10 @@ class URelNet(nn.Module):
         edge_index = torch.zeros((2, num_nodes * self.k_neighbors), dtype=torch.long, device=device)
         for i in range(num_nodes):
             # ランダムにk個の近傍を選択（自分自身は除外）
-            neighbors = torch.randperm(num_nodes - 1, device=device)[:self.k_neighbors]
+            neighbors = torch.randperm(num_nodes-1, device=device)[:self.k_neighbors]
             neighbors[neighbors >= i] += 1  # 自分自身をスキップ
-            edge_index[0, i * self.k_neighbors:(i + 1) * self.k_neighbors] = i
-            edge_index[1, i * self.k_neighbors:(i + 1) * self.k_neighbors] = neighbors
+            edge_index[0, i*self.k_neighbors:(i+1)*self.k_neighbors] = i
+            edge_index[1, i*self.k_neighbors:(i+1)*self.k_neighbors] = neighbors
         return edge_index
 
     def forward(self, x, edge_index=None):
@@ -151,21 +138,21 @@ class URelNet(nn.Module):
         x2 = self.down1(x1)
         x3 = self.down2(x2)
         x4 = self.down3(x3)
-
+        
         # ボトルネック（RelNet）
         batch_size, channels, height, width = x4.size()
         x4_reshaped = x4.view(batch_size, channels, -1).permute(0, 2, 1)
         x4_reshaped = x4_reshaped.reshape(-1, channels)
-
+        
         if edge_index is None:
             # スパースグラフを作成
             num_nodes = x4_reshaped.size(0)
-            # edge_index = self.create_sparse_graph(num_nodes)  # GCNのとき
-            edge_index = num_nodes  # GCN不使用
-
-        x4_processed = self.relnet(x4_reshaped)
+            edge_index = self.create_sparse_graph(num_nodes)
+        
+        x4_processed = self.relnet(x4_reshaped, edge_index)
         x4_processed = x4_processed.view(batch_size, height, width, channels).permute(0, 3, 1, 2)
-
+        
+        # デコーダー
         d3 = self.up1(x4_processed, x3)
         d2 = self.up2(d3, x2)
         d1 = self.up3(d2, x1)
@@ -178,67 +165,40 @@ class URelNet(nn.Module):
         out = self.decoder(out)
         return out
 
-
 def print_model_summary(model, batch_size, channels, length):
     # サンプル入力データを作成
     x = torch.randn(batch_size, channels, length).to(device)
-
+    
     # モデルのサマリーを表示
     print("\nURelNet Model Summary:")
     summary(model, input_data=x)
 
-
-def padding_tensor(tensor1, tensor2):
-    """
-    最後の次元（例: 時系列長）が異なる2つのテンソルに対して、
-    短い方を末尾にゼロパディングして長さをそろえる。
-
-    Args:
-        tensor1, tensor2 (torch.Tensor): 任意の次元数のテンソル
-
-    Returns:
-        padded_tensor1, padded_tensor2 (torch.Tensor)
-    """
-    len1 = tensor1.size(-1)
-    len2 = tensor2.size(-1)
-    max_len = max(len1, len2)
-
-    pad1 = [0, max_len - len1]  # 最後の次元だけパディング
-    pad2 = [0, max_len - len2]
-
-    padded_tensor1 = F.pad(tensor1, pad1)
-    padded_tensor2 = F.pad(tensor2, pad2)
-
-    return padded_tensor1, padded_tensor2
-
-
 def main():
     print("main")
     # サンプルデータの作成（入力サイズを縮小）
-    batch = 1  # const.BATCHSIZE
+    batch = 1 # const.BATCHSIZE
     num_mic = 1  # 入力サイズを縮小
     length = 128000  # 入力サイズを縮小
-
-    # ランダムな入力データを作成
+    
+    # ランダムな入力画像を作成
     x = torch.randn(batch, num_mic, length).to(device)
 
     # モデルの初期化とデバイスへの移動
-    model = URelNet(n_channels=num_mic, n_classes=num_mic, k_neighbors=8).to(device)
-
+    model = UGCN(n_channels=num_mic, n_classes=num_mic, k_neighbors=8).to(device)
+    
     # モデルのサマリーを表示
-    # print_model_summary(model, batch, num_mic, length)
-
+    print_model_summary(model, batch, num_mic, length)
+    
     # フォワードパス
     output = model(x)
     print(f"\nInput shape: {x.shape}")
     print(f"Output shape: {output.shape}")
-
+    
     # メモリ使用量の表示
     if torch.cuda.is_available():
         print(f"\nGPU Memory Usage:")
-        print(f"Allocated: {torch.cuda.memory_allocated(device) / 1024 ** 2:.2f} MB")
-        print(f"Cached: {torch.cuda.memory_reserved(device) / 1024 ** 2:.2f} MB")
-
+        print(f"Allocated: {torch.cuda.memory_allocated(device) / 1024**2:.2f} MB")
+        print(f"Cached: {torch.cuda.memory_reserved(device) / 1024**2:.2f} MB")
 
 if __name__ == '__main__':
     main()

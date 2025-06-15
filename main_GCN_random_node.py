@@ -1,5 +1,5 @@
 from models.wave_unet import U_Net
-from models.urelnet import URelNet
+from models.GCN import UGCNNet
 import time             # 時間
 # from librosa.core import stft, istft
 import torch
@@ -29,7 +29,7 @@ os.environ['PYTORCH_CUDA_ALLOC_CONF'] = 'expandable_segments:True'
 
 # CUDAの可用性をチェック
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-# device = "mps"
+# device = torch.device("mps")
 print(f"Using device: {device}")
 
 def padding_tensor(tensor1, tensor2):
@@ -99,7 +99,7 @@ def si_sdr_loss(ests, egs):
     return -torch.sum(max_perutt) / N
 
 
-def train(clean_path:str, noisy_path:str, out_path:str="./RESULT/pth/result.pth", loss_func:str="SISDR", batchsize:int=const.BATCHSIZE, checkpoint_path:str=None, train_count:int=const.EPOCH, earlystopping_threshold:int=5):
+def train(clean_path:str, noisy_path:str, out_path:str="./RESULT/pth/result.pth", loss_func:str="stft_MSE", batchsize:int=const.BATCHSIZE, checkpoint_path:str=None, train_count:int=const.EPOCH, earlystopping_threshold:int=5):
     """ GPUの設定 """
     device = "cuda" if torch.cuda.is_available() else "cpu" # GPUが使えれば使う
     """ その他の設定 """
@@ -124,7 +124,7 @@ def train(clean_path:str, noisy_path:str, out_path:str="./RESULT/pth/result.pth"
 
 
     """ ネットワークの生成 """
-    model = URelNet(n_channels=1, n_classes=1, k_neighbors=8).to(device)
+    model = UGCNNet(n_channels=1, n_classes=1, k_neighbors=8).to(device)
     # model = U_Net().to(device)
     # print(f"\nmodel:{model}\n")                           # モデルのアーキテクチャの出力
     optimizer = optim.Adam(model.parameters(), lr=0.001)    # optimizerを選択(Adam)
@@ -190,13 +190,13 @@ def train(clean_path:str, noisy_path:str, out_path:str="./RESULT/pth/result.pth"
             model_loss = 0
             match loss_func:
                 case "SISDR":
-                    model_loss = si_sdr_loss(estimate_data, target_data)
+                    model_loss = si_sdr_loss(estimate_data, target_data[0])
                 case "wave_MSE":
                     model_loss = loss_function(estimate_data, target_data)  # 時間波形上でMSEによる損失関数の計算
                 case "stft_MSE":
                     """ 周波数軸に変換 """
-                    stft_estimate_data = torch.stft(estimate_data[0, 0, :], n_fft=1024, return_complex=True)
-                    stft_target_data = torch.stft(target_data[0, 0, :], n_fft=1024, return_complex=True)
+                    stft_estimate_data = torch.stft(estimate_data, n_fft=1024, return_complex=False)
+                    stft_target_data = torch.stft(target_data[0], n_fft=1024, return_complex=False)
                     model_loss = loss_function(stft_estimate_data, stft_target_data)  # 時間周波数上MSEによる損失の計算
 
             model_loss_sum += model_loss  # 損失の加算
@@ -264,7 +264,7 @@ def test(mix_dir:str, out_dir:str, model_path:str):
     model_name, _ = my_func.get_file_name(model_path)
 
     # モデルの読み込み
-    model = URelNet(n_channels=1, n_classes=1, k_neighbors=8).to(device)
+    model = UGCNNet(n_channels=1, n_classes=1, k_neighbors=8).to(device)
     # model = U_Net().to(device)
 
     # TasNet_model.load_state_dict(torch.load('./pth/model/' + model_path + '.pth'))
@@ -332,22 +332,23 @@ def test(mix_dir:str, out_dir:str, model_path:str):
         # )
 
 
+
 if __name__ == '__main__':
-    wave_type = "noise_only"  # wavファイルを使用
-    train(clean_path=f"{const.MIX_DATA_DIR}/subset_DEMAND_hoth_1010dB_05sec_1ch_0cm/train/clean",
-          noisy_path=f"{const.MIX_DATA_DIR}/subset_DEMAND_hoth_1010dB_05sec_1ch_0cm/train/{wave_type}",
-          out_path=f"{const.PTH_DIR}/GNN/subset_DEMAND_hoth_1010dB_05sec_1ch_0cm/{wave_type}.pth", batchsize=1)
+    # "C:\Users\kataoka-lab\Desktop\sound_data\dataset\subset_DEMAND_hoth_1010dB_1ch\subset_DEMAND_hoth_1010dB_05sec_1ch\noise_reverbe"
 
-    test(mix_dir=f"{const.MIX_DATA_DIR}/subset_DEMAND_hoth_1010dB_05sec_1ch_0cm/test/clean",
-         out_dir=f"{const.OUTPUT_WAV_DIR}/GNN/subset_DEMAND_hoth_1010dB_05sec_1ch_0cm/{wave_type}",
-         model_path=f"{const.PTH_DIR}/GNN/subset_DEMAND_hoth_1010dB_05sec_1ch_0cm/{wave_type}.pth")
-
-
-
+    wave_type = "noise_only"
     # train(clean_path=f"{const.MIX_DATA_DIR}/subset_DEMAND_hoth_1010dB_1ch/subset_DEMAND_hoth_1010dB_05sec_1ch/train/clean",
-    #       noisy_path=f"{const.MIX_DATA_DIR}/subset_DEMAND_hoth_1010dB_1ch/subset_DEMAND_hoth_1010dB_05sec_1ch/train/noise_reverbe",
-    #       out_path=f"{const.PTH_DIR}/URelNet/subset_DEMAND_1ch/noise_reverbe.pth", batchsize=1)
-    #
-    # test(mix_dir=f"{const.MIX_DATA_DIR}/subset_DEMAND_hoth_1010dB_1ch/subset_DEMAND_hoth_1010dB_05sec_1ch/test/noise_reverbe",
-    #      out_dir=f"{const.OUTPUT_WAV_DIR}/URelNet/subset_DEMAND_1ch/test/noise_reverbe",
-    #      model_path=f"{const.PTH_DIR}/URelNet/subset_DEMAND_1ch/noise_reverbe.pth")
+    #       noisy_path=f"{const.MIX_DATA_DIR}/subset_DEMAND_hoth_1010dB_1ch/subset_DEMAND_hoth_1010dB_05sec_1ch/train/{wave_type}",
+    #       out_path=f"{const.PTH_DIR}/UGCN/subset_DEMAND_1ch/random_node/{wave_type}2.pth", batchsize=1)
+
+    # test(mix_dir=f"{const.MIX_DATA_DIR}/subset_DEMAND_hoth_1010dB_1ch/subset_DEMAND_hoth_1010dB_05sec_1ch/test/{wave_type}",
+    #      out_dir=f"{const.OUTPUT_WAV_DIR}/UGCN/subset_DEMAND_1ch/random_node/STFT_MSE/{wave_type}",
+    #      model_path=f"{const.PTH_DIR}/UGCN/subset_DEMAND_1ch/random_node/{wave_type}2.pth")
+    
+    # train(clean_path=f"{const.MIX_DATA_DIR}/subset_DEMAND_hoth_1010dB_1ch/subset_DEMAND_hoth_1010dB_05sec_1ch/train/clean",
+    #       noisy_path=f"{const.MIX_DATA_DIR}/subset_DEMAND_hoth_1010dB_1ch/subset_DEMAND_hoth_1010dB_05sec_1ch/train/{wave_type}",
+    #       out_path=f"{const.PTH_DIR}/UGCN/subset_DEMAND_1ch/random_node/{wave_type}2.pth", batchsize=1)
+
+    test(mix_dir=f"{const.MIX_DATA_DIR}/subset_DEMAND_hoth_1010dB_1ch/subset_DEMAND_hoth_1010dB_05sec_1ch/test/{wave_type}",
+         out_dir=f"{const.OUTPUT_WAV_DIR}/UGCN/subset_DEMAND_1ch/random_node/subset_DEMAND_hoth_0505dB/{wave_type}",
+         model_path=f"{const.PTH_DIR}/subset_DEMAND_hoth_0505dB/subset_DEMAND_hoth_0505dB.pth")
