@@ -11,4 +11,6 @@ __pycache__/
 .iml
 .idea/
 *.iml
+.DS_Store
+
 .idea/GNN.iml

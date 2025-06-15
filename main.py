@@ -1,5 +1,5 @@
-from wave_unet import U_Net
-from urelnet import URelNet
+from models.wave_unet import U_Net
+from models.urelnet import URelNet
 import time             # 時間
 # from librosa.core import stft, istft
 import torch
@@ -20,7 +20,7 @@ from torchinfo import summary
 import os
 from pathlib import Path
 
-import datasetClass
+import Dataset_Class
 from mymodule import my_func, const
 
 
@@ -119,7 +119,7 @@ def train(dataset_path:str, out_path:str="./RESULT/pth/result.pth", loss_func:st
 
     """ Load dataset データセットの読み込み """
     # dataset = datasetClass.TasNet_dataset_csv(args.dataset, channel=channel, device=device) # データセットの読み込み
-    dataset = datasetClass.GNN_dataset(dataset_path) # データセットの読み込み
+    dataset = Dataset_Class.GNN_dataset(dataset_path) # データセットの読み込み
     dataset_loader = DataLoader(dataset, batch_size=batchsize, shuffle=True, pin_memory=True)
 
 

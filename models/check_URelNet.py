@@ -9,7 +9,7 @@ from tqdm.contrib import tenumerate
 
 
 from mymodule import const
-import datasetClass
+import Dataset_Class
 
 
 # CUDAのメモリ管理設定
@@ -214,7 +214,7 @@ def main():
 
     """ Load dataset データセットの読み込み """
     # dataset = datasetClass.TasNet_dataset_csv(args.dataset, channel=channel, device=device) # データセットの読み込み
-    dataset = datasetClass.TasNet_dataset2(dataset_path)  # データセットの読み込み
+    dataset = Dataset_Class.TasNet_dataset2(dataset_path)  # データセットの読み込み
     dataset_loader = DataLoader(dataset, batch_size=batchsize, shuffle=True, pin_memory=True)
 
     """ ネットワークの生成 """
