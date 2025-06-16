@@ -296,6 +296,7 @@ def test(mix_dir:str, out_dir:str, model_path:str):
         # mix = torch.from_numpy(mix)
         # print("00mix", mix.shape)
         mix = mix.to("cuda")
+        mix = mix / (mix.abs().max() + 1e-8)
         # print("11mix", mix.shape)
         separate = model(mix)  # モデルの適用
         # print("separate", separate.shape)
