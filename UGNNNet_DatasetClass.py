@@ -50,13 +50,11 @@ class AudioDataset(Dataset):
         return len(self.noisy_file_paths)
 
     def __getitem__(self, idx):
-        # 雑音を含む音声の読み込み
-        noisy_path = self.noisy_file_paths[idx]
-        noisy_waveform, current_sample_rate = torchaudio.load(noisy_path)
-
-        # クリーンな音声の読み込み
+        # 音声の読み込み
         clean_path = self.clean_file_paths[idx]
-        clean_waveform, _ = torchaudio.load(clean_path)  # サンプリングレートはnoisy_waveformと同じはず
+        clean_waveform, current_sample_rate = torchaudio.load(clean_path)  # サンプリングレートはnoisy_waveformと同じはず
+        noisy_path = self.noisy_file_paths[idx]
+        noisy_waveform, _ = torchaudio.load(noisy_path)
 
         # サンプリングレートのリサンプリング
         if current_sample_rate != self.sample_rate:
@@ -85,13 +83,7 @@ class AudioDataset(Dataset):
             noisy_waveform = F.pad(noisy_waveform, (0, padding_amount))
             clean_waveform = F.pad(clean_waveform, (0, padding_amount))
 
-        # 正規化（オプション）：-1から1の範囲に正規化されていることがほとんどだが、確認
-        # ピーク値で正規化
-        # noisy_waveform = noisy_waveform / (noisy_waveform.abs().max() + 1e-8)
-        # clean_waveform = clean_waveform / (clean_waveform.abs().max() + 1e-8)
-
-        # モデルの入力は [batch, n_channels, length]
-        # ターゲットも [batch, n_channels, length]
+        # 出力の形状 [batch, n_channels, length]
         # print("dataset_out:", noisy_waveform.shape)
         # print("dataset_out:", clean_waveform.shape)
         return noisy_waveform, clean_waveform
