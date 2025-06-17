@@ -161,9 +161,9 @@ def train(clean_path:str, noisy_path:str, out_path:str="./RESULT/pth/result.pth"
     start_time = time.time()    # 時間を測定
     epoch = 0
     for epoch in range(start_epoch, train_count+1):   # 学習回数
-        model_loss_sum = 0              # 総損失の初期化
         print("Train Epoch:", epoch)    # 学習回数の表示
         for _, (mix_data, target_data) in tenumerate(dataset_loader):
+            model_loss_sum = 0              # 総損失の初期化
             """ モデルの読み込み """
             mix_data, target_data = mix_data.to(device), target_data.to(device) # データをGPUに移動
 
@@ -195,8 +195,8 @@ def train(clean_path:str, noisy_path:str, out_path:str="./RESULT/pth/result.pth"
                     model_loss = loss_function(estimate_data, target_data)  # 時間波形上でMSEによる損失関数の計算
                 case "stft_MSE":
                     """ 周波数軸に変換 """
-                    stft_estimate_data = torch.stft(estimate_data, n_fft=1024, return_complex=False)
-                    stft_target_data = torch.stft(target_data[0], n_fft=1024, return_complex=False)
+                    stft_estimate_data = torch.stft(estimate_data[0, 0, :], n_fft=1024, return_complex=False)
+                    stft_target_data = torch.stft(target_data[0, 0, :], n_fft=1024, return_complex=False)
                     model_loss = loss_function(stft_estimate_data, stft_target_data)  # 時間周波数上MSEによる損失の計算
 
             model_loss_sum += model_loss  # 損失の加算
@@ -236,7 +236,7 @@ def train(clean_path:str, noisy_path:str, out_path:str="./RESULT/pth/result.pth"
             earlystopping_count += 1
             if (epoch > 100) and (earlystopping_count > earlystopping_threshold):
                 break
-        if epoch == 100:
+        if epoch % 100 == 0:
             torch.save(model.to(device).state_dict(), f"{out_dir}/{out_name}_{epoch}.pth")  # 出力ファイルの保存
 
     """ 学習モデル(pthファイル)の出力 """
@@ -339,7 +339,7 @@ if __name__ == '__main__':
     wave_type = "noise_only"
     train(clean_path=f"{const.MIX_DATA_DIR}/subset_DEMAND_hoth_1010dB_1ch/subset_DEMAND_hoth_1010dB_05sec_1ch/train/clean",
           noisy_path=f"{const.MIX_DATA_DIR}/subset_DEMAND_hoth_1010dB_1ch/subset_DEMAND_hoth_1010dB_05sec_1ch/train/{wave_type}",
-          out_path=f"{const.PTH_DIR}/UGCN/subset_DEMAND_1ch/similarity_node/{wave_type}.pth", batchsize=1)
+          out_path=f"{const.PTH_DIR}/UGCN/subset_DEMAND_1ch/similarity_node/{wave_type}.pth", batchsize=1, train_count=1000)
 
     test(mix_dir=f"{const.MIX_DATA_DIR}/subset_DEMAND_hoth_1010dB_1ch/subset_DEMAND_hoth_1010dB_05sec_1ch/test/{{wave_type}}",
          out_dir=f"{const.OUTPUT_WAV_DIR}/UGCN/subset_DEMAND_1ch/random_node/test/{wave_type}",
