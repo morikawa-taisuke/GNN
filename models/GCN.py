@@ -100,11 +100,11 @@ class GAT(nn.Module):
 
 
 class UGCNNet(nn.Module):
-    def __init__(self, n_channels, n_classes, hidden_dim=32, k_neighbors=8):
+    def __init__(self, n_channels, n_classes, hidden_dim=32, num_node=8):
         super(UGCNNet, self).__init__()
         self.n_channels = n_channels
         self.n_classes = n_classes
-        self.k_neighbors = k_neighbors
+        self.num_node = num_node
 
         self.encoder_dim = 512
         self.sampling_rate = 16000
@@ -150,14 +150,14 @@ class UGCNNet(nn.Module):
         """
         if num_nodes == 0:
             return torch.empty((2, 0), dtype=torch.long, device=device)
-        if self.k_neighbors == 0:
+        if self.num_node == 0:
             return torch.empty((2, 0), dtype=torch.long, device=device)
 
         # 実際に選択する隣接ノードの数 (num_nodes - 1 を超えることはない)
         if num_nodes == 1: # ノードが1つの場合、隣接ノードは存在しない
             k_to_select = 0
         else:
-            k_to_select = min(self.k_neighbors, num_nodes - 1)
+            k_to_select = min(self.num_node, num_nodes - 1)
 
         if k_to_select == 0:
             return torch.empty((2, 0), dtype=torch.long, device=device)
@@ -250,8 +250,8 @@ class UGCNNet(nn.Module):
 
 
 class UGATNet(UGCNNet): # UGCNNetを継承
-    def __init__(self, n_channels, n_classes, hidden_dim=32, k_neighbors=8, gat_heads=8, gat_dropout=0.5):
-        super(UGATNet, self).__init__(n_channels, n_classes, hidden_dim, k_neighbors)
+    def __init__(self, n_channels, n_classes, hidden_dim=32, num_node=8, gat_heads=8, gat_dropout=0.5):
+        super(UGATNet, self).__init__(n_channels, n_classes, hidden_dim, num_node)
 
         # ボトルネック部分をGATに置き換える
         # GATの入力次元はU-Netエンコーダのボトルネック部分のチャネル数(512)
@@ -295,7 +295,7 @@ class UGCNNet2(UGCNNet):
         # k-NNグラフを動的に構築
         num_nodes_per_sample = height_bottleneck * width_bottleneck
         if num_nodes_per_sample > 0 :
-            edge_index = self.create_knn_graph_for_batch(x4_reshaped, self.k_neighbors, batch_size, num_nodes_per_sample)
+            edge_index = self.create_knn_graph_for_batch(x4_reshaped, self.num_node, batch_size, num_nodes_per_sample)
         else:
             edge_index = torch.empty((2,0), dtype=torch.long, device=x4_reshaped.device)
 
@@ -325,10 +325,10 @@ class UGCNNet2(UGCNNet):
 
 
 class UGATNet2(UGCNNet2): # UGCNNet2 を継承
-    def __init__(self, n_channels, n_classes, hidden_dim=32, k_neighbors=8, gat_heads=8, gat_dropout=0.5):
+    def __init__(self, n_channels, n_classes, hidden_dim=32, num_node=8, gat_heads=8, gat_dropout=0.5):
         # UGCNNet2 (親クラス) の __init__ を呼び出す
         # UGCNNet2 は UGCNNet を継承しており、UGCNNet で self.gnn が GCN で初期化される
-        super(UGATNet2, self).__init__(n_channels, n_classes, hidden_dim, k_neighbors)
+        super(UGATNet2, self).__init__(n_channels, n_classes, hidden_dim, num_node)
 
         # ボトルネック部分のGNNをGATに置き換える
         # GATの入力次元はU-Netエンコーダのボトルネック部分のチャネル数(512)
@@ -381,7 +381,7 @@ def main():
     # x = torch.randn(batch, num_mic, length).to(device)
 
     # print("\n--- UGCNNet (Random Graph) ---")
-    # ugcn_model = UGCNNet(n_channels=num_mic, n_classes=1, k_neighbors=8).to(device)
+    # ugcn_model = UGCNNet(n_channels=num_mic, n_classes=1, num_node=8).to(device)
     # print_model_summary(ugcn_model, batch, num_mic, length)
     # x_ugcn = torch.randn(batch, num_mic, length).to(device)
     # output_ugcn = ugcn_model(x_ugcn)
@@ -389,21 +389,21 @@ def main():
 
 
     # print("\n--- UGATNet (Random Graph, GAT in bottleneck) ---")
-    # ugat_model = UGATNet(n_channels=num_mic, n_classes=1, k_neighbors=8, gat_heads=4, gat_dropout=0.6).to(device)
+    # ugat_model = UGATNet(n_channels=num_mic, n_classes=1, num_node=8, gat_heads=4, gat_dropout=0.6).to(device)
     # print_model_summary(ugat_model, batch, num_mic, length)
     # x_ugat = torch.randn(batch, num_mic, length).to(device)
     # output_ugat = ugat_model(x_ugat) # forwardはUGCNNetのものを継承
     # print(f"UGATNet Input shape: {x_ugat.shape}, Output shape: {output_ugat.shape}")
 
     # print("\n--- UGCNNet2 (k-NN Graph, GCN in bottleneck) ---")
-    # ugcn2_model = UGCNNet2(n_channels=num_mic, n_classes=1, k_neighbors=8).to(device)
+    # ugcn2_model = UGCNNet2(n_channels=num_mic, n_classes=1, num_node=8).to(device)
     # print_model_summary(ugcn2_model, batch, num_mic, length)
     # x_ugcn2 = torch.randn(batch, num_mic, length).to(device)
     # output_ugcn2 = ugcn2_model(x_ugcn2)
     # print(f"UGCNNet2 Input shape: {x_ugcn2.shape}, Output shape: {output_ugcn2.shape}")
 
     print("\n--- UGATNet2 (k-NN Graph, GAT in bottleneck) ---")
-    ugat2_model = UGATNet2(n_channels=num_mic, n_classes=1, k_neighbors=8, gat_heads=4, gat_dropout=0.6).to(device)
+    ugat2_model = UGATNet2(n_channels=num_mic, n_classes=1, num_node=8, gat_heads=4, gat_dropout=0.6).to(device)
     print_model_summary(ugat2_model, batch, num_mic, length)
     # x_ugat2 = torch.randn(batch, num_mic, length).to(device)
     # output_ugat2 = ugat2_model(x_ugat2) # forwardはUGCNNet2のものを継承
