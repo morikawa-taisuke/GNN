@@ -280,30 +280,31 @@ if __name__ == '__main__':
     """ モデルの設定 """
     num_mic = 1  # マイクの数
     num_node = 8  # k近傍の数
-    model_type = "UGCN"  # モデルの種類
-    wave_type = "noise_only"
-    out_name = f"{model_type}_{wave_type}"  # 出力ファイル名
+    model_list = ["UGCN", "UGCN2"]  # モデルの種類
+    for model_type in model_list:
+        wave_type = "noise_only"    # 入寮信号の種類 (noise_only, reverbe_only, noise_reverbe)
+        out_name = f"{model_type}_{wave_type}"  # 出力ファイル名
 
-    if model_type == "UGCN":
-        model = UGCNNet(n_channels=num_mic, n_classes=1, num_node=8).to(device)
-    elif model_type == "UGATNet":
-        model = UGATNet(n_channels=num_mic, n_classes=1, num_node=8, gat_heads=4, gat_dropout=0.6).to(device)
-    elif model_type == "UGCN2":
-        model = UGCNNet2(n_channels=num_mic, n_classes=1, num_node=8).to(device)
-    elif model_type == "UGATNet2":
-        model = UGATNet2(n_channels=num_mic, n_classes=1, num_node=8, gat_heads=4, gat_dropout=0.6).to(device)
+        if model_type == "UGCN":
+            model = UGCNNet(n_channels=num_mic, n_classes=1, num_node=8).to(device)
+        elif model_type == "UGATNet":
+            model = UGATNet(n_channels=num_mic, n_classes=1, num_node=8, gat_heads=4, gat_dropout=0.6).to(device)
+        elif model_type == "UGCN2":
+            model = UGCNNet2(n_channels=num_mic, n_classes=1, num_node=8).to(device)
+        elif model_type == "UGATNet2":
+            model = UGATNet2(n_channels=num_mic, n_classes=1, num_node=8, gat_heads=4, gat_dropout=0.6).to(device)
 
 
-    train(model=model,
-          mix_dir=f"{const.MIX_DATA_DIR}/subset_DEMAND_hoth_1010dB_1ch/subset_DEMAND_hoth_1010dB_05sec_1ch/train/{wave_type}",
-          clean_dir=f"{const.MIX_DATA_DIR}/subset_DEMAND_hoth_1010dB_1ch/subset_DEMAND_hoth_1010dB_05sec_1ch/train/clean",
-          out_path=f"{const.PTH_DIR}/{model_type}/subset_DEMAND_1ch/{out_name}.pth", batchsize=8) # UGCN -> UGATNet2
+        train(model=model,
+            mix_dir=f"{const.MIX_DATA_DIR}/subset_DEMAND_hoth_1010dB_1ch/subset_DEMAND_hoth_1010dB_05sec_1ch/train/{wave_type}",
+            clean_dir=f"{const.MIX_DATA_DIR}/subset_DEMAND_hoth_1010dB_1ch/subset_DEMAND_hoth_1010dB_05sec_1ch/train/clean",
+            out_path=f"{const.PTH_DIR}/{model_type}/subset_DEMAND_1ch/{out_name}.pth", batchsize=8) # UGCN -> UGATNet2
 
-    test(model=model,
-         mix_dir=f"{const.MIX_DATA_DIR}/subset_DEMAND_hoth_1010dB_1ch/subset_DEMAND_hoth_1010dB_05sec_1ch/test/{wave_type}", # {{wave_type}} -> {wave_type}
-         out_dir=f"{const.OUTPUT_WAV_DIR}/{model_type}/subset_DEMAND_1ch/{out_name}", # UGCN -> UGATNet2, random_node -> similarity_node
-         model_path=f"{const.PTH_DIR}/{model_type}/subset_DEMAND_1ch/{out_name}.pth") # UGCN -> UGATNet2
-    
-    evaluation(target_dir=f"{const.MIX_DATA_DIR}/subset_DEMAND_hoth_1010dB_1ch/subset_DEMAND_hoth_1010dB_05sec_1ch/test/clean",
-               estimation_dir=f"{const.OUTPUT_WAV_DIR}/{model_type}/subset_DEMAND_1ch/{out_name}",
-               out_csv_name=f"{const.EVALUATION_DIR}/{out_name}.csv")
+        test(model=model,
+            mix_dir=f"{const.MIX_DATA_DIR}/subset_DEMAND_hoth_1010dB_1ch/subset_DEMAND_hoth_1010dB_05sec_1ch/test/{wave_type}", # {{wave_type}} -> {wave_type}
+            out_dir=f"{const.OUTPUT_WAV_DIR}/{model_type}/subset_DEMAND_1ch/{out_name}", # UGCN -> UGATNet2, random_node -> similarity_node
+            model_path=f"{const.PTH_DIR}/{model_type}/subset_DEMAND_1ch/{out_name}.pth") # UGCN -> UGATNet2
+        
+        evaluation(target_dir=f"{const.MIX_DATA_DIR}/subset_DEMAND_hoth_1010dB_1ch/subset_DEMAND_hoth_1010dB_05sec_1ch/test/clean",
+                estimation_dir=f"{const.OUTPUT_WAV_DIR}/{model_type}/subset_DEMAND_1ch/{out_name}",
+                out_csv_name=f"{const.EVALUATION_DIR}/{out_name}.csv")
