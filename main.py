@@ -298,7 +298,7 @@ if __name__ == '__main__':
         train(model=model,
             mix_dir=f"{const.MIX_DATA_DIR}/subset_DEMAND_hoth_1010dB_1ch/subset_DEMAND_hoth_1010dB_05sec_1ch/train/{wave_type}",
             clean_dir=f"{const.MIX_DATA_DIR}/subset_DEMAND_hoth_1010dB_1ch/subset_DEMAND_hoth_1010dB_05sec_1ch/train/clean",
-            out_path=f"{const.PTH_DIR}/{model_type}/subset_DEMAND_1ch/{out_name}.pth", batchsize=8) # UGCN -> UGATNet2
+            out_path=f"{const.PTH_DIR}/{model_type}/subset_DEMAND_1ch/{out_name}.pth", batchsize=1) # UGCN -> UGATNet2
 
         test(model=model,
             mix_dir=f"{const.MIX_DATA_DIR}/subset_DEMAND_hoth_1010dB_1ch/subset_DEMAND_hoth_1010dB_05sec_1ch/test/{wave_type}", # {{wave_type}} -> {wave_type}

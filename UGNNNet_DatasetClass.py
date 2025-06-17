@@ -24,7 +24,7 @@ class AudioDataset(Dataset):
         self.noisy_audio_dir = noisy_audio_dir
         self.clean_audio_dir = clean_audio_dir
         self.sample_rate = sample_rate
-        self.max_length_samples = max_length_sec * sample_rate if max_length_sec is not None else None
+        self.max_length_samples = max_length_sec * sample_rate
 
         # 雑音を含む音声ファイルのリストを取得
         # 例えば、.wav ファイルのみを対象とする
@@ -72,7 +72,7 @@ class AudioDataset(Dataset):
 
         # 長さの調整
         # (1) 最大長に切り捨て
-        if self.max_length_samples is not None and noisy_waveform.shape[1] > self.max_length_samples:
+        if noisy_waveform.shape[-1] > self.max_length_samples:
             noisy_waveform = noisy_waveform[:, :self.max_length_samples]
             clean_waveform = clean_waveform[:, :self.max_length_samples]
 
@@ -80,7 +80,7 @@ class AudioDataset(Dataset):
         # このモデルは固定長入力を必要としないが、バッチ処理のために長さを揃える必要がある場合
         # または、常に同じ長さのサンプルを入力したい場合は、ここでパディングを行う
         # 例:
-        if self.max_length_samples is not None and noisy_waveform.shape[1] < self.max_length_samples:
+        if noisy_waveform.shape[-1] < self.max_length_samples:
             padding_amount = self.max_length_samples - noisy_waveform.shape[1]
             noisy_waveform = F.pad(noisy_waveform, (0, padding_amount))
             clean_waveform = F.pad(clean_waveform, (0, padding_amount))
