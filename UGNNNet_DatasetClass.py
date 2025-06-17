@@ -87,8 +87,8 @@ class AudioDataset(Dataset):
 
         # 正規化（オプション）：-1から1の範囲に正規化されていることがほとんどだが、確認
         # ピーク値で正規化
-        noisy_waveform = noisy_waveform / (noisy_waveform.abs().max() + 1e-8)
-        clean_waveform = clean_waveform / (clean_waveform.abs().max() + 1e-8)
+        # noisy_waveform = noisy_waveform / (noisy_waveform.abs().max() + 1e-8)
+        # clean_waveform = clean_waveform / (clean_waveform.abs().max() + 1e-8)
 
         # モデルの入力は [batch, n_channels, length]
         # ターゲットも [batch, n_channels, length]
