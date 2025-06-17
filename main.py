@@ -1,5 +1,7 @@
 from models.wave_unet import U_Net
 from models.urelnet import URelNet
+from models.GCN import UGCNNet, UGATNet, UGCNNet2, UGATNet2
+# coding: utf-8
 import time             # 時間
 # from librosa.core import stft, istft
 import torch
@@ -99,7 +101,15 @@ def si_sdr_loss(ests, egs):
     return -torch.sum(max_perutt) / N
 
 
-def train(dataset_path:str, out_path:str="./RESULT/pth/result.pth", loss_func:str="SISDR", batchsize:int=const.BATCHSIZE, checkpoint_path:str=None, train_count:int=const.EPOCH, earlystopping_threshold:int=5):
+def train(
+    model: nn.Module,
+    dataset_path: str,
+    out_path: str = "./RESULT/pth/result.pth",
+    loss_func: str = "SISDR",
+    batchsize: int = const.BATCHSIZE,
+    checkpoint_path: str = None,
+    train_count: int = const.EPOCH,
+    earlystopping_threshold: int = 5):
     """ GPUの設定 """
     device = "cuda" if torch.cuda.is_available() else "cpu" # GPUが使えれば使う
     """ その他の設定 """
@@ -122,11 +132,7 @@ def train(dataset_path:str, out_path:str="./RESULT/pth/result.pth", loss_func:st
     dataset = Dataset_Class.GNN_dataset(dataset_path) # データセットの読み込み
     dataset_loader = DataLoader(dataset, batch_size=batchsize, shuffle=True, pin_memory=True)
 
-
-    """ ネットワークの生成 """
-    model = URelNet(n_channels=1, n_classes=1, k_neighbors=8).to(device)
-    # model = U_Net().to(device)
-    # print(f"\nmodel:{model}\n")                           # モデルのアーキテクチャの出力
+    # オプティマイザーの設定
     optimizer = optim.Adam(model.parameters(), lr=0.001)    # optimizerを選択(Adam)
     if loss_func != "SISDR":
         loss_function = nn.MSELoss().to(device)                 # 損失関数に使用する式の指定(最小二乗誤差)
@@ -251,35 +257,25 @@ def train(dataset_path:str, out_path:str="./RESULT/pth/result.pth", loss_func:st
     time_h = float(time_sec)/3600.0     # sec->hour
     print(f"time：{str(time_h)}h")      # 出力
 
-def test(mix_dir:str, out_dir:str, model_path:str):
+def test(model: nn.Module, mix_dir:str, out_dir:str, model_path:str):
     filelist_mixdown = my_func.get_file_list(mix_dir)
     print('number of mixdown file', len(filelist_mixdown))
-
 
     # ディレクトリを作成
     my_func.make_dir(out_dir)
 
     model_dir = my_func.get_dir_name(model_path)
     model_name, _ = my_func.get_file_name(model_path)
-
-    # モデルの読み込み
-    model = URelNet(n_channels=1, n_classes=1, k_neighbors=5).to(device)
-    # model = U_Net().to(device)
-
-    # TasNet_model.load_state_dict(torch.load('./pth/model/' + model_path + '.pth'))
     model.load_state_dict(torch.load(os.path.join(model_dir, f"BEST_{model_name}.pth")))
-    # TCN_model.load_state_dict(torch.load('reverb_03_snr20_reverb1020_snr20-clean_DNN-WPE_TCN_100.pth'))
 
     for fmixdown in tqdm(filelist_mixdown):  # filelist_mixdownを全て確認して、それぞれをfmixdownに代入
         # mixは振幅、prmはパラメータ
         mix, prm = my_func.load_wav(fmixdown)  # waveでロード
         # print(f'mix.shape:{mix.shape}')
-        mix = torch.from_numpy(mix)
-        mix = mix.to(device)
+        mix = torch.from_numpy(mix).to(device)  # mixをテンソルに変換
         mix = mix.to(torch.float32)
-        # mix = mix.unsqueeze(dim=0)    # [バッチサイズ, マイク数，音声長]
         # print("mix: ", mix.shape)
-        mix = mix.unsqueeze(dim=0)    # [バッチサイズ, マイク数，音声長]
+        mix = mix.unsqueeze(dim=0)
         # print("mix: ", mix.shape)
         mix_max = torch.max(mix)  # 最大値の取得
         # mix = my_func.load_audio(fmixdown)     # torchaoudioでロード
@@ -297,14 +293,7 @@ def test(mix_dir:str, out_dir:str, model_path:str):
         mix = mix.to("cuda")
         # print("11mix", mix.shape)
         separate = model(mix)  # モデルの適用
-        # print("separate", separate.shape)
-        # separate = separate.cpu()
-        # separate = separate.detach().numpy()
-        # separate = separate[0, 0, :]
         # print(f'separate.shape:{separate.shape}')
-        # mix_max=mix_max.detach().numpy()
-        # separate_max=torch.max(separate)
-        # separate_max=separate_max.detach().numpy()
 
         separate = separate * (mix_max / torch.max(separate))
         separate = separate.cpu()
@@ -336,9 +325,29 @@ if __name__ == '__main__':
     # "C:\Users\kataoka-lab\Desktop\sound_data\dataset\subset_DEMAND_hoth_1010dB_1ch\subset_DEMAND_hoth_1010dB_05sec_1ch\noise_reverbe"
     # コンフリクトの解消
     # for i in range(4, 5):
-    #     train(dataset_path=f"{const.DATASET_DIR}/DEMAND_1ch/condition_{i}/noise_reverbe",
-    #          out_path=f"{const.PTH_DIR}/URelNet/DEMAND_1ch/condition_{i}/noise_reverbe.pth", batchsize=8)
+    # モデルの生成
+    model_type = "URelNet"  # モデルの種類を指定
+    wave_type = "noise_only"  # 損失関数の種類を指定
+    if model_type == "UGCNNet":
+        model = UGCNNet(n_channels=1, n_classes=1, k_neighbors=8).to(device)
+    elif model_type == "UGATNet":
+        model = UGATNet(n_channels=1, n_classes=1, k_neighbors=8, gat_heads=4, gat_dropout=0.6).to(device)
+    elif model_type == "UGCNNet2":
+        model = UGCNNet2(n_channels=1, n_classes=1, k_neighbors=8).to(device)
+    elif model_type == "UGATNet2":
+        model = UGATNet2(n_channels=1, n_classes=1, k_neighbors=8, gat_heads=4, gat_dropout=0.6).to(device)
+    else:
+        print(f"Unknown model type: {model_type}. Please choose from UGCNNet, UGATNet, UGCNNet2, or UGATNet2.")
+        exit(1)
+    # オプティマイザの生成
+
+    train(model=model,
+          dataset_path=f"{const.DATASET_DIR}/DEMAND_1ch/condition_4/{model_type}",
+          out_path=f"{const.PTH_DIR}/{model_type}/DEMAND_1ch/condition_4/{model_type}.pth", 
+          batchsize=8)
+
     # "C:\Users\kataoka-lab\Desktop\sound_data\RESULT\pth\URelNet\subset_DEMAND_1ch\condition_1\BEST_noise_only.pth"
-    test(mix_dir=f"{const.MIX_DATA_DIR}/subset_DEMAND_hoth_1010dB_1ch/subset_DEMAND_hoth_1010dB_05sec_1ch/test/noise_only",
-         out_dir=f"{const.OUTPUT_WAV_DIR}/URelNet/subset_DEMAND_1ch/condition_1/noise_only",
-         model_path=f"{const.PTH_DIR}/URelNet/subset_DEMAND_1ch/condition_1/noise_only.pth")
+    test(model=model, # train関数で使用したモデルインスタンスを渡す
+         mix_dir=f"{const.MIX_DATA_DIR}/subset_DEMAND_hoth_1010dB_1ch/subset_DEMAND_hoth_1010dB_05sec_1ch/test/{model_type}",
+         out_dir=f"{const.OUTPUT_WAV_DIR}/{model_type}/subset_DEMAND_1ch/condition_1/{model_type}",
+         model_path=f"{const.PTH_DIR}/{model_type}/subset_DEMAND_1ch/condition_1/{model_type}.pth")

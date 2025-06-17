@@ -297,6 +297,7 @@ def test(mix_dir:str, out_dir:str, model_path:str):
         # print("00mix", mix.shape)
         mix = mix.to("cuda")
         # print("11mix", mix.shape)
+        mix = mix / (mix.abs().max() + 1e-8)
         separate = model(mix)  # モデルの適用
         # print("separate", separate.shape)
         # separate = separate.cpu()
@@ -337,10 +338,18 @@ if __name__ == '__main__':
     # "C:\Users\kataoka-lab\Desktop\sound_data\dataset\subset_DEMAND_hoth_1010dB_1ch\subset_DEMAND_hoth_1010dB_05sec_1ch\noise_reverbe"
 
     wave_type = "noise_only"
-    train(clean_path=f"{const.MIX_DATA_DIR}/subset_DEMAND_hoth_1010dB_1ch/subset_DEMAND_hoth_1010dB_05sec_1ch/train/clean",
-          noisy_path=f"{const.MIX_DATA_DIR}/subset_DEMAND_hoth_1010dB_1ch/subset_DEMAND_hoth_1010dB_05sec_1ch/train/{wave_type}",
-          out_path=f"{const.PTH_DIR}/UGCN/subset_DEMAND_1ch/similarity_node/{wave_type}.pth", batchsize=1, train_count=1000)
+    # train(clean_path=f"{const.MIX_DATA_DIR}/subset_DEMAND_hoth_1010dB_1ch/subset_DEMAND_hoth_1010dB_05sec_1ch/train/clean",
+    #       noisy_path=f"{const.MIX_DATA_DIR}/subset_DEMAND_hoth_1010dB_1ch/subset_DEMAND_hoth_1010dB_05sec_1ch/train/{wave_type}",
+    #       out_path=f"{const.PTH_DIR}/UGCN/subset_DEMAND_1ch/similarity_node/{wave_type}.pth", batchsize=1)
 
-    test(mix_dir=f"{const.MIX_DATA_DIR}/subset_DEMAND_hoth_1010dB_1ch/subset_DEMAND_hoth_1010dB_05sec_1ch/test/{{wave_type}}",
-         out_dir=f"{const.OUTPUT_WAV_DIR}/UGCN/subset_DEMAND_1ch/random_node/test/{wave_type}",
-         model_path=f"{const.PTH_DIR}/UGCN/subset_DEMAND_1ch/similarity_node/{wave_type}.pth")
+    # test(mix_dir=f"{const.MIX_DATA_DIR}/subset_DEMAND_hoth_1010dB_1ch/subset_DEMAND_hoth_1010dB_05sec_1ch/test/{{wave_type}}",
+    #      out_dir=f"{const.OUTPUT_WAV_DIR}/UGCN/subset_DEMAND_1ch/random_node/test/{wave_type}",
+    #      model_path=f"{const.PTH_DIR}/UGCN/subset_DEMAND_1ch/similarity_node/{wave_type}.pth")
+
+    # test(mix_dir=f"{const.MIX_DATA_DIR}/subset_DEMAND_hoth_1010dB_1ch/subset_DEMAND_hoth_1010dB_05sec_1ch/test/{wave_type}",
+    #      out_dir=f"{const.OUTPUT_WAV_DIR}/UGCN/subset_DEMAND_1ch/random_node/test/{wave_type}",
+    #      model_path=f"{const.PTH_DIR}/UGCN/subset_DEMAND_1ch/random_node/{wave_type}.pth")
+    
+    test(mix_dir=f"{const.MIX_DATA_DIR}/subset_DEMAND_hoth_1010dB_1ch/subset_DEMAND_hoth_1010dB_05sec_1ch/test/{wave_type}",
+         out_dir=f"{const.OUTPUT_WAV_DIR}/UGCN/subset_DEMAND_1ch/random_node/test/{wave_type}2",
+         model_path=f"{const.PTH_DIR}/UGCN/subset_DEMAND_1ch/random_node/{wave_type}2.pth")

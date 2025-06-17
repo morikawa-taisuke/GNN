@@ -1,5 +1,6 @@
 from models.wave_unet import U_Net
-from models.GCN import UGCNNet
+from models.GCN import UGATNet2 # UGCNNet2 から UGATNet2 に変更
+
 import time             # 時間
 # from librosa.core import stft, istft
 import torch
@@ -29,7 +30,7 @@ os.environ['PYTORCH_CUDA_ALLOC_CONF'] = 'expandable_segments:True'
 
 # CUDAの可用性をチェック
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-# device = torch.device("mps")
+# device = "mps"
 print(f"Using device: {device}")
 
 def padding_tensor(tensor1, tensor2):
@@ -124,8 +125,9 @@ def train(clean_path:str, noisy_path:str, out_path:str="./RESULT/pth/result.pth"
 
 
     """ ネットワークの生成 """
-    # model = UGCNNet(n_channels=1, n_classes=1, k_neighbors=8).to(device)
-    model = U_Net().to(device)
+    # UGCNNet2 から UGATNet2 に変更し、GAT固有のパラメータを追加
+    model = UGATNet2(n_channels=1, n_classes=1, k_neighbors=8, gat_heads=4, gat_dropout=0.6).to(device)
+    # model = U_Net().to(device)
     # print(f"\nmodel:{model}\n")                           # モデルのアーキテクチャの出力
     optimizer = optim.Adam(model.parameters(), lr=0.001)    # optimizerを選択(Adam)
     if loss_func != "SISDR":
@@ -195,7 +197,7 @@ def train(clean_path:str, noisy_path:str, out_path:str="./RESULT/pth/result.pth"
                     model_loss = loss_function(estimate_data, target_data)  # 時間波形上でMSEによる損失関数の計算
                 case "stft_MSE":
                     """ 周波数軸に変換 """
-                    stft_estimate_data = torch.stft(estimate_data, n_fft=1024, return_complex=False)
+                    stft_estimate_data = torch.stft(estimate_data[0], n_fft=1024, return_complex=False)
                     stft_target_data = torch.stft(target_data[0], n_fft=1024, return_complex=False)
                     model_loss = loss_function(stft_estimate_data, stft_target_data)  # 時間周波数上MSEによる損失の計算
 
@@ -264,8 +266,9 @@ def test(mix_dir:str, out_dir:str, model_path:str):
     model_name, _ = my_func.get_file_name(model_path)
 
     # モデルの読み込み
-    # model = UGCNNet(n_channels=1, n_classes=1, k_neighbors=8).to(device)
-    model = U_Net().to(device)
+    # UGCNNet2 から UGATNet2 に変更し、GAT固有のパラメータを追加
+    model = UGATNet2(n_channels=1, n_classes=1, k_neighbors=8, gat_heads=4, gat_dropout=0.6).to(device)
+    # model = U_Net().to(device)
 
     # TasNet_model.load_state_dict(torch.load('./pth/model/' + model_path + '.pth'))
     model.load_state_dict(torch.load(os.path.join(model_dir, f"BEST_{model_name}.pth")))
@@ -297,6 +300,7 @@ def test(mix_dir:str, out_dir:str, model_path:str):
         # print("00mix", mix.shape)
         mix = mix.to("cuda")
         # print("11mix", mix.shape)
+        mix = mix / (mix.abs().max() + 1e-8)
         separate = model(mix)  # モデルの適用
         # print("separate", separate.shape)
         # separate = separate.cpu()
@@ -337,18 +341,17 @@ if __name__ == '__main__':
     # "C:\Users\kataoka-lab\Desktop\sound_data\dataset\subset_DEMAND_hoth_1010dB_1ch\subset_DEMAND_hoth_1010dB_05sec_1ch\noise_reverbe"
 
     wave_type = "noise_only"
-    # train(clean_path=f"{const.MIX_DATA_DIR}/subset_DEMAND_hoth_1010dB_1ch/subset_DEMAND_hoth_1010dB_05sec_1ch/train/clean",
-    #       noisy_path=f"{const.MIX_DATA_DIR}/subset_DEMAND_hoth_1010dB_1ch/subset_DEMAND_hoth_1010dB_05sec_1ch/train/{wave_type}",
-    #       out_path=f"{const.PTH_DIR}/UGCN/subset_DEMAND_1ch/random_node/{wave_type}2.pth", batchsize=1)
+    train(clean_path=f"{const.MIX_DATA_DIR}/subset_DEMAND_hoth_1010dB_1ch/subset_DEMAND_hoth_1010dB_05sec_1ch/train/clean",
+          noisy_path=f"{const.MIX_DATA_DIR}/subset_DEMAND_hoth_1010dB_1ch/subset_DEMAND_hoth_1010dB_05sec_1ch/train/{wave_type}",
+          out_path=f"{const.PTH_DIR}/UGATNet/subset_DEMAND_1ch/similarity_node/{wave_type}.pth", batchsize=1) # UGCN -> UGATNet2
 
-    # test(mix_dir=f"{const.MIX_DATA_DIR}/subset_DEMAND_hoth_1010dB_1ch/subset_DEMAND_hoth_1010dB_05sec_1ch/test/{wave_type}",
-    #      out_dir=f"{const.OUTPUT_WAV_DIR}/UGCN/subset_DEMAND_1ch/random_node/STFT_MSE/{wave_type}",
-    #      model_path=f"{const.PTH_DIR}/UGCN/subset_DEMAND_1ch/random_node/{wave_type}2.pth")
+    test(mix_dir=f"{const.MIX_DATA_DIR}/subset_DEMAND_hoth_1010dB_1ch/subset_DEMAND_hoth_1010dB_05sec_1ch/test/{wave_type}", # {{wave_type}} -> {wave_type}
+         out_dir=f"{const.OUTPUT_WAV_DIR}/UGATNet/subset_DEMAND_1ch/similarity_node/{wave_type}", # UGCN -> UGATNet2, random_node -> similarity_node
+         model_path=f"{const.PTH_DIR}/UGATNet/subset_DEMAND_1ch/similarity_node/{wave_type}.pth") # UGCN -> UGATNet2
     
-    # train(clean_path=f"{const.MIX_DATA_DIR}/subset_DEMAND_hoth_1010dB_1ch/subset_DEMAND_hoth_1010dB_05sec_1ch/train/clean",
-    #       noisy_path=f"{const.MIX_DATA_DIR}/subset_DEMAND_hoth_1010dB_1ch/subset_DEMAND_hoth_1010dB_05sec_1ch/train/{wave_type}",
-    #       out_path=f"{const.PTH_DIR}/WaveUNet/subset_DEMAND_hoth_1010dB_1ch/{wave_type}.pth", batchsize=1)
 
-    test(mix_dir=f"{const.MIX_DATA_DIR}/subset_DEMAND_hoth_0505dB/test/mix",
-         out_dir=f"{const.OUTPUT_WAV_DIR}/WaveUNet/subset_DEMAND_hoth_0505dB/",
-         model_path=f"{const.PTH_DIR}/subset_DEMAND_hoth_0505dB/subset_DEMAND_hoth_0505dB.pth")
+    
+    # test(mix_dir=f"{const.MIX_DATA_DIR}/subset_DEMAND_hoth_1010dB_1ch/subset_DEMAND_hoth_1010dB_05sec_1ch/test/{wave_type}",
+    #      out_dir=f"{const.OUTPUT_WAV_DIR}/UGCN/subset_DEMAND_1ch/sililarity_node/test/{wave_type}",
+    #      model_path=f"{const.PTH_DIR}/GNN/subset_DEMAND_1ch/sililarity_node/{wave_type}.pth")
+    
