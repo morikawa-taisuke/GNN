@@ -140,7 +140,7 @@ class UGCNNet(nn.Module):
         self.up3 = Up(128, 64)
         self.outc = nn.Conv2d(64, n_classes, kernel_size=1, stride=1, padding=0) # マスク生成
 
-    def create_sparse_graph(self, num_nodes):
+    def create_graph(self, num_nodes):
         """
         ノードごとにランダムにk個の異なる隣接ノードを選択してスパースグラフを作成します。
         自己ループは作成されません。
@@ -209,7 +209,7 @@ class UGCNNet(nn.Module):
             #       例えば、バッチ内の各サンプルごとにグラフを作成し、それらを結合するなど。
             #       現在の実装は、バッチ内の全ノードを1つのグラフとして扱います。
             num_nodes = x4_reshaped.size(0)
-            edge_index = self.create_sparse_graph(num_nodes)
+            edge_index = self.create_graph(num_nodes)
 
         x4_processed_flat = self.gnn(x4_reshaped, edge_index) # [B*H*W, C_out_gnn]
 
@@ -265,7 +265,7 @@ class UGATNet(UGCNNet): # UGCNNetを継承
 
 
 class UGCNNet2(UGCNNet):
-    def create_knn_graph_for_batch(self, x_nodes_batched, k, batch_size, num_nodes_per_sample):
+    def create_graph(self, x_nodes_batched, k, batch_size, num_nodes_per_sample):
         # x: [batch_size * num_nodes_per_sample, num_features]
         batch_indices = torch.arange(batch_size, device=x_nodes_batched.device).repeat_interleave(num_nodes_per_sample)
         edge_index = knn_graph(x=x_nodes_batched, k=k, batch=batch_indices, loop=False) # 自己ループなし
