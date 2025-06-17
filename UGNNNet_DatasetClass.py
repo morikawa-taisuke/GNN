@@ -5,6 +5,8 @@ import torchaudio
 import os
 from tqdm.contrib import tenumerate
 import glob  # ファイルパスのパターンマッチングに便利
+from pathlib import Path
+
 from mymodule import my_func
 
 class AudioDataset(Dataset):
@@ -51,9 +53,9 @@ class AudioDataset(Dataset):
 
     def __getitem__(self, idx):
         # 音声の読み込み
-        clean_path = self.clean_file_paths[idx]
+        clean_path = Path(self.clean_file_paths[idx])
         clean_waveform, current_sample_rate = torchaudio.load(clean_path)  # サンプリングレートはnoisy_waveformと同じはず
-        noisy_path = self.noisy_file_paths[idx]
+        noisy_path = Path(self.noisy_file_paths[idx])
         noisy_waveform, _ = torchaudio.load(noisy_path)
 
         # サンプリングレートのリサンプリング
@@ -174,6 +176,76 @@ class SpectralDataset(Dataset):
 
         return noisy_spectrogram, clean_spectrogram
 
+
+class AudioDataset_test(Dataset):
+    def __init__(self, noisy_audio_dir, sample_rate=16000, max_length_sec=3):
+        """
+        オーディオデータセットクラス
+
+        Args:
+            noisy_audio_dir (str): 雑音を含む音声ファイルが格納されたディレクトリのパス。
+            sample_rate (int): 音声データをリサンプリングするターゲットのサンプリングレート。
+            max_length_sec (int): 処理する音声の最大長（秒）。これより長い音声は切り捨てられる。
+                                  Noneの場合、最大長の制限なし。
+        """
+        self.noisy_audio_dir = noisy_audio_dir
+        self.sample_rate = sample_rate
+        self.max_length_samples = max_length_sec * sample_rate if max_length_sec is not None else None
+
+        # 雑音を含む音声ファイルのリストを取得
+        # 例えば、.wav ファイルのみを対象とする
+        self.noisy_file_paths = sorted(glob.glob(os.path.join(noisy_audio_dir, "*.wav")))
+
+        # ファイル数の一致を確認（重要なチェック）
+        if len(self.noisy_file_paths) != len(self.clean_file_paths):
+            raise ValueError("The number of noisy and clean audio files does not match.")
+
+        # ファイル名のペアリングを確認（これも重要）
+        # for i in range(len(self.noisy_file_paths)):
+        #     # noisy_filename = os.path.basename(self.noisy_file_paths[i])
+        #     # clean_filename = os.path.basename(self.clean_file_paths[i])
+        #     noisy_filename = my_func.get_file_name(self.noisy_file_paths[i])[0]
+        #     clean_filename = my_func.get_file_name(self.clean_file_paths[i])[0]
+        #     if not(noisy_filename in clean_filename):
+        #         raise ValueError(f"Mismatched filenames: {noisy_filename} != {clean_filename} at index {i}")
+
+        print(f"Found {len(self.noisy_file_paths)} audio pairs.")
+
+    def __len__(self):
+        return len(self.noisy_file_paths)
+
+    def __getitem__(self, idx):
+        # 音声の読み込み
+        noisy_path = Path(self.noisy_file_paths[idx])
+        noisy_waveform, current_sample_rate = torchaudio.load(noisy_path)
+
+        # サンプリングレートのリサンプリング
+        if current_sample_rate != self.sample_rate:
+            noisy_waveform = torchaudio.transforms.Resample(current_sample_rate, self.sample_rate)(noisy_waveform)
+
+        # チャンネル数の調整（例：ステレオ -> モノラル）
+        # モデルが1チャンネル入力を想定している場合、モノラルに変換
+        if noisy_waveform.shape[0] > 1:
+            noisy_waveform = torch.mean(noisy_waveform, dim=0, keepdim=True)
+
+        # 長さの調整
+        # (1) 最大長に切り捨て
+        if self.max_length_samples is not None and noisy_waveform.shape[1] > self.max_length_samples:
+            noisy_waveform = noisy_waveform[:, :self.max_length_samples]
+
+        # (2) パディング（短いサンプルを埋める）
+        # このモデルは固定長入力を必要としないが、バッチ処理のために長さを揃える必要がある場合
+        # または、常に同じ長さのサンプルを入力したい場合は、ここでパディングを行う
+        # 例:
+        if self.max_length_samples is not None and noisy_waveform.shape[1] < self.max_length_samples:
+            padding_amount = self.max_length_samples - noisy_waveform.shape[1]
+            noisy_waveform = F.pad(noisy_waveform, (0, padding_amount))
+
+        # 出力の形状 [batch, n_channels, length]
+        # print("dataset_out:", noisy_waveform.shape)
+        # print("dataset_out:", clean_waveform.shape)
+        return noisy_waveform, noisy_path
+    
 
 # --- 使用例 ---
 if __name__ == "__main__":
