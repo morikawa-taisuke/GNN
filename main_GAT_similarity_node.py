@@ -1,5 +1,6 @@
 from models.wave_unet import U_Net
 from models.GCN import UGATNet2 # UGCNNet2 から UGATNet2 に変更
+
 import time             # 時間
 # from librosa.core import stft, istft
 import torch
@@ -299,6 +300,7 @@ def test(mix_dir:str, out_dir:str, model_path:str):
         # print("00mix", mix.shape)
         mix = mix.to("cuda")
         # print("11mix", mix.shape)
+        mix = mix / (mix.abs().max() + 1e-8)
         separate = model(mix)  # モデルの適用
         # print("separate", separate.shape)
         # separate = separate.cpu()
@@ -344,5 +346,12 @@ if __name__ == '__main__':
           out_path=f"{const.PTH_DIR}/UGATNet/subset_DEMAND_1ch/similarity_node/{wave_type}.pth", batchsize=1) # UGCN -> UGATNet2
 
     test(mix_dir=f"{const.MIX_DATA_DIR}/subset_DEMAND_hoth_1010dB_1ch/subset_DEMAND_hoth_1010dB_05sec_1ch/test/{wave_type}", # {{wave_type}} -> {wave_type}
-         out_dir=f"{const.OUTPUT_WAV_DIR}/UGATNet/subset_DEMAND_1ch/similarity_node/test/{wave_type}", # UGCN -> UGATNet2, random_node -> similarity_node
+         out_dir=f"{const.OUTPUT_WAV_DIR}/UGATNet/subset_DEMAND_1ch/similarity_node/{wave_type}", # UGCN -> UGATNet2, random_node -> similarity_node
          model_path=f"{const.PTH_DIR}/UGATNet/subset_DEMAND_1ch/similarity_node/{wave_type}.pth") # UGCN -> UGATNet2
+    
+
+    
+    # test(mix_dir=f"{const.MIX_DATA_DIR}/subset_DEMAND_hoth_1010dB_1ch/subset_DEMAND_hoth_1010dB_05sec_1ch/test/{wave_type}",
+    #      out_dir=f"{const.OUTPUT_WAV_DIR}/UGCN/subset_DEMAND_1ch/sililarity_node/test/{wave_type}",
+    #      model_path=f"{const.PTH_DIR}/GNN/subset_DEMAND_1ch/sililarity_node/{wave_type}.pth")
+    
