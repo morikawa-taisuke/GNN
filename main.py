@@ -22,7 +22,7 @@ from All_evaluation import main as evaluation
 
 
 # CUDAのメモリ管理設定
-os.environ['PYTORCH_CUDA_ALLOC_CONF'] = 'expandable_segments:True'
+# os.environ['PYTORCH_CUDA_ALLOC_CONF'] = 'expandable_segments:True'
 
 # CUDAの可用性をチェック
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')

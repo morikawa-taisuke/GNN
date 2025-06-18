@@ -1,6 +1,6 @@
 from models.wave_unet import U_Net
 from models.GCN import UGCNNet, UGATNet, UGCNNet2, UGATNet2
-
+from models.ConvTasNet_models import enhance_ConvTasNet as ConvTasNet
 import time
 import torch
 import torch.nn as nn
@@ -16,14 +16,13 @@ from itertools import permutations
 import os
 from pathlib import Path
 
-import Dataset_Class
 import UGNNNet_DatasetClass
 from mymodule import my_func, const
 from All_evaluation import main as evaluation
 
 
 # CUDAのメモリ管理設定
-os.environ['PYTORCH_CUDA_ALLOC_CONF'] = 'expandable_segments:True'
+# os.environ['PYTORCH_CUDA_ALLOC_CONF'] = 'expandable_segments:True'
 
 # CUDAの可用性をチェック
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -91,13 +90,14 @@ def si_sdr_loss(ests, egs):
 
     # P x N
     N = egs.size(0)
-    sisdr_mat = torch.stack([sisdr_loss(p) for p in permutations(range(num_speeker))])
+    sisdr_mat = torch.stack(
+        [sisdr_loss(p) for p in permutations(range(num_speeker))])
     max_perutt, _ = torch.max(sisdr_mat, dim=0)
     # si-snr
     return -torch.sum(max_perutt) / N
 
 
-def train(model:nn.Module, dataset_path:str, out_path:str="./RESULT/pth/result.pth", loss_func:str="stft_MSE", batchsize:int=const.BATCHSIZE, checkpoint_path:str=None, train_count:int=const.EPOCH, earlystopping_threshold:int=5):
+def train(model:nn.Module, mix_dir:str, clean_dir:str, out_path:str="./RESULT/pth/result.pth", loss_func:str="stft_MSE", batchsize:int=const.BATCHSIZE, checkpoint_path:str=None, train_count:int=const.EPOCH, earlystopping_threshold:int=5):
     """ GPUの設定 """
     device = "cuda" if torch.cuda.is_available() else "cpu" # GPUが使えれば使う
     """ その他の設定 """
@@ -108,15 +108,14 @@ def train(model:nn.Module, dataset_path:str, out_path:str="./RESULT/pth/result.p
     csv_path = os.path.join(const.LOG_DIR, out_name, f"{out_name}_{now}.csv")  # CSVファイルのパス
     my_func.make_dir(csv_path)
     with open(csv_path, "w") as csv_file:  # ファイルオープン
-        csv_file.write(f"dataset,out_name,loss_func\n{dataset_path},{out_path},{loss_func}")
+        csv_file.write(f"dataset,out_name,loss_func\n{mix_dir},{out_path},{loss_func}")
 
     """ Early_Stoppingの設定 """
     best_loss = np.inf  # 損失関数の最小化が目的の場合，初めのbest_lossを無限大にする
     earlystopping_count = 0
 
     """ Load dataset データセットの読み込み """
-    # dataset = UGNNNet_DatasetClass.AudioDataset(clean_dir, mix_dir) # データセットの読み込み
-    dataset = Dataset_Class.TasNet_dataset(dataset_path=dataset_path) # データセットの読み込み
+    dataset = UGNNNet_DatasetClass.AudioDataset(clean_dir, mix_dir) # データセットの読み込み
     dataset_loader = DataLoader(dataset, batch_size=batchsize, shuffle=True, pin_memory=True)
 
 
@@ -146,7 +145,7 @@ def train(model:nn.Module, dataset_path:str, out_path:str="./RESULT/pth/result.p
     print("====================")
     print("device: ", device)
     print("out_path: ", out_path)
-    print("dataset: ", dataset_path)
+    print("dataset: ", mix_dir)
     print("loss_func: ", loss_func)
     print("====================")
 
@@ -167,9 +166,6 @@ def train(model:nn.Module, dataset_path:str, out_path:str="./RESULT/pth/result.p
             """ データの整形 """
             mix_data = mix_data.to(torch.float32)   # target_dataのタイプを変換 int16→float32
             target_data = target_data.to(torch.float32) # target_dataのタイプを変換 int16→float32
-            mix_data = mix_data.unsqueeze(0)  # (batch_size, 1, length) -> (batch_size, length)
-            # print(f"mix_data shape: {mix_data.shape}")  # デバッグ用
-            # print(f"target_data shape: {target_data.shape}")  # デバッグ用
 
             """ モデルに通す(予測値の計算) """
             # print("model_input", mix_data.shape)
@@ -184,7 +180,7 @@ def train(model:nn.Module, dataset_path:str, out_path:str="./RESULT/pth/result.p
             model_loss = 0
             match loss_func:
                 case "SISDR":
-                    model_loss = si_sdr_loss(estimate_data[0], target_data)
+                    model_loss = si_sdr_loss(estimate_data, target_data)
                 case "wave_MSE":
                     model_loss = loss_function(estimate_data, target_data)  # 時間波形上でMSEによる損失関数の計算
                 case "stft_MSE":
@@ -288,13 +284,11 @@ def test(model:nn.Module, mix_dir:str, out_dir:str, model_path:str, prm:int=cons
         torch.cuda.empty_cache()    # メモリの解放 1音声ごとに解放
 
 
-
-
 if __name__ == '__main__':
     """ モデルの設定 """
     num_mic = 1  # マイクの数
     num_node = 8  # k近傍の数
-    model_list = ["UGCN"]#, "UGAT2"]  # モデルの種類
+    model_list = ["ConvTasNet"]#, "UGAT2"]  # モデルの種類
     for model_type in model_list:
         wave_type = "noise_only"    # 入寮信号の種類 (noise_only, reverbe_only, noise_reverbe)
         out_name = f"{model_type}_{wave_type}"  # 出力ファイル名
@@ -307,12 +301,15 @@ if __name__ == '__main__':
             model = UGCNNet2(n_channels=num_mic, n_classes=1, num_node=8).to(device)
         elif model_type == "UGAT2":
             model = UGATNet2(n_channels=num_mic, n_classes=1, num_node=8, gat_heads=4, gat_dropout=0.6).to(device)
+        elif model_type == "ConvTasNet":
+            model = ConvTasNet().to(device)
         else:
             raise ValueError(f"Unknown model type: {model_type}")
 
 
         train(model=model,
-              dataset_path=f"{const.DATASET_DIR}/JA_hoth_5dB/{wave_type}",
+              mix_dir=f"{const.MIX_DATA_DIR}/GNN/JA_hoth_5dB/train/",
+              clean_dir=f"{const.SAMPLE_DATA_DIR}/speech/JA/train/",
               out_path=f"{const.PTH_DIR}/{model_type}/JA_hoth_5dB/{out_name}.pth", batchsize=1,
               loss_func="SISDR")
 
