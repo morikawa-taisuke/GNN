@@ -196,19 +196,6 @@ class AudioDataset_test(Dataset):
         # 例えば、.wav ファイルのみを対象とする
         self.noisy_file_paths = sorted(glob.glob(os.path.join(noisy_audio_dir, "*.wav")))
 
-        # ファイル数の一致を確認（重要なチェック）
-        if len(self.noisy_file_paths) != len(self.clean_file_paths):
-            raise ValueError("The number of noisy and clean audio files does not match.")
-
-        # ファイル名のペアリングを確認（これも重要）
-        # for i in range(len(self.noisy_file_paths)):
-        #     # noisy_filename = os.path.basename(self.noisy_file_paths[i])
-        #     # clean_filename = os.path.basename(self.clean_file_paths[i])
-        #     noisy_filename = my_func.get_file_name(self.noisy_file_paths[i])[0]
-        #     clean_filename = my_func.get_file_name(self.clean_file_paths[i])[0]
-        #     if not(noisy_filename in clean_filename):
-        #         raise ValueError(f"Mismatched filenames: {noisy_filename} != {clean_filename} at index {i}")
-
         print(f"Found {len(self.noisy_file_paths)} audio pairs.")
 
     def __len__(self):
