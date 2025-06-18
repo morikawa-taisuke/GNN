@@ -16,6 +16,7 @@ from itertools import permutations
 import os
 from pathlib import Path
 
+import Dataset_Class
 import UGNNNet_DatasetClass
 from mymodule import my_func, const
 from All_evaluation import main as evaluation
@@ -96,7 +97,7 @@ def si_sdr_loss(ests, egs):
     return -torch.sum(max_perutt) / N
 
 
-def train(model:nn.Module, mix_dir:str, clean_dir:str, out_path:str="./RESULT/pth/result.pth", loss_func:str="stft_MSE", batchsize:int=const.BATCHSIZE, checkpoint_path:str=None, train_count:int=const.EPOCH, earlystopping_threshold:int=5):
+def train(model:nn.Module, dataset_path:str, out_path:str="./RESULT/pth/result.pth", loss_func:str="stft_MSE", batchsize:int=const.BATCHSIZE, checkpoint_path:str=None, train_count:int=const.EPOCH, earlystopping_threshold:int=5):
     """ GPUの設定 """
     device = "cuda" if torch.cuda.is_available() else "cpu" # GPUが使えれば使う
     """ その他の設定 """
@@ -107,14 +108,15 @@ def train(model:nn.Module, mix_dir:str, clean_dir:str, out_path:str="./RESULT/pt
     csv_path = os.path.join(const.LOG_DIR, out_name, f"{out_name}_{now}.csv")  # CSVファイルのパス
     my_func.make_dir(csv_path)
     with open(csv_path, "w") as csv_file:  # ファイルオープン
-        csv_file.write(f"dataset,out_name,loss_func\n{mix_dir},{out_path},{loss_func}")
+        csv_file.write(f"dataset,out_name,loss_func\n{dataset_path},{out_path},{loss_func}")
 
     """ Early_Stoppingの設定 """
     best_loss = np.inf  # 損失関数の最小化が目的の場合，初めのbest_lossを無限大にする
     earlystopping_count = 0
 
     """ Load dataset データセットの読み込み """
-    dataset = UGNNNet_DatasetClass.AudioDataset(clean_dir, mix_dir) # データセットの読み込み
+    # dataset = UGNNNet_DatasetClass.AudioDataset(clean_dir, mix_dir) # データセットの読み込み
+    dataset = Dataset_Class.TasNet_dataset(dataset_path=dataset_path) # データセットの読み込み
     dataset_loader = DataLoader(dataset, batch_size=batchsize, shuffle=True, pin_memory=True)
 
 
@@ -144,7 +146,7 @@ def train(model:nn.Module, mix_dir:str, clean_dir:str, out_path:str="./RESULT/pt
     print("====================")
     print("device: ", device)
     print("out_path: ", out_path)
-    print("dataset: ", mix_dir)
+    print("dataset: ", dataset_path)
     print("loss_func: ", loss_func)
     print("====================")
 
@@ -307,8 +309,7 @@ if __name__ == '__main__':
 
 
         train(model=model,
-              mix_dir=f"{const.MIX_DATA_DIR}/subset_DEMAND_hoth_0505dB/train/{wave_type}",
-              clean_dir=f"{const.MIX_DATA_DIR}/subset_DEMAND_hoth_0505dB/train/clean",
+              dataset_path=f"{const.DATASET_DIR}/subset_DEMAND_hoth_0505dB/train/{wave_type}",
               out_path=f"{const.PTH_DIR}/{model_type}/subset_DEMAND_1ch/{out_name}.pth", batchsize=1,
               loss_func="SISDR")
 

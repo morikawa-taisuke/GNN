@@ -65,10 +65,10 @@ class AudioDataset(Dataset):
 
         # チャンネル数の調整（例：ステレオ -> モノラル）
         # モデルが1チャンネル入力を想定している場合、モノラルに変換
-        if noisy_waveform.shape[0] > 1:
-            noisy_waveform = torch.mean(noisy_waveform, dim=0, keepdim=True)
-        if clean_waveform.shape[0] > 1:
-            clean_waveform = torch.mean(clean_waveform, dim=0, keepdim=True)
+        # if noisy_waveform.shape[0] > 1:
+        #     noisy_waveform = torch.mean(noisy_waveform, dim=0, keepdim=True)
+        # if clean_waveform.shape[0] > 1:
+        #     clean_waveform = torch.mean(clean_waveform, dim=0, keepdim=True)
 
         # 長さの調整
         # (1) 最大長に切り捨て
@@ -213,8 +213,8 @@ class AudioDataset_test(Dataset):
 
         # チャンネル数の調整（例：ステレオ -> モノラル）
         # モデルが1チャンネル入力を想定している場合、モノラルに変換
-        if noisy_waveform.shape[0] > 1:
-            noisy_waveform = torch.mean(noisy_waveform, dim=0, keepdim=True)
+        # if noisy_waveform.shape[0] > 1:
+        #     noisy_waveform = torch.mean(noisy_waveform, dim=0, keepdim=True)
 
         # 長さの調整
         # (1) 最大長に切り捨て
