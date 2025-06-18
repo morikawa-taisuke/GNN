@@ -1114,21 +1114,21 @@ if __name__ == "__main__":
 
 
     """ 音声強調用のデータセット """
-    for i in range(4, 5):
-        mix_dir = f"{const.MIX_DATA_DIR}/DEMAND_1ch/condition_{i}/train"
-        out_dir = f"{const.DATASET_DIR}/DEMAND_1ch/condition_{i}/noise_reverbe"
-        # sub_dir_list = my_func.get_subdir_list(mix_dir)
-        # print(sub_dir_list)
-        # for sub_dir in sub_dir_list:
-        #     enhance_save_stft(mix_dir=os.path.join(mix_dir, sub_dir),
-        #                       target_dir=os.path.join(mix_dir, "clean"),
-        #                       out_dir=os.path.join(out_dir, sub_dir),
-        #                       is_wave=True)  # False=スペクトログラム, True=時間領域
-        GNN_dataset(mix_dir=os.path.join(mix_dir, "noise_reverbe"),
-                    target_dir=os.path.join(mix_dir, "clean"),
-                    csv_path="C:/Users/kataoka-lab/Desktop/sound_data/dataset/DEMAND_1ch/condition_4/condition4_data_length.csv",
-                    out_dir=out_dir,
-                    is_wave=True)  # False=スペクトログラム, True=時間領域
+    mix_dir = f"{const.MIX_DATA_DIR}/subset_DEMAND_hoth_0505dB/train"
+    out_dir = f"{const.DATASET_DIR}/subset_DEMAND_hoth_0505dB/"
+    sub_dir_list = my_func.get_subdir_list(mix_dir)
+    sub_dir = "noise_only"
+    # print(sub_dir_list)
+    # for sub_dir in sub_dir_list:
+    enhance_save_stft(mix_dir=os.path.join(mix_dir, sub_dir),
+                        target_dir=os.path.join(mix_dir, "clean"),
+                        out_dir=os.path.join(out_dir, sub_dir),
+                        is_wave=True)  # False=スペクトログラム, True=時間領域
+    # GNN_dataset(mix_dir=os.path.join(mix_dir, "noise_reverbe"),
+    #                 target_dir=os.path.join(mix_dir, "clean"),
+    #                 csv_path="C:/Users/kataoka-lab/Desktop/sound_data/dataset/DEMAND_1ch/condition_4/condition4_data_length.csv",
+    #                 out_dir=out_dir,
+    #                 is_wave=True)  # False=スペクトログラム, True=時間領域
 
     """ 音源分離用のデータセット """
     # separate_dataset_csv(csv_path="C:/Users/kataoka-lab/Desktop/sound_data/mix_data/separate_sebset_DEMAND/train/list.csv",
