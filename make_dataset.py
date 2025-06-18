@@ -1114,14 +1114,15 @@ if __name__ == "__main__":
 
 
     """ 音声強調用のデータセット """
-    mix_dir = f"{const.MIX_DATA_DIR}/subset_DEMAND_hoth_0505dB/train"
-    out_dir = f"{const.DATASET_DIR}/subset_DEMAND_hoth_0505dB/"
+    mix_dir = f"{const.MIX_DATA_DIR}/GNN/JA_hoth_5dB/train"
+    target_dir = f"{const.SAMPLE_DATA_DIR}/speech/JA/train/"
+    out_dir = f"{const.DATASET_DIR}/JA_hoth_5dB/"
     sub_dir_list = my_func.get_subdir_list(mix_dir)
     sub_dir = "noise_only"
     # print(sub_dir_list)
     # for sub_dir in sub_dir_list:
-    enhance_save_stft(mix_dir=os.path.join(mix_dir, sub_dir),
-                        target_dir=os.path.join(mix_dir, "clean"),
+    enhance_save_stft(mix_dir=mix_dir,
+                        target_dir=target_dir,
                         out_dir=os.path.join(out_dir, sub_dir),
                         is_wave=True)  # False=スペクトログラム, True=時間領域
     # GNN_dataset(mix_dir=os.path.join(mix_dir, "noise_reverbe"),

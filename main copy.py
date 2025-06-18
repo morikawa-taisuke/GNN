@@ -291,7 +291,7 @@ if __name__ == '__main__':
     """ モデルの設定 """
     num_mic = 1  # マイクの数
     num_node = 8  # k近傍の数
-    model_list = ["UGAT2"]#, "UGAT2"]  # モデルの種類
+    model_list = ["UGCN"]#, "UGAT2"]  # モデルの種類
     for model_type in model_list:
         wave_type = "noise_only"    # 入寮信号の種類 (noise_only, reverbe_only, noise_reverbe)
         out_name = f"{model_type}_{wave_type}"  # 出力ファイル名
@@ -309,8 +309,8 @@ if __name__ == '__main__':
 
 
         train(model=model,
-              dataset_path=f"{const.DATASET_DIR}/subset_DEMAND_hoth_0505dB/train/{wave_type}",
-              out_path=f"{const.PTH_DIR}/{model_type}/subset_DEMAND_1ch/{out_name}.pth", batchsize=1,
+              dataset_path=f"{const.DATASET_DIR}/JA_hoth_5dB/train/{wave_type}",
+              out_path=f"{const.PTH_DIR}/{model_type}/JA_hoth_5dB/{out_name}.pth", batchsize=1,
               loss_func="SISDR")
 
         test(model=model,
