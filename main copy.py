@@ -167,6 +167,9 @@ def train(model:nn.Module, dataset_path:str, out_path:str="./RESULT/pth/result.p
             """ データの整形 """
             mix_data = mix_data.to(torch.float32)   # target_dataのタイプを変換 int16→float32
             target_data = target_data.to(torch.float32) # target_dataのタイプを変換 int16→float32
+            mix_data = mix_data.unsqueeze(0)  # (batch_size, 1, length) -> (batch_size, length)
+            # print(f"mix_data shape: {mix_data.shape}")  # デバッグ用
+            # print(f"target_data shape: {target_data.shape}")  # デバッグ用
 
             """ モデルに通す(予測値の計算) """
             # print("model_input", mix_data.shape)
@@ -181,7 +184,7 @@ def train(model:nn.Module, dataset_path:str, out_path:str="./RESULT/pth/result.p
             model_loss = 0
             match loss_func:
                 case "SISDR":
-                    model_loss = si_sdr_loss(estimate_data, target_data)
+                    model_loss = si_sdr_loss(estimate_data[0], target_data)
                 case "wave_MSE":
                     model_loss = loss_function(estimate_data, target_data)  # 時間波形上でMSEによる損失関数の計算
                 case "stft_MSE":
@@ -291,7 +294,7 @@ if __name__ == '__main__':
     """ モデルの設定 """
     num_mic = 1  # マイクの数
     num_node = 8  # k近傍の数
-    model_list = ["UGAT2"]#, "UGAT2"]  # モデルの種類
+    model_list = ["UGCN"]#, "UGAT2"]  # モデルの種類
     for model_type in model_list:
         wave_type = "noise_only"    # 入寮信号の種類 (noise_only, reverbe_only, noise_reverbe)
         out_name = f"{model_type}_{wave_type}"  # 出力ファイル名
@@ -309,14 +312,14 @@ if __name__ == '__main__':
 
 
         train(model=model,
-              dataset_path=f"{const.DATASET_DIR}/subset_DEMAND_hoth_0505dB/train/{wave_type}",
-              out_path=f"{const.PTH_DIR}/{model_type}/subset_DEMAND_1ch/{out_name}.pth", batchsize=1,
+              dataset_path=f"{const.DATASET_DIR}/subset_DEMAND_hoth_0505dB/{wave_type}",
+              out_path=f"{const.PTH_DIR}/{model_type}/subset_DEMAND_hoth_0505dB/{out_name}.pth", batchsize=1,
               loss_func="SISDR")
 
         test(model=model,
              mix_dir=f"{const.MIX_DATA_DIR}/subset_DEMAND_hoth_0505dB/test/{wave_type}",
-             out_dir=f"{const.OUTPUT_WAV_DIR}/{model_type}/subset_DEMAND_1ch/{out_name}",
-             model_path=f"{const.PTH_DIR}/{model_type}/subset_DEMAND_1ch/{out_name}.pth")
+             out_dir=f"{const.OUTPUT_WAV_DIR}/{model_type}/subset_DEMAND_hoth_0505dB/{out_name}",
+             model_path=f"{const.PTH_DIR}/{model_type}/subset_DEMAND_hoth_0505dB/{out_name}.pth")
         
         # evaluation(target_dir=f"{const.MIX_DATA_DIR}/subset_DEMAND_hoth_1010dB_1ch/subset_DEMAND_hoth_1010dB_05sec_1ch/test/clean",
         #         estimation_dir=f"{const.OUTPUT_WAV_DIR}/{model_type}/subset_DEMAND_1ch/{out_name}",

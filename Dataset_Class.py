@@ -27,6 +27,37 @@ def load_dataset(dataset_path:str):
     # print('dataset_list:', len(dataset_list))
     mix_list = []
     target_list = []
+    for dataset_file in dataset_list:
+        dat = np.load(dataset_file)  # datファイルの読み込み
+        # print(f'dat:{dat.files}')
+        # print('dat:', dat['target'])
+        # mix_list.append(dat[const.DATASET_KEY_MIXDOWN])  # 入力データの追加
+        mix_list.append(dat['mix'])  # 入力データの追加
+        # target_list.append(dat[const.DATASET_KEY_TARGET])  # 正解データの追加
+        target_list.append(dat['target'])  # 正解データの追加
+    # print('load:np.array(mix_list.shape):', np.array(mix_list).shape)
+    # print('load:np.array(target_list.shape):', np.array(target_list).shape)
+    # print('load_dataset\n')
+    return mix_list, target_list
+
+def load_dataset_edge(dataset_path:str):
+    """
+    npzファイルから入力データと教師データを読み込む
+
+    Parameters
+    ----------
+    dataset_path(str):データセットのパス
+
+    Returns
+    -------
+    mix_list:入力信号
+    target_list:目的信号
+    """
+    # print('\nload_dataset')
+    dataset_list = find_files(dataset_path, ext="npz", case_sensitive=True)
+    # print('dataset_list:', len(dataset_list))
+    mix_list = []
+    target_list = []
     edge_idx = []
     for dataset_file in dataset_list:
         dat = np.load(dataset_file)  # datファイルの読み込み
@@ -335,7 +366,7 @@ class TasNet_dataset(torch.utils.data.Dataset):
         mix_data = torch.from_numpy(mix_data)
         target_data = torch.from_numpy(target_data)
 
-        return i, mix_data, target_data
+        return mix_data, target_data
 
     def get_all(self):
         mix_list = []
