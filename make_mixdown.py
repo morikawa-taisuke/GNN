@@ -49,7 +49,7 @@ def main(speech_dir,noise_dir, out_dir, snr=5):
 
 if __name__ == '__main__':
 
-    train_test = 'test'  # 'train' or 'test'
+    train_test = 'train'  # 'train' or 'test'
     speech_dir = f"{const.SAMPLE_DATA_DIR}/speech/JA/{train_test}"
     noise_dir = f"{const.SAMPLE_DATA_DIR}/noise/hoth.wav"
     out_dir = f"{const.MIX_DATA_DIR}/GNN/JA_hoth_5dB/{train_test}"

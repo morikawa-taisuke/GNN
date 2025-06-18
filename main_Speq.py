@@ -114,9 +114,13 @@ def train(model:nn.Module, mix_dir:str, clean_dir:str, out_path:str="./RESULT/pt
     earlystopping_count = 0
 
     """ Load dataset データセットの読み込み """
-    dataset = UGNNNet_DatasetClass.AudioDataset(clean_dir, mix_dir) # データセットの読み込み
+    dataset = UGNNNet_DatasetClass.SpectralDataset(clean_dir, mix_dir) # データセットの読み込み
     dataset_loader = DataLoader(dataset, batch_size=batchsize, shuffle=True, pin_memory=True)
-
+    
+    # STFTパラメータをモデルから取得 (SpectralDatasetと一致させる必要がある)
+    # 本来はconfigファイル等で一元管理するのが望ましい
+    n_fft_for_stft = model.n_fft
+    hop_length_for_stft = model.hop_length
 
     # print(f"\nmodel:{model}\n")                           # モデルのアーキテクチャの出力
     """ 最適化関数の設定 """
@@ -154,76 +158,87 @@ def train(model:nn.Module, mix_dir:str, clean_dir:str, out_path:str="./RESULT/pt
     start_time = time.time()    # 時間を測定
     epoch = 0
     for epoch in range(start_epoch, train_count+1):   # 学習回数
-        print("Train Epoch:", epoch)    # 学習回数の表示
-        for _, (mix_data, target_data) in tenumerate(dataset_loader):
+        print(f"Train Epoch: {epoch}/{train_count}")    # 学習回数の表示
+        model_loss_sum_epoch = 0
+        for i, (mix_magnitude_spec, mix_complex_spec, original_len, target_wave) in tenumerate(dataset_loader):
             model_loss_sum = 0  # 総損失の初期化
-            mix_data, target_data = mix_data.to(device), target_data.to(device) # データをGPUに移動
+            mix_magnitude_spec = mix_magnitude_spec.to(device)
+            mix_complex_spec = mix_complex_spec.to(device)
+            # original_len はスカラーまたはリストなので、必要に応じてテンソル化するが、ISTFTのlength引数はint
+            target_wave = target_wave.to(device)
 
             """ 勾配のリセット """
             optimizer.zero_grad()  # optimizerの初期化
 
             """ データの整形 """
-            mix_data = mix_data.to(torch.float32)   # target_dataのタイプを変換 int16→float32
-            target_data = target_data.to(torch.float32) # target_dataのタイプを変換 int16→float32
+            # SpectralDatasetがfloat32で返すことを想定。必要ならここで変換。
 
             """ モデルに通す(予測値の計算) """
-            # print("model_input", mix_data.shape)
-            estimate_data = model(mix_data) # モデルに通す
+            # forward(self, x_magnitude, complex_spec_input, original_length=None)
+            # original_len はバッチ内の各要素の長さのリスト/テンソルになる可能性があるので、適切に処理
+            # DataLoaderのバッチ処理でoriginal_lenがどうなるか注意。ここでは最初の要素の長さを仮定。
+            # バッチ内の全要素が同じ長さであることを前提とするか、可変長を扱えるようにする必要がある。
+            # SpectralDatasetでmax_length_secにより固定長にパディングされているはず。
+            current_original_length = original_len[0].item() if isinstance(original_len, torch.Tensor) else original_len[0]
+            estimate_wave = model(mix_magnitude_spec, mix_complex_spec, current_original_length)
 
             """ データの整形 """
-            # print("estimation:", estimate_data.shape)
-            # print("target:", target_data.shape)
-            estimate_data, target_data = padding_tensor(estimate_data, target_data)
+            estimate_wave, target_wave_padded = padding_tensor(estimate_wave, target_wave)
 
             """ 損失の計算 """
             model_loss = 0
             match loss_func:
                 case "SISDR":
-                    model_loss = si_sdr_loss(estimate_data, target_data)
+                    model_loss = si_sdr_loss(estimate_wave, target_wave_padded[0])
                 case "wave_MSE":
-                    model_loss = loss_function(estimate_data, target_data)  # 時間波形上でMSEによる損失関数の計算
+                    model_loss = loss_function(estimate_wave, target_wave_padded)  # 時間波形上でMSEによる損失関数の計算
                 case "stft_MSE":
                     """ 周波数軸に変換 """
-                    stft_estimate_data = torch.stft(estimate_data[0], n_fft=1024, return_complex=False)
-                    stft_target_data = torch.stft(target_data[0], n_fft=1024, return_complex=False)
+                    # estimate_wave, target_wave_padded は (B, C, T) or (B, T) の形状
+                    # torch.stftは (..., L) or (B, L) を期待
+                    # squeeze(1) はチャンネル数が1の場合。
+                    stft_estimate_data = torch.stft(estimate_wave.squeeze(1), n_fft=n_fft_for_stft, hop_length=hop_length_for_stft, return_complex=True)
+                    stft_target_data = torch.stft(target_wave_padded.squeeze(1), n_fft=n_fft_for_stft, hop_length=hop_length_for_stft, return_complex=True)
                     model_loss = loss_function(stft_estimate_data, stft_target_data)  # 時間周波数上MSEによる損失の計算
 
-            model_loss_sum += model_loss  # 損失の加算
+            model_loss_sum_epoch += model_loss.item()  # 損失の加算
 
             """ 後処理 """
             model_loss.backward()           # 誤差逆伝搬
             optimizer.step()                # 勾配の更新
 
-            del mix_data, target_data, model_loss    # 使用していない変数の削除 estimate_data, 
+            del mix_magnitude_spec, mix_complex_spec, target_wave, estimate_wave, model_loss
             torch.cuda.empty_cache()    # メモリの解放 1iterationごとに解放
-
+        
+        avg_epoch_loss = model_loss_sum_epoch / len(dataset_loader)
         """ チェックポイントの作成 """
         torch.save({"epoch": epoch,
                     "model_state_dict": model.state_dict(),
                     "optimizer_state_dict": optimizer.state_dict(),
-                    "loss": model_loss_sum},
+                    "loss": avg_epoch_loss},
                     f"{out_dir}/{out_name}_ckp.pth")
 
-        writer.add_scalar(str(out_name[0]), model_loss_sum, epoch)
-        #writer.add_scalar(str(str_name[0]) + "_" + str(a) + "_sisdr-sisnr", model_loss_sum, epoch)
-        print(f"[{epoch}]model_loss_sum:{model_loss_sum}")  # 損失の出力
+        writer.add_scalar(f"{out_name}/loss", avg_epoch_loss, epoch)
+        print(f"[{epoch}/{train_count}] Epoch Avg Loss: {avg_epoch_loss:.6f}")
 
         torch.cuda.empty_cache()    # メモリの解放 1iterationごとに解放
         with open(csv_path, "a") as out_file:  # ファイルオープン
-            out_file.write(f"{model_loss_sum}\n")  # 書き込み
+            out_file.write(f"{epoch},{avg_epoch_loss}\n")  # 書き込み
         # torch.cuda.empty_cache()    # メモリの解放 1epochごとに解放-
 
         """ Early_Stopping の判断 """
         # best_lossとmodel_loss_sumを比較
-        if model_loss_sum < best_loss:  # model_lossのほうが小さい場合
-            print(f"{epoch:3} [epoch] | {model_loss_sum:.6} <- {best_loss:.6}")
+        if avg_epoch_loss < best_loss:  # model_lossのほうが小さい場合
+            print(f"{epoch:3} [epoch] | New best model found with loss: {avg_epoch_loss:.6f} (was {best_loss:.6f})")
             torch.save(model.to(device).state_dict(), f"{out_dir}/BEST_{out_name}.pth")  # 出力ファイルの保存
-            best_loss = model_loss_sum  # best_lossの変更
+            best_loss = avg_epoch_loss  # best_lossの変更
             earlystopping_count = 0
-            estimate_data = estimate_data.cpu()
-            estimate_data = estimate_data.detach().numpy()
-            estimate_data = estimate_data.squeeze()  # (1, 1, length) -> (length,)
-            sf.write("./RESULT/BEST.wav", estimate_data, const.SR)
+            # estimate_wave はループの最後のバッチのものなので、必ずしもベストモデルの出力ではない
+            # if estimate_wave is not None and estimate_wave.numel() > 0 : # estimate_waveがNoneでないかつ空でないことを確認
+            #     estimate_to_save = estimate_wave[0].cpu().detach().numpy() # バッチの最初の要素
+            #     if estimate_to_save.ndim > 1:
+            #          estimate_to_save = estimate_to_save.squeeze(0) # (C, T) -> (T) if C=1
+            #     sf.write(f"./RESULT/BEST_{out_name}_epoch{epoch}.wav", estimate_to_save, const.SR)
             
         else:
             earlystopping_count += 1
@@ -248,26 +263,40 @@ def test(model:nn.Module, mix_dir:str, out_dir:str, model_path:str, prm:int=cons
     # filelist_mixdown = my_func.get_file_list(mix_dir)
     # print('number of mixdown file', len(filelist_mixdown))
 
+    # STFTパラメータ (モデルと一致させる)
+    n_fft_for_stft = model.n_fft
+    hop_length_for_stft = model.hop_length
+    win_length_for_stft = model.win_length
+    window_for_stft = model.window.to(device)
+
     # ディレクトリを作成
     my_func.make_dir(out_dir)
     model_path = Path(model_path)  # path型に変換
     model_dir, model_name = model_path.parent, model_path.stem  # ファイル名とディレクトリを分離
 
-    model.load_state_dict(torch.load(os.path.join(model_dir, f"BEST_{model_name}.pth")))
+    model.load_state_dict(torch.load(os.path.join(model_dir, f"BEST_{model_name}.pth"), map_location=device))
+    model.eval()
     
     dataset = UGNNNet_DatasetClass.AudioDataset_test(mix_dir) # データセットの読み込み
     dataset_loader = DataLoader(dataset, batch_size=1, shuffle=True, pin_memory=True)
 
-    for (mix_data, mix_name) in tqdm(dataset_loader):  # filelist_mixdownを全て確認して、それぞれをfmixdownに代入
-        mix_data = mix_data.to(device)  # データをGPUに移動
-        mix_data = mix_data.to(torch.float32)   # データの型を変換 int16→float32
+    for (mix_wave, mix_name_tuple) in tqdm(dataset_loader):  # filelist_mixdownを全て確認して、それぞれをfmixdownに代入
+        mix_wave = mix_wave.to(device)  # (B, C, T)
+        mix_name = mix_name_tuple[0] # DataLoaderがタプルでラップする場合がある
 
-        mix_max = torch.max(mix_data)  # 最大値の取得
+        # STFT実行
+        # 振幅スペクトログラム (B, C, F, T_spec)
+        mix_magnitude_spec = torch.stft(mix_wave.squeeze(1), n_fft=n_fft_for_stft, hop_length=hop_length_for_stft, win_length=win_length_for_stft, window=window_for_stft, return_complex=False)
+        mix_magnitude_spec = torch.sqrt(mix_magnitude_spec[..., 0]**2 + mix_magnitude_spec[..., 1]**2).unsqueeze(1) # (B, 1, F, T_spec)
 
-        separate = model(mix_data)  # モデルの適用
-        # print(f"Initial separate shape: {separate.shape}") # デバッグ用
+        # 複素スペクトログラム (B, F, T_spec)
+        mix_complex_spec = torch.stft(mix_wave.squeeze(1), n_fft=n_fft_for_stft, hop_length=hop_length_for_stft, win_length=win_length_for_stft, window=window_for_stft, return_complex=True)
 
-        # separate = separate * (mix_max / torch.max(separate))     # 最大値を揃える
+        original_len = mix_wave.shape[-1]
+
+        with torch.no_grad():
+            separate = model(mix_magnitude_spec, mix_complex_spec, original_len)  # モデルの適用
+
         separate = separate.cpu()
         separate = separate.detach().numpy()
         # print(f"separate: {separate.shape}")
@@ -280,7 +309,7 @@ def test(model:nn.Module, mix_dir:str, out_dir:str, model_path:str, prm:int=cons
         
         # 分離した speechを出力ファイルとして保存する。
         # ファイル名とフォルダ名を結合してパス文字列を作成
-        out_path = os.path.join(out_dir, (mix_name[0] + '.wav'))
+        out_path = os.path.join(out_dir, (mix_name + '.wav'))
         # print('saving... ', fname)
         # 混合データを保存
         # my_func.save_wav(out_path, separate[0], prm)
@@ -293,13 +322,13 @@ if __name__ == '__main__':
     """ モデルの設定 """
     num_mic = 1  # マイクの数
     num_node = 8  # k近傍の数
-    model_list = ["UGCN"]#, "UGAT2"]  # モデルの種類
+    model_list = ["SpeqGCN"] # モデルの種類をSpeqGCNに限定
     for model_type in model_list:
         wave_type = "noise_only"    # 入寮信号の種類 (noise_only, reverbe_only, noise_reverbe)
         out_name = f"{model_type}_{wave_type}"  # 出力ファイル名
 
-        if model_type == "UGCN":
-            model = UGCNNet(n_channels=num_mic, n_classes=1, num_node=8).to(device)
+        if model_type == "SpeqGCN": # モデル名をSpeqGCNに変更
+            model = SpeqGCNNet(n_channels=num_mic, n_classes=1, num_node=num_node).to(device) # num_node -> k_neighbors
         elif model_type == "UGAT":
             model = UGATNet(n_channels=num_mic, n_classes=1, num_node=8, gat_heads=4, gat_dropout=0.6).to(device)
         elif model_type == "UGCN2":

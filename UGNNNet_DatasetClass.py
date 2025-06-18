@@ -92,7 +92,7 @@ class AudioDataset(Dataset):
 
 class SpectralDataset(Dataset):
     def __init__(self, noisy_audio_dir, clean_audio_dir, sample_rate=16000, max_length_sec=3,
-                 n_fft=1024, hop_length=256, win_length=None):
+                 n_fft=512, hop_length=256, win_length=None):
         """
         スペクトルデータセットクラス
 
@@ -121,12 +121,20 @@ class SpectralDataset(Dataset):
             window_fn=torch.hann_window,
             power=1.0  # Magnitude spectrogram
         )
+        # For complex spectrogram
+        self.stft_transform_complex = torchaudio.transforms.Spectrogram(
+            n_fft=self.n_fft,
+            hop_length=self.hop_length,
+            win_length=self.win_length,
+            window_fn=torch.hann_window, # Ensure window is applied
+            power=None, # To get complex output
+            return_complex=True # Explicitly ask for complex output
+        )
 
         self.noisy_file_paths = sorted(glob.glob(os.path.join(noisy_audio_dir, "*.wav")))
         self.clean_file_paths = sorted(glob.glob(os.path.join(clean_audio_dir, "*.wav")))
-        print(self.noisy_file_paths)
-        print(self.clean_file_paths)
-
+        # print(self.noisy_file_paths)
+        # print(self.clean_file_paths)
         if len(self.noisy_file_paths) != len(self.clean_file_paths):
             raise ValueError("The number of noisy and clean audio files does not match.")
         
@@ -161,20 +169,19 @@ class SpectralDataset(Dataset):
                 noisy_waveform = F.pad(noisy_waveform, (0, padding_amount))
                 clean_waveform = F.pad(clean_waveform, (0, padding_amount))
 
-        # STFT
-        noisy_spectrogram = self.spectrogram_transform(noisy_waveform)
-        clean_spectrogram = self.spectrogram_transform(clean_waveform)
+        original_length = noisy_waveform.shape[-1]
 
-        # 正規化 (オプション)
-        # スペクトログラムの最大値で正規化
-        noisy_spectrogram = noisy_spectrogram / (noisy_spectrogram.max() + 1e-8)
-        clean_spectrogram = clean_spectrogram / (clean_spectrogram.max() + 1e-8)
+        # STFT
+        noisy_magnitude_spectrogram = self.spectrogram_transform(noisy_waveform)
+        # Ensure complex STFT is applied to the mono waveform
+        noisy_complex_spectrogram = self.stft_transform_complex(noisy_waveform.squeeze(0)) # Squeeze channel for STFT if mono
+        # clean_spectrogram = self.spectrogram_transform(clean_waveform)
+
         
         # または、log-magnitude spectrogram
         # noisy_spectrogram = torch.log1p(noisy_spectrogram)
         # clean_spectrogram = torch.log1p(clean_spectrogram)
-
-        return noisy_spectrogram, clean_spectrogram
+        return noisy_magnitude_spectrogram, noisy_complex_spectrogram, original_length, clean_waveform
 
 
 class AudioDataset_test(Dataset):
