@@ -220,7 +220,7 @@ class UGCNNet(nn.Module):
         d3 = self.up1(x4_processed, x3)
         d2 = self.up2(d3, x2)
         d1 = self.up3(d2, x1)
-        mask_pred = self.outc(d1) # [B, n_classes, H_mask, W_mask] (通常 H_mask=encoder_dim, W_mask=L_encoded)
+        mask_pred = torch.sigmoid(self.outc(d1)) # [B, n_classes, H_mask, W_mask] (通常 H_mask=encoder_dim, W_mask=L_encoded)
 
         # マスクをx_encodedの次元に合わせる (n_classes=1を想定)
         if mask_pred.size(2) != x_encoded.size(1) or mask_pred.size(3) != x_encoded.size(2):
@@ -309,6 +309,17 @@ class UGCNNet2(UGCNNet):
         d2 = self.up2(d3, x2)
         d1 = self.up3(d2, x1)
         mask_pred = self.outc(d1)
+        mask_pred = torch.sigmoid(mask_pred)
+
+        # --- ここからデバッグコード ---
+        # print(f"--- Debug mask_pred in UGCNNet2 ---")
+        # print(f"mask_pred.shape: {mask_pred.shape}")
+        # if mask_pred.numel() > 0: # テンソルが空でないことを確認
+        #     print(f"mask_pred.min(): {mask_pred.min().item()}")
+        #     print(f"mask_pred.max(): {mask_pred.max().item()}")
+        #     print(f"mask_pred.mean(): {mask_pred.mean().item()}")
+        #     print(f"mask_pred.dtype: {mask_pred.dtype}")
+        # --- ここまでデバッグコード ---
 
         if mask_pred.size(2) != x_encoded.size(1) or mask_pred.size(3) != x_encoded.size(2):
             mask_pred_resized = F.interpolate(mask_pred, size=(x_encoded.size(1), x_encoded.size(2)), mode='bilinear', align_corners=False)
