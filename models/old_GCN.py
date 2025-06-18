@@ -1,11 +1,10 @@
 import torch
 import torch.nn as nn
+import os
+from torchinfo import summary
 import torch.nn.functional as F
 from torch_geometric.nn import GCNConv
-from torchinfo import summary
-import os
 
-from mymodule import const
 
 # CUDAのメモリ管理設定
 os.environ['PYTORCH_CUDA_ALLOC_CONF'] = 'expandable_segments:True'
@@ -14,20 +13,6 @@ os.environ['PYTORCH_CUDA_ALLOC_CONF'] = 'expandable_segments:True'
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 print(f"Using device: {device}")
 
-class RelNet(nn.Module):
-    def __init__(self, input_dim, hidden_dim, output_dim):
-        super(RelNet, self).__init__()
-        self.conv1 = GCNConv(input_dim, hidden_dim)
-        self.conv2 = GCNConv(hidden_dim, hidden_dim)
-        self.conv3 = GCNConv(hidden_dim, output_dim)
-        
-    def forward(self, x, edge_index):
-        x = F.relu(self.conv1(x, edge_index))
-        x = F.dropout(x, p=0.5, training=self.training)
-        x = F.relu(self.conv2(x, edge_index))
-        x = F.dropout(x, p=0.5, training=self.training)
-        x = self.conv3(x, edge_index)
-        return x
 
 class DoubleConv(nn.Module):
     def __init__(self, in_channels, out_channels):
@@ -44,6 +29,7 @@ class DoubleConv(nn.Module):
     def forward(self, x):
         return self.double_conv(x)
 
+
 class Down(nn.Module):
     def __init__(self, in_channels, out_channels):
         super().__init__()
@@ -54,6 +40,7 @@ class Down(nn.Module):
 
     def forward(self, x):
         return self.maxpool_conv(x)
+
 
 class Up(nn.Module):
     def __init__(self, in_channels, out_channels):
@@ -70,9 +57,26 @@ class Up(nn.Module):
         x = torch.cat([x2, x1], dim=1)
         return self.conv(x)
 
-class URelNet(nn.Module):
+
+class GCN(nn.Module):
+    def __init__(self, input_dim, hidden_dim, output_dim):
+        super(GCN, self).__init__()
+        self.conv1 = GCNConv(input_dim, hidden_dim)
+        self.conv2 = GCNConv(hidden_dim, hidden_dim)
+        self.conv3 = GCNConv(hidden_dim, output_dim)
+        
+    def forward(self, x, edge_index):
+        x = F.relu(self.conv1(x, edge_index))
+        x = F.dropout(x, p=0.5, training=self.training)
+        x = F.relu(self.conv2(x, edge_index))
+        x = F.dropout(x, p=0.5, training=self.training)
+        x = self.conv3(x, edge_index)
+        return x
+
+
+class UGCN(nn.Module):
     def __init__(self, n_channels, n_classes, hidden_dim=32, k_neighbors=8):
-        super(URelNet, self).__init__()
+        super(UGCN, self).__init__()
         self.n_channels = n_channels
         self.n_classes = n_classes
         self.k_neighbors = k_neighbors
@@ -104,7 +108,7 @@ class URelNet(nn.Module):
         self.down3 = Down(256, 512)
         
         # ボトルネック部分（RelNet）
-        self.relnet = RelNet(512, hidden_dim, 512)
+        self.relnet = GCN(512, hidden_dim, 512)
         
         # デコーダー部分
         self.up1 = Up(512, 256)
@@ -180,7 +184,7 @@ def main():
     x = torch.randn(batch, num_mic, length).to(device)
 
     # モデルの初期化とデバイスへの移動
-    model = URelNet(n_channels=num_mic, n_classes=num_mic, k_neighbors=8).to(device)
+    model = UGCN(n_channels=num_mic, n_classes=num_mic, k_neighbors=8).to(device)
     
     # モデルのサマリーを表示
     print_model_summary(model, batch, num_mic, length)
