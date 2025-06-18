@@ -7,8 +7,10 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
 from torch.utils.data import DataLoader
+import soundfile as sf
 import numpy as np
 from tqdm.contrib import tenumerate
+from tqdm import tqdm
 from torch.utils.tensorboard import SummaryWriter
 from itertools import permutations
 import os
@@ -251,26 +253,33 @@ def test(model:nn.Module, mix_dir:str, out_dir:str, model_path:str, prm:int=cons
     dataset = UGNNNet_DatasetClass.AudioDataset_test(mix_dir) # データセットの読み込み
     dataset_loader = DataLoader(dataset, batch_size=1, shuffle=True, pin_memory=True)
 
-    for _, (mix_data, mix_path) in tenumerate(dataset_loader):  # filelist_mixdownを全て確認して、それぞれをfmixdownに代入
+    for (mix_data, mix_name) in tqdm(dataset_loader):  # filelist_mixdownを全て確認して、それぞれをfmixdownに代入
         mix_data = mix_data.to(device)  # データをGPUに移動
         mix_data = mix_data.to(torch.float32)   # データの型を変換 int16→float32
 
         mix_max = torch.max(mix_data)  # 最大値の取得
 
         separate = model(mix_data)  # モデルの適用
+        # print(f"Initial separate shape: {separate.shape}") # デバッグ用
 
-        separate = separate * (mix_max / torch.max(separate))     # 最大値を揃える
+        # separate = separate * (mix_max / torch.max(separate))     # 最大値を揃える
         separate = separate.cpu()
         separate = separate.detach().numpy()
-
+        # print(f"separate: {separate.shape}")
+        # print(f"mix_name: {mix_name}")
+        # print(f"mix_name: {type(mix_name)}")
+        
+        # separate の形状を (length,) に整形する
+        # モデルの出力が (1, 1, length) と仮定
+        data_to_write = separate.squeeze()
+        
         # 分離した speechを出力ファイルとして保存する。
-        # 拡張子を変更したパス文字列を作成
-        out_name = mix_path.stem
         # ファイル名とフォルダ名を結合してパス文字列を作成
-        out_path = os.path.join(out_dir, (out_name + '.wav'))
+        out_path = os.path.join(out_dir, (mix_name[0] + '.wav'))
         # print('saving... ', fname)
         # 混合データを保存
-        my_func.save_wav(out_path, separate, prm)
+        # my_func.save_wav(out_path, separate[0], prm)
+        sf.write(out_path, data_to_write, prm)
         torch.cuda.empty_cache()    # メモリの解放 1音声ごとに解放
 
 
@@ -297,16 +306,16 @@ if __name__ == '__main__':
             raise ValueError(f"Unknown model type: {model_type}")
 
 
-        # train(model=model,
-        #       mix_dir=f"{const.MIX_DATA_DIR}/subset_DEMAND_hoth_1010dB_1ch/subset_DEMAND_hoth_1010dB_05sec_1ch/train/{wave_type}",
-        #       clean_dir=f"{const.MIX_DATA_DIR}/subset_DEMAND_hoth_1010dB_1ch/subset_DEMAND_hoth_1010dB_05sec_1ch/train/clean",
-        #       out_path=f"{const.PTH_DIR}/{model_type}/subset_DEMAND_1ch/{out_name}.pth", batchsize=1) # UGCN -> UGATNet2
+        train(model=model,
+              mix_dir=f"{const.MIX_DATA_DIR}/subset_DEMAND_hoth_0505dB/train/{wave_type}",
+              clean_dir=f"{const.MIX_DATA_DIR}/subset_DEMAND_hoth_0505dB/train/clean",
+              out_path=f"{const.PTH_DIR}/{model_type}/subset_DEMAND_1ch/{out_name}.pth", batchsize=1)
 
         test(model=model,
-            mix_dir=f"{const.MIX_DATA_DIR}/subset_DEMAND_hoth_1010dB_1ch/subset_DEMAND_hoth_1010dB_05sec_1ch/test/{wave_type}", # {{wave_type}} -> {wave_type}
-            out_dir=f"{const.OUTPUT_WAV_DIR}/{model_type}/subset_DEMAND_1ch/{out_name}", # UGCN -> UGATNet2, random_node -> similarity_node
-            model_path=f"{const.PTH_DIR}/{model_type}/subset_DEMAND_1ch/{out_name}.pth") # UGCN -> UGATNet2
+             mix_dir=f"{const.MIX_DATA_DIR}/subset_DEMAND_hoth_0505dB/test/{wave_type}",
+             out_dir=f"{const.OUTPUT_WAV_DIR}/{model_type}/subset_DEMAND_1ch/{out_name}",
+             model_path=f"{const.PTH_DIR}/{model_type}/subset_DEMAND_1ch/{out_name}.pth")
         
-        evaluation(target_dir=f"{const.MIX_DATA_DIR}/subset_DEMAND_hoth_1010dB_1ch/subset_DEMAND_hoth_1010dB_05sec_1ch/test/clean",
-                estimation_dir=f"{const.OUTPUT_WAV_DIR}/{model_type}/subset_DEMAND_1ch/{out_name}",
-                out_csv_name=f"{const.EVALUATION_DIR}/{out_name}.csv")
+        # evaluation(target_dir=f"{const.MIX_DATA_DIR}/subset_DEMAND_hoth_1010dB_1ch/subset_DEMAND_hoth_1010dB_05sec_1ch/test/clean",
+        #         estimation_dir=f"{const.OUTPUT_WAV_DIR}/{model_type}/subset_DEMAND_1ch/{out_name}",
+        #         out_path=f"{const.EVALUATION_DIR}/{out_name}.csv")
