@@ -6,3 +6,5 @@ scipy
 torch_geometric
 tensorboard
 pandas
+pesq
+pystoi

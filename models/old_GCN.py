@@ -88,7 +88,7 @@ class UGCN(nn.Module):
         self.stride = self.win // 2   # 畳み込み処理におけるフィルタが移動する幅
 
         # エンコーダ
-        self.encoder = nn.Conv1d(in_channels=n_channels,    # 入力データの次元数 #=1もともとのやつ
+        self.encoder = nn.Conv1d(in_channels=1,    # 入力データの次元数 #=1もともとのやつ
                                  out_channels=self.encoder_dim, # 出力データの次元数
                                  kernel_size=self.win,  # 畳み込みのサイズ(波形領域なので窓長なの?)
                                  bias=False,    # バイアスの有無(出力に学習可能なバイアスの追加)
@@ -176,11 +176,11 @@ def print_model_summary(model, batch_size, channels, length):
 def main():
     print("main")
     # サンプルデータの作成（入力サイズを縮小）
-    batch = 1 # const.BATCHSIZE
+    batch = 8 # const.BATCHSIZE
     num_mic = 1  # 入力サイズを縮小
     length = 128000  # 入力サイズを縮小
     
-    # ランダムな入力画像を作成
+    # ランダムな入力音声を作成
     x = torch.randn(batch, num_mic, length).to(device)
 
     # モデルの初期化とデバイスへの移動
