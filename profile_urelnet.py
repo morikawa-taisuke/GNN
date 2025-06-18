@@ -4,9 +4,11 @@ import torch.nn as nn
 from urelnet import URelNet
 import time
 
+
 def profile_model():
     # デバイスの設定
-    device = "mps"
+    device = "cuda" if torch.cuda.is_available() else "cpu" # GPUが使えれば使う
+    # device = "mps"
     print(f"Using device: {device}")
 
     # モデルのパラメータ設定
@@ -23,16 +25,14 @@ def profile_model():
 
     # プロファイリングの実行
     with profile(
-        activities=[
-            ProfilerActivity.CPU,
-            ProfilerActivity.MPS,  # MPSデバイスのプロファイリング
-        ],
-        schedule=torch.profiler.schedule(
-            wait=1,
-            warmup=1,
-            active=3,
-            repeat=1
-        ),
+        activities=[ProfilerActivity.CPU,
+                    ProfilerActivity.CUDA,  # GPUデバイスのプロファイリング
+                    ],
+        schedule=torch.profiler.schedule(wait=1,
+                                         warmup=1,
+                                         active=3,
+                                         repeat=1
+                                         ),
         on_trace_ready=torch.profiler.tensorboard_trace_handler('./log/profile'),
         record_shapes=True,
         profile_memory=True,
