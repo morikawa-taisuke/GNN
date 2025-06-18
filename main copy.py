@@ -312,16 +312,14 @@ if __name__ == '__main__':
 
 
         train(model=model,
-              dataset_path=f"{const.DATASET_DIR}/subset_DEMAND_hoth_0505dB/{wave_type}",
-              out_path=f"{const.PTH_DIR}/{model_type}/subset_DEMAND_hoth_0505dB/{out_name}.pth", batchsize=1,
-              dataset_path=f"{const.DATASET_DIR}/JA_hoth_5dB/train/{wave_type}",
+              dataset_path=f"{const.DATASET_DIR}/JA_hoth_5dB/{wave_type}",
               out_path=f"{const.PTH_DIR}/{model_type}/JA_hoth_5dB/{out_name}.pth", batchsize=1,
               loss_func="SISDR")
 
         test(model=model,
-             mix_dir=f"{const.MIX_DATA_DIR}/subset_DEMAND_hoth_0505dB/test/{wave_type}",
-             out_dir=f"{const.OUTPUT_WAV_DIR}/{model_type}/subset_DEMAND_hoth_0505dB/{out_name}",
-             model_path=f"{const.PTH_DIR}/{model_type}/subset_DEMAND_hoth_0505dB/{out_name}.pth")
+             mix_dir=f"{const.MIX_DATA_DIR}/JA_hoth_5dB/test/{wave_type}",
+             out_dir=f"{const.OUTPUT_WAV_DIR}/{model_type}/JA_hoth_5dB/{out_name}",
+             model_path=f"{const.PTH_DIR}/{model_type}/JA_hoth_5dB/{out_name}.pth")
         
         # evaluation(target_dir=f"{const.MIX_DATA_DIR}/subset_DEMAND_hoth_1010dB_1ch/subset_DEMAND_hoth_1010dB_05sec_1ch/test/clean",
         #         estimation_dir=f"{const.OUTPUT_WAV_DIR}/{model_type}/subset_DEMAND_1ch/{out_name}",
