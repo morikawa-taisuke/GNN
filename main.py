@@ -179,7 +179,7 @@ def train(model:nn.Module, mix_dir:str, clean_dir:str, out_path:str="./RESULT/pt
             model_loss = 0
             match loss_func:
                 case "SISDR":
-                    model_loss = si_sdr_loss(estimate_data, target_data[0])
+                    model_loss = si_sdr_loss(estimate_data, target_data)
                 case "wave_MSE":
                     model_loss = loss_function(estimate_data, target_data)  # 時間波形上でMSEによる損失関数の計算
                 case "stft_MSE":
@@ -240,8 +240,8 @@ def train(model:nn.Module, mix_dir:str, clean_dir:str, out_path:str="./RESULT/pt
     print(f"time：{str(time_h)}h")      # 出力
 
 def test(model:nn.Module, mix_dir:str, out_dir:str, model_path:str, prm:int=const.SR):
-    filelist_mixdown = my_func.get_file_list(mix_dir)
-    print('number of mixdown file', len(filelist_mixdown))
+    # filelist_mixdown = my_func.get_file_list(mix_dir)
+    # print('number of mixdown file', len(filelist_mixdown))
 
     # ディレクトリを作成
     my_func.make_dir(out_dir)
@@ -289,7 +289,7 @@ if __name__ == '__main__':
     """ モデルの設定 """
     num_mic = 1  # マイクの数
     num_node = 8  # k近傍の数
-    model_list = ["UGCN"]#, "UGAT2"]  # モデルの種類
+    model_list = ["UGAT2"]#, "UGAT2"]  # モデルの種類
     for model_type in model_list:
         wave_type = "noise_only"    # 入寮信号の種類 (noise_only, reverbe_only, noise_reverbe)
         out_name = f"{model_type}_{wave_type}"  # 出力ファイル名
@@ -309,7 +309,8 @@ if __name__ == '__main__':
         train(model=model,
               mix_dir=f"{const.MIX_DATA_DIR}/subset_DEMAND_hoth_0505dB/train/{wave_type}",
               clean_dir=f"{const.MIX_DATA_DIR}/subset_DEMAND_hoth_0505dB/train/clean",
-              out_path=f"{const.PTH_DIR}/{model_type}/subset_DEMAND_1ch/{out_name}.pth", batchsize=1)
+              out_path=f"{const.PTH_DIR}/{model_type}/subset_DEMAND_1ch/{out_name}.pth", batchsize=1,
+              loss_func="SISDR")
 
         test(model=model,
              mix_dir=f"{const.MIX_DATA_DIR}/subset_DEMAND_hoth_0505dB/test/{wave_type}",
