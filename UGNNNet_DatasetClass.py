@@ -203,7 +203,8 @@ class AudioDataset_test(Dataset):
 
     def __getitem__(self, idx):
         # 音声の読み込み
-        noisy_path = Path(self.noisy_file_paths[idx])
+        noisy_path = self.noisy_file_paths[idx]
+        noisy_name, _ = my_func.get_file_name(noisy_path)  # ファイル名を取得（拡張子なし）
         noisy_waveform, current_sample_rate = torchaudio.load(noisy_path)
 
         # サンプリングレートのリサンプリング
@@ -231,7 +232,11 @@ class AudioDataset_test(Dataset):
         # 出力の形状 [batch, n_channels, length]
         # print("dataset_out:", noisy_waveform.shape)
         # print("dataset_out:", clean_waveform.shape)
-        return noisy_waveform, noisy_path
+        return noisy_waveform, noisy_name  # パスも返す
+    
+    def get_file_paths(self):
+        """ データセット内の全ファイルパスを取得 """
+        return self.noisy_file_paths
     
 
 # --- 使用例 ---
