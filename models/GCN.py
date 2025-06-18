@@ -295,7 +295,7 @@ class UGCNNet2(UGCNNet):
         # k-NNグラフを動的に構築
         num_nodes_per_sample = height_bottleneck * width_bottleneck
         if num_nodes_per_sample > 0 :
-            edge_index = self.create_knn_graph_for_batch(x4_reshaped, self.num_node, batch_size, num_nodes_per_sample)
+            edge_index = self.create_graph(x4_reshaped, self.num_node, batch_size, num_nodes_per_sample)
         else:
             edge_index = torch.empty((2,0), dtype=torch.long, device=x4_reshaped.device)
 

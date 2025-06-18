@@ -297,12 +297,12 @@ class TasNet_dataset(torch.utils.data.Dataset):
         self.mix_list, self.target_list = load_dataset(dataset_path)
         # print(f'mix_list:{np.array(self.mix_list).shape}')
         # print(f'target_list:{np.array(self.target_list).shape}')
-        self.len = len(self.mix_list)  # 学習データの個数
+        # self.len = len(self.mix_list)  # 学習データの個数
         # print('# len', self.len)
         # print('# number of patterns', self.__len__())
 
     def __len__(self):
-        """　データの個数を返す
+        """データの個数を返す
 
         :return: データの個数
         """
@@ -323,7 +323,7 @@ class TasNet_dataset(torch.utils.data.Dataset):
         # target_data.dtype = "float32"
         # print("mix_data.dtype",mix_data.dtype)
         # print("target_data.dtype", target_data.shape)
-        """変数の次元の変更　(2次元から3次元へ)"""
+        """変数の次元の変更 (2次元から3次元へ)"""
         # mix_data = mix_data[np.newaxis, :, :]
         # target_data = target_data[np.newaxis, :, :]
 
