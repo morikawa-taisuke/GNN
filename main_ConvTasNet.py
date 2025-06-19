@@ -17,6 +17,7 @@ import os
 from pathlib import Path
 
 import UGNNNet_DatasetClass
+from Dataset_Class import TasNet_dataset
 from mymodule import my_func, const
 from All_evaluation import main as evaluation
 
@@ -97,7 +98,7 @@ def si_sdr_loss(ests, egs):
     return -torch.sum(max_perutt) / N
 
 
-def train(model:nn.Module, mix_dir:str, clean_dir:str, out_path:str="./RESULT/pth/result.pth", loss_func:str="stft_MSE", batchsize:int=const.BATCHSIZE, checkpoint_path:str=None, train_count:int=const.EPOCH, earlystopping_threshold:int=5):
+def train(model:nn.Module, dataset_path, out_path:str="./RESULT/pth/result.pth", loss_func:str="stft_MSE", batchsize:int=const.BATCHSIZE, checkpoint_path:str=None, train_count:int=const.EPOCH, earlystopping_threshold:int=5):
     """ GPUの設定 """
     device = "cuda" if torch.cuda.is_available() else "cpu" # GPUが使えれば使う
     """ その他の設定 """
@@ -108,14 +109,15 @@ def train(model:nn.Module, mix_dir:str, clean_dir:str, out_path:str="./RESULT/pt
     csv_path = os.path.join(const.LOG_DIR, out_name, f"{out_name}_{now}.csv")  # CSVファイルのパス
     my_func.make_dir(csv_path)
     with open(csv_path, "w") as csv_file:  # ファイルオープン
-        csv_file.write(f"dataset,out_name,loss_func\n{mix_dir},{out_path},{loss_func}")
+        csv_file.write(f"dataset,out_name,loss_func\n{dataset_path},{out_path},{loss_func}")
 
     """ Early_Stoppingの設定 """
     best_loss = np.inf  # 損失関数の最小化が目的の場合，初めのbest_lossを無限大にする
     earlystopping_count = 0
 
     """ Load dataset データセットの読み込み """
-    dataset = UGNNNet_DatasetClass.AudioDataset(clean_dir, mix_dir) # データセットの読み込み
+    dataset = TasNet_dataset(dataset_path)  # データセットの読み込み
+    # dataset = UGNNNet_DatasetClass.AudioDataset(clean_dir, mix_dir) # データセットの読み込み
     dataset_loader = DataLoader(dataset, batch_size=batchsize, shuffle=True, pin_memory=True)
 
 
@@ -145,7 +147,7 @@ def train(model:nn.Module, mix_dir:str, clean_dir:str, out_path:str="./RESULT/pt
     print("====================")
     print("device: ", device)
     print("out_path: ", out_path)
-    print("dataset: ", mix_dir)
+    print("dataset: ", dataset_path)
     print("loss_func: ", loss_func)
     print("====================")
 
@@ -156,8 +158,8 @@ def train(model:nn.Module, mix_dir:str, clean_dir:str, out_path:str="./RESULT/pt
     epoch = 0
     for epoch in range(start_epoch, train_count+1):   # 学習回数
         print("Train Epoch:", epoch)    # 学習回数の表示
+        model_loss_sum = 0  # 総損失の初期化
         for _, (mix_data, target_data) in tenumerate(dataset_loader):
-            model_loss_sum = 0  # 総損失の初期化
             mix_data, target_data = mix_data.to(device), target_data.to(device) # データをGPUに移動
 
             """ 勾配のリセット """
@@ -180,7 +182,8 @@ def train(model:nn.Module, mix_dir:str, clean_dir:str, out_path:str="./RESULT/pt
             model_loss = 0
             match loss_func:
                 case "SISDR":
-                    model_loss = si_sdr_loss(estimate_data, target_data)
+                    model_loss = si_sdr_loss(estimate_data[0], target_data)
+                    # print(f"model_loss: {model_loss}")
                 case "wave_MSE":
                     model_loss = loss_function(estimate_data, target_data)  # 時間波形上でMSEによる損失関数の計算
                 case "stft_MSE":
@@ -308,13 +311,12 @@ if __name__ == '__main__':
 
 
         train(model=model,
-              mix_dir=f"{const.MIX_DATA_DIR}/GNN/JA_hoth_5dB/train/",
-              clean_dir=f"{const.SAMPLE_DATA_DIR}/speech/JA/train/",
+              dataset_path=f"{const.DATASET_DIR}/JA_hoth_5dB",
               out_path=f"{const.PTH_DIR}/{model_type}/JA_hoth_5dB/{out_name}.pth", batchsize=1,
               loss_func="SISDR")
 
         test(model=model,
-             mix_dir=f"{const.MIX_DATA_DIR}/JA_hoth_5dB/test/{wave_type}",
+             mix_dir=f"{const.MIX_DATA_DIR}/GNN/JA_hoth_5dB/test/",
              out_dir=f"{const.OUTPUT_WAV_DIR}/{model_type}/JA_hoth_5dB/{out_name}",
              model_path=f"{const.PTH_DIR}/{model_type}/JA_hoth_5dB/{out_name}.pth")
         
