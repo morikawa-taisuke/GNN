@@ -155,8 +155,8 @@ def train(model:nn.Module, mix_dir:str, clean_dir:str, out_path:str="./RESULT/pt
     epoch = 0
     for epoch in range(start_epoch, train_count+1):   # 学習回数
         print("Train Epoch:", epoch)    # 学習回数の表示
+        model_loss_sum = 0  # 総損失の初期化
         for _, (mix_data, target_data) in tenumerate(dataset_loader):
-            model_loss_sum = 0  # 総損失の初期化
             mix_data, target_data = mix_data.to(device), target_data.to(device) # データをGPUに移動
 
             """ 勾配のリセット """
@@ -293,7 +293,7 @@ if __name__ == '__main__':
     """ モデルの設定 """
     num_mic = 1  # マイクの数
     num_node = 8  # k近傍の数
-    model_list = ["UGCN"]#, "UGAT2"]  # モデルの種類
+    model_list = ["UGAT2", "UGCN2"]#, "UGAT2"]  # モデルの種類
     for model_type in model_list:
         wave_type = "noise_only"    # 入寮信号の種類 (noise_only, reverbe_only, noise_reverbe)
         out_name = f"{model_type}_{wave_type}"  # 出力ファイル名

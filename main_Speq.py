@@ -1,6 +1,6 @@
 from models.wave_unet import U_Net
 from models.GCN import UGCNNet, UGATNet, UGCNNet2, UGATNet2
-from models.SpeqGNN import SpeqGCNNet
+from models.SpeqGNN import SpeqGCNNet, SpeqGATNet, SpeqGCNNet2, SpeqGATNet2
 import time
 import torch
 import torch.nn as nn
@@ -159,9 +159,8 @@ def train(model:nn.Module, mix_dir:str, clean_dir:str, out_path:str="./RESULT/pt
     epoch = 0
     for epoch in range(start_epoch, train_count+1):   # 学習回数
         print(f"Train Epoch: {epoch}/{train_count}")    # 学習回数の表示
-        model_loss_sum_epoch = 0
-        for i, (mix_magnitude_spec, mix_complex_spec, original_len, target_wave) in tenumerate(dataset_loader):
-            model_loss_sum = 0  # 総損失の初期化
+        model_loss_sum = 0  # 総損失の初期化
+        for _, (mix_magnitude_spec, mix_complex_spec, original_len, target_wave) in tenumerate(dataset_loader):
             mix_magnitude_spec = mix_magnitude_spec.to(device)
             mix_complex_spec = mix_complex_spec.to(device)
             # original_len はスカラーまたはリストなので、必要に応じてテンソル化するが、ISTFTのlength引数はint
@@ -201,7 +200,7 @@ def train(model:nn.Module, mix_dir:str, clean_dir:str, out_path:str="./RESULT/pt
                     stft_target_data = torch.stft(target_wave_padded.squeeze(1), n_fft=n_fft_for_stft, hop_length=hop_length_for_stft, return_complex=True)
                     model_loss = loss_function(stft_estimate_data, stft_target_data)  # 時間周波数上MSEによる損失の計算
 
-            model_loss_sum_epoch += model_loss.item()  # 損失の加算
+            model_loss_sum += model_loss  # 損失の加算
 
             """ 後処理 """
             model_loss.backward()           # 誤差逆伝搬
@@ -210,28 +209,27 @@ def train(model:nn.Module, mix_dir:str, clean_dir:str, out_path:str="./RESULT/pt
             del mix_magnitude_spec, mix_complex_spec, target_wave, estimate_wave, model_loss
             torch.cuda.empty_cache()    # メモリの解放 1iterationごとに解放
         
-        avg_epoch_loss = model_loss_sum_epoch / len(dataset_loader)
         """ チェックポイントの作成 """
         torch.save({"epoch": epoch,
                     "model_state_dict": model.state_dict(),
                     "optimizer_state_dict": optimizer.state_dict(),
-                    "loss": avg_epoch_loss},
+                    "loss": model_loss_sum},
                     f"{out_dir}/{out_name}_ckp.pth")
 
-        writer.add_scalar(f"{out_name}/loss", avg_epoch_loss, epoch)
-        print(f"[{epoch}/{train_count}] Epoch Avg Loss: {avg_epoch_loss:.6f}")
+        writer.add_scalar(f"{out_name}/loss", model_loss_sum, epoch)
+        print(f"[{epoch}/{train_count}] Epoch Loss: {model_loss_sum:.6f}")
 
         torch.cuda.empty_cache()    # メモリの解放 1iterationごとに解放
         with open(csv_path, "a") as out_file:  # ファイルオープン
-            out_file.write(f"{epoch},{avg_epoch_loss}\n")  # 書き込み
+            out_file.write(f"{epoch},{model_loss_sum}\n")  # 書き込み
         # torch.cuda.empty_cache()    # メモリの解放 1epochごとに解放-
 
         """ Early_Stopping の判断 """
         # best_lossとmodel_loss_sumを比較
-        if avg_epoch_loss < best_loss:  # model_lossのほうが小さい場合
-            print(f"{epoch:3} [epoch] | New best model found with loss: {avg_epoch_loss:.6f} (was {best_loss:.6f})")
+        if model_loss_sum < best_loss:  # model_lossのほうが小さい場合
+            print(f"{epoch:3} [epoch] | New best model found with loss: {model_loss_sum:.6f} (was {best_loss:.6f})")
             torch.save(model.to(device).state_dict(), f"{out_dir}/BEST_{out_name}.pth")  # 出力ファイルの保存
-            best_loss = avg_epoch_loss  # best_lossの変更
+            best_loss = model_loss_sum  # best_lossの変更
             earlystopping_count = 0
             # estimate_wave はループの最後のバッチのものなので、必ずしもベストモデルの出力ではない
             # if estimate_wave is not None and estimate_wave.numel() > 0 : # estimate_waveがNoneでないかつ空でないことを確認
@@ -322,19 +320,19 @@ if __name__ == '__main__':
     """ モデルの設定 """
     num_mic = 1  # マイクの数
     num_node = 8  # k近傍の数
-    model_list = ["SpeqGCN"] # モデルの種類をSpeqGCNに限定
+    model_list = ["SpeqGCN2", "SpeqGAT2"] # モデルの種類をSpeqGCNに限定
     for model_type in model_list:
         wave_type = "noise_only"    # 入寮信号の種類 (noise_only, reverbe_only, noise_reverbe)
         out_name = f"{model_type}_{wave_type}"  # 出力ファイル名
 
         if model_type == "SpeqGCN": # モデル名をSpeqGCNに変更
             model = SpeqGCNNet(n_channels=num_mic, n_classes=1, num_node=num_node).to(device) # num_node -> k_neighbors
-        elif model_type == "UGAT":
-            model = UGATNet(n_channels=num_mic, n_classes=1, num_node=8, gat_heads=4, gat_dropout=0.6).to(device)
-        elif model_type == "UGCN2":
-            model = UGCNNet2(n_channels=num_mic, n_classes=1, num_node=8).to(device)
-        elif model_type == "UGAT2":
-            model = UGATNet2(n_channels=num_mic, n_classes=1, num_node=8, gat_heads=4, gat_dropout=0.6).to(device)
+        elif model_type == "SpeqGAT":
+            model = SpeqGATNet(n_channels=num_mic, n_classes=1, num_node=num_node).to(device)
+        elif model_type == "SpeqGCN2":
+            model = SpeqGCNNet2(n_channels=num_mic, n_classes=1, num_node=num_node).to(device)
+        elif model_type == "SpeqGAT2":
+            model = SpeqGATNet2(n_channels=num_mic, n_classes=1, num_node=num_node).to(device)
         else:
             raise ValueError(f"Unknown model type: {model_type}")
 
