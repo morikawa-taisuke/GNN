@@ -205,13 +205,11 @@ def train(model:nn.Module, mix_dir:str, clean_dir:str, out_path:str="./RESULT/pt
                     f"{out_dir}/{out_name}_ckp.pth")
 
         writer.add_scalar(str(out_name[0]), model_loss_sum, epoch)
-        #writer.add_scalar(str(str_name[0]) + "_" + str(a) + "_sisdr-sisnr", model_loss_sum, epoch)
         print(f"[{epoch}]model_loss_sum:{model_loss_sum}")  # 損失の出力
 
         torch.cuda.empty_cache()    # メモリの解放 1iterationごとに解放
         with open(csv_path, "a") as out_file:  # ファイルオープン
             out_file.write(f"{model_loss_sum}\n")  # 書き込み
-        # torch.cuda.empty_cache()    # メモリの解放 1epochごとに解放-
 
         """ Early_Stopping の判断 """
         # best_lossとmodel_loss_sumを比較
@@ -253,7 +251,8 @@ def test(model:nn.Module, mix_dir:str, out_dir:str, model_path:str, prm:int=cons
     model_path = Path(model_path)  # path型に変換
     model_dir, model_name = model_path.parent, model_path.stem  # ファイル名とディレクトリを分離
 
-    model.load_state_dict(torch.load(os.path.join(model_dir, f"BEST_{model_name}.pth")))
+    model.load_state_dict(torch.load(os.path.join(model_dir, f"BEST_{model_name}.pth"), map_location=device))
+    model.eval()
     
     dataset = UGNNNet_DatasetClass.AudioDataset_test(mix_dir) # データセットの読み込み
     dataset_loader = DataLoader(dataset, batch_size=1, shuffle=True, pin_memory=True)
