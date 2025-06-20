@@ -114,7 +114,7 @@ def train(model:nn.Module, mix_dir:str, clean_dir:str, out_path:str="./RESULT/pt
     earlystopping_count = 0
 
     """ Load dataset データセットの読み込み """
-    dataset = UGNNNet_DatasetClass.SpectralDataset(clean_dir, mix_dir) # データセットの読み込み
+    dataset = UGNNNet_DatasetClass.SpectralDataset(clean_audio_dir=clean_dir, noisy_audio_dir=mix_dir) # データセットの読み込み
     dataset_loader = DataLoader(dataset, batch_size=batchsize, shuffle=True, pin_memory=True)
     
     # STFTパラメータをモデルから取得 (SpectralDatasetと一致させる必要がある)
