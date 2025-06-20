@@ -5,11 +5,43 @@ import torch
 from torch.utils.data import DataLoader
 import torchaudio
 import csv
+import torch.nn.functional as F
 
 from mymodule import my_func
 
 #　npzファイルの読み込み
 def load_dataset(dataset_path:str):
+    """
+    npzファイルから入力データと教師データを読み込む
+
+    Parameters
+    ----------
+    dataset_path(str):データセットのパス
+
+    Returns
+    -------
+    mix_list:入力信号
+    target_list:目的信号
+    """
+    # print('\nload_dataset')
+    dataset_list = find_files(dataset_path, ext="npz", case_sensitive=True)
+    # print('dataset_list:', len(dataset_list))
+    mix_list = []
+    target_list = []
+    for dataset_file in dataset_list:
+        dat = np.load(dataset_file)  # datファイルの読み込み
+        # print(f'dat:{dat.files}')
+        # print('dat:', dat['target'])
+        # mix_list.append(dat[const.DATASET_KEY_MIXDOWN])  # 入力データの追加
+        mix_list.append(dat['mix'])  # 入力データの追加
+        # target_list.append(dat[const.DATASET_KEY_TARGET])  # 正解データの追加
+        target_list.append(dat['target'])  # 正解データの追加
+    # print('load:np.array(mix_list.shape):', np.array(mix_list).shape)
+    # print('load:np.array(target_list.shape):', np.array(target_list).shape)
+    # print('load_dataset\n')
+    return mix_list, target_list
+
+def load_dataset_edge(dataset_path:str):
     """
     npzファイルから入力データと教師データを読み込む
 
@@ -297,12 +329,13 @@ class TasNet_dataset(torch.utils.data.Dataset):
         self.mix_list, self.target_list = load_dataset(dataset_path)
         # print(f'mix_list:{np.array(self.mix_list).shape}')
         # print(f'target_list:{np.array(self.target_list).shape}')
-        self.len = len(self.mix_list)  # 学習データの個数
+        # self.len = len(self.mix_list)  # 学習データの個数
         # print('# len', self.len)
         # print('# number of patterns', self.__len__())
+        self.max_length = 241793
 
     def __len__(self):
-        """　データの個数を返す
+        """データの個数を返す
 
         :return: データの個数
         """
@@ -323,7 +356,7 @@ class TasNet_dataset(torch.utils.data.Dataset):
         # target_data.dtype = "float32"
         # print("mix_data.dtype",mix_data.dtype)
         # print("target_data.dtype", target_data.shape)
-        """変数の次元の変更　(2次元から3次元へ)"""
+        """変数の次元の変更 (2次元から3次元へ)"""
         # mix_data = mix_data[np.newaxis, :, :]
         # target_data = target_data[np.newaxis, :, :]
 
@@ -335,7 +368,7 @@ class TasNet_dataset(torch.utils.data.Dataset):
         mix_data = torch.from_numpy(mix_data)
         target_data = torch.from_numpy(target_data)
 
-        return i, mix_data, target_data
+        return mix_data, target_data
 
     def get_all(self):
         mix_list = []
@@ -439,8 +472,22 @@ class GNN_dataset(torch.utils.data.Dataset):
         """型の変更(numpy型からtorch型)"""
         mix_data = torch.from_numpy(mix_data)
         target_data = torch.from_numpy(target_data)
+        # mix_data の長さを調整
+        if mix_data.size(-1) > self.max_length:
+            mix_data = mix_data[..., :self.max_length]  # トリミング
+        else:
+            pad_len = self.max_length - mix_data.size(-1)
+            mix_data = F.pad(mix_data, (0, pad_len))  # パディング
+
+        # target_data の長さを調整
+        if target_data.size(-1) > self.max_length:
+            target_data = target_data[..., :self.max_length]
+        else:
+            pad_len = self.max_length - target_data.size(-1)
+            target_data = F.pad(target_data, (0, pad_len))
 
         return mix_data, target_data, edge_idx
+
 
     def get_all(self):
         mix_list = []

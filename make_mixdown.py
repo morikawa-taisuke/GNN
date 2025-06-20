@@ -49,16 +49,16 @@ def main(speech_dir,noise_dir, out_dir, snr=5):
 
 if __name__ == '__main__':
 
-    train_test = 'train'  # 'train' or 'test'
-    # speech_dir = f"{const.SAMPLE_DATA_DIR}/speech/subset_DEMAND/{train_test}"
-    # noise_dir = f"{const.SAMPLE_DATA_DIR}/noise/hoth.wav"
-    # out_dir = f"{const.MIX_DATA_DIR}/GNN/subset_DEMAND_5dB/{train_test}"
+    for train_test in ['train', 'test']:
+        speech_dir = f"{const.SAMPLE_DATA_DIR}/speech/JA/{train_test}"
+        noise_dir = f"{const.SAMPLE_DATA_DIR}/noise/hoth.wav"
+        out_dir = f"{const.MIX_DATA_DIR}/GNN/JA_hoth_5dB/{train_test}/noise_only"
+        my_func.make_dir(out_dir)
+        main(speech_dir,noise_dir, out_dir, snr=5)
+
+    # mac_sound_dir = "/Users/a/Documents/sound_data/"
+    # speech_dir = f"{mac_sound_dir}/sample_data/speech/subset_DEMAND/{train_test}"
+    # noise_dir = f"{mac_sound_dir}/sample_data/noise/hoth.wav"
+    # out_dir = f"{mac_sound_dir}/mix_data/GNN/subset_DEMAND_hoth_5dB/{train_test}"
     # my_func.make_dir(out_dir)
     # main(speech_dir,noise_dir, out_dir, snr=5)
-
-    mac_sound_dir = "/Users/a/Documents/sound_data/"
-    speech_dir = f"{mac_sound_dir}/sample_data/speech/subset_DEMAND/{train_test}"
-    noise_dir = f"{mac_sound_dir}/sample_data/noise/hoth.wav"
-    out_dir = f"{mac_sound_dir}/mix_data/GNN/subset_DEMAND_hoth_5dB/{train_test}"
-    my_func.make_dir(out_dir)
-    main(speech_dir,noise_dir, out_dir, snr=5)
