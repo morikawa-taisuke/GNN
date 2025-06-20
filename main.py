@@ -312,8 +312,7 @@ if __name__ == '__main__':
         train(model=model,
               mix_dir=f"{const.MIX_DATA_DIR}/GNN/JA_hoth_5dB/train/",
               clean_dir=f"{const.SAMPLE_DATA_DIR}/speech/JA/train/",
-              out_path=f"{const.PTH_DIR}/{model_type}/JA_hoth_5dB/{out_name}.pth", batchsize=1,
-              loss_func="SISDR")
+              out_path=f"{const.PTH_DIR}/{model_type}/JA_hoth_5dB/{out_name}.pth", batchsize=1)
 
         test(model=model,
              mix_dir=f"{const.MIX_DATA_DIR}/GNN/JA_hoth_5dB/test/",
