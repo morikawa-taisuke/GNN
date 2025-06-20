@@ -114,7 +114,7 @@ def train(model:nn.Module, mix_dir:str, clean_dir:str, out_path:str="./RESULT/pt
     earlystopping_count = 0
 
     """ Load dataset データセットの読み込み """
-    dataset = UGNNNet_DatasetClass.AudioDataset(clean_dir, mix_dir) # データセットの読み込み
+    dataset = UGNNNet_DatasetClass.AudioDataset(clean_audio_dir=clean_dir, noisy_audio_dir=mix_dir) # データセットの読み込み
     dataset_loader = DataLoader(dataset, batch_size=batchsize, shuffle=True, pin_memory=True)
 
 
@@ -294,7 +294,7 @@ if __name__ == '__main__':
     num_node = 8  # k近傍の数
     model_list = ["UGAT2", "UGCN2"]#, "UGAT2"]  # モデルの種類
     for model_type in model_list:
-        wave_type = "noise_only"    # 入寮信号の種類 (noise_only, reverbe_only, noise_reverbe)
+        wave_type = "noise_only"    # 入力信号の種類 (noise_only, reverbe_only, noise_reverbe)
         out_name = f"{model_type}_{wave_type}"  # 出力ファイル名
 
         if model_type == "UGCN":
