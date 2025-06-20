@@ -222,12 +222,11 @@ def train(model:nn.Module, mix_dir:str, clean_dir:str, out_path:str="./RESULT/pt
         torch.cuda.empty_cache()    # メモリの解放 1iterationごとに解放
         with open(csv_path, "a") as out_file:  # ファイルオープン
             out_file.write(f"{epoch},{model_loss_sum}\n")  # 書き込み
-        # torch.cuda.empty_cache()    # メモリの解放 1epochごとに解放-
 
         """ Early_Stopping の判断 """
         # best_lossとmodel_loss_sumを比較
         if model_loss_sum < best_loss:  # model_lossのほうが小さい場合
-            print(f"{epoch:3} [epoch] | New best model found with loss: {model_loss_sum:.6f} (was {best_loss:.6f})")
+            print(f"{epoch:3} [epoch] | {model_loss_sum:.6} <- {best_loss:.6}")
             torch.save(model.to(device).state_dict(), f"{out_dir}/BEST_{out_name}.pth")  # 出力ファイルの保存
             best_loss = model_loss_sum  # best_lossの変更
             earlystopping_count = 0
@@ -320,7 +319,7 @@ if __name__ == '__main__':
     """ モデルの設定 """
     num_mic = 1  # マイクの数
     num_node = 8  # k近傍の数
-    model_list = ["SpeqGCN2", "SpeqGAT2"] # モデルの種類をSpeqGCNに限定
+    model_list = ["SpeqGCN", "SpeqGAT"] # モデルの種類をSpeqGCNに限定
     for model_type in model_list:
         wave_type = "noise_only"    # 入寮信号の種類 (noise_only, reverbe_only, noise_reverbe)
         out_name = f"{model_type}_{wave_type}"  # 出力ファイル名

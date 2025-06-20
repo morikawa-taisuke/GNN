@@ -161,10 +161,10 @@ class SpectralDataset(Dataset):
             clean_waveform = torch.mean(clean_waveform, dim=0, keepdim=True)
 
         if self.max_length_samples is not None: # 長さの調整
-            if noisy_waveform.shape[1] > self.max_length_samples:
+            if noisy_waveform.shape[-1] > self.max_length_samples:
                 noisy_waveform = noisy_waveform[:, :self.max_length_samples]
                 clean_waveform = clean_waveform[:, :self.max_length_samples]
-            elif noisy_waveform.shape[1] < self.max_length_samples:
+            elif noisy_waveform.shape[-1] < self.max_length_samples:
                 padding_amount = self.max_length_samples - noisy_waveform.shape[1]
                 noisy_waveform = F.pad(noisy_waveform, (0, padding_amount))
                 clean_waveform = F.pad(clean_waveform, (0, padding_amount))

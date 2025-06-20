@@ -177,7 +177,7 @@ class SpeqGCNNet(nn.Module):
         edge_index = torch.stack([source_nodes, target_nodes], dim=0)
         return edge_index
 
-    def forward(self, x_magnitude, complex_spec_input, original_length=None):
+    def forward(self, x_magnitude, complex_spec_input, original_length=None, edge_index=None):
         """
         Args:
             x_magnitude (torch.Tensor): Input magnitude spectrogram [Batch, n_channels, FreqBins, TimeFrames].
@@ -267,13 +267,11 @@ class SpeqGCNNet(nn.Module):
 class SpeqGATNet(SpeqGCNNet):
     def __init__(self, n_channels, n_classes, hidden_dim=32, num_node=8, gat_heads=8, gat_dropout=0.5,
                  n_fft=512, hop_length=256, win_length=None):
-        super(SpeqGATNet, self).__init__(n_channels, n_classes, hidden_dim, num_node,
-                                         n_fft=n_fft, hop_length=hop_length, win_length=win_length)
+        super(SpeqGATNet, self).__init__(n_channels, n_classes, hidden_dim, num_node, n_fft=n_fft, hop_length=hop_length, win_length=win_length)
         # Override the GNN part with GAT
         self.gnn = GAT(512, hidden_dim, 512, heads=gat_heads, dropout_rate=gat_dropout)
     # forward and create_graph are inherited from SpeqGCNNet
 
-    
 
 class SpeqGCNNet2(SpeqGCNNet):
     def create_graph(self, x_nodes_batched, k, batch_size, num_nodes_per_sample):
@@ -282,7 +280,7 @@ class SpeqGCNNet2(SpeqGCNNet):
         edge_index = knn_graph(x=x_nodes_batched, k=k, batch=batch_indices, loop=False) # 自己ループなし
         return edge_index
     
-    def forward(self, x_magnitude, complex_spec_input, original_length=None):
+    def forward(self, x_magnitude, complex_spec_input, original_length=None, edge_index=None):
         """
         Args:
             x_magnitude (torch.Tensor): Input magnitude spectrogram [Batch, n_channels, FreqBins, TimeFrames].
@@ -367,8 +365,7 @@ class SpeqGCNNet2(SpeqGCNNet):
         return output_waveform
 
 class SpeqGATNet2(SpeqGCNNet2):
-    def __init__(self, n_channels, n_classes, hidden_dim=32, num_node=8, gat_heads=8, gat_dropout=0.5,
-                 n_fft=512, hop_length=256, win_length=None):
+    def __init__(self, n_channels, n_classes, hidden_dim=32, num_node=8, gat_heads=8, gat_dropout=0.5, n_fft=512, hop_length=256, win_length=None):
         super(SpeqGATNet2, self).__init__(n_channels, n_classes, hidden_dim, num_node, n_fft=n_fft, hop_length=hop_length, win_length=win_length)
         # Override the GNN part with GAT
         self.gnn = GAT(512, hidden_dim, 512, heads=gat_heads, dropout_rate=gat_dropout)
@@ -441,10 +438,10 @@ if __name__ == '__main__':
 
     print("\n--- SpeqGCNNet2 Model Summary ---")
     speq_gcn_model2 = SpeqGCNNet2(n_channels=num_input_channels,
-                                   n_classes=num_mask_classes,
-                                   num_node=8,
-                                   n_fft=n_fft_val,
-                                   hop_length=hop_length_val).to(device)
+                                  n_classes=num_mask_classes,
+                                  num_node=8,
+                                  n_fft=n_fft_val,
+                                  hop_length=hop_length_val).to(device)
     print_model_summary(speq_gcn_model2, batch, num_input_channels, num_freq_bins, num_time_frames)
     # Test forward pass
     output_waveform_gcn2 = speq_gcn_model2(dummy_magnitude_spec, dummy_complex_spec_input, dummy_original_length)
@@ -455,12 +452,12 @@ if __name__ == '__main__':
 
     print("\n--- SpeqGATNet2 Model Summary ---")
     speq_gat_model2 = SpeqGATNet2(n_channels=num_input_channels,
-                                   n_classes=num_mask_classes,
-                                   num_node=8,
-                                   gat_heads=4,
-                                   gat_dropout=0.6,
-                                   n_fft=n_fft_val,
-                                   hop_length=hop_length_val).to(device)
+                                  n_classes=num_mask_classes,
+                                  num_node=8,
+                                  gat_heads=4,
+                                  gat_dropout=0.6,
+                                  n_fft=n_fft_val,
+                                  hop_length=hop_length_val).to(device)
     print_model_summary(speq_gat_model2, batch, num_input_channels, num_freq_bins, num_time_frames)
     # Test forward pass
     output_waveform_gat2 = speq_gat_model2(dummy_magnitude_spec, dummy_complex_spec_input, dummy_original_length)
