@@ -43,9 +43,12 @@ def main(target_dir, estimation_dir, out_path):
         target_data, _ = my_func.load_wav(target_file)
         estimation_data, _ = my_func.load_wav(estimation_file)
 
-        max_length = max(len(target_data), len(estimation_data))
-        target_data = np.pad(target_data, [0, max_length - len(target_data)], "constant")
-        estimation_data = np.pad(estimation_data, [0, max_length - len(estimation_data)], "constant")
+        # max_length = max(len(target_data), len(estimation_data))
+        # target_data = np.pad(target_data, [0, max_length - len(target_data)], "constant")
+        # estimation_data = np.pad(estimation_data, [0, max_length - len(estimation_data)], "constant")
+        min_length = min(len(target_data), len(estimation_data))
+        target_data = target_data[:min_length]
+        estimation_data = estimation_data[:min_length]
 
         target_data = np.nan_to_num(target_data, nan=0.0, posinf=0.0, neginf=0.0)
         estimation_data = np.nan_to_num(estimation_data, nan=0.0, posinf=0.0, neginf=0.0)
@@ -76,16 +79,35 @@ def main(target_dir, estimation_dir, out_path):
         text = f"average,,{pesq_ave},{stoi_ave},{sisdr_ave}\n"  # 書き込む内容の作成
         csv_file.write(text)  # 書き込み
 
-    print(f"PESQ : {pesq_ave}")
-    print(f"STOI : {stoi_ave}")
-    print(f"SI-SDR : {sisdr_ave}")
+    print(f"PESQ : {pesq_ave:.3f}")
+    print(f"STOI : {stoi_ave:.3f}")
+    print(f"SI-SDR : {sisdr_ave:.3f}")
     # print("pesq end")
 
 if __name__ == "__main__":
     print("evaluation")
-    target_dir = "C:/Users/kataoka-lab/Desktop/sound_data/mix_data/subset_DEMAND_hoth_1010dB_1ch/subset_DEMAND_hoth_1010dB_05sec_1ch/test/clean"
-    estimation_dir = "C:/Users/kataoka-lab/Desktop/sound_data/RESULT/output_wav/UGCN/subset_DEMAND_1ch/random_node/STFT_MSE/noise_only"
-    out_csv_name = "UGCN_random_node_STFT_MSE_noise_only.csv"
-    main(target_dir=target_dir,
-         estimation_dir=estimation_dir,
-         out_path=os.path.join(const.EVALUATION_DIR, out_csv_name))
+
+    model_type = ["SpeqGCN", "SpeqGAT", "SpeqGCN2", "SpeqGAT2"]
+    # wave_types = ["noise_only", "reverbe_only", "noise_reverbe"]
+
+    model = "SpeqGAT"
+    wave_type = "noise_only"
+    for model in model_type:
+        # for wave_type in wave_types:
+        name = f"{model}_{wave_type}"
+        target_dir = f"C:/Users/kataoka-lab/Desktop/sound_data/sample_data/speech/JA/test"
+        estimation_dir = f"{const.OUTPUT_WAV_DIR}/{model}/JA_hoth_5dB/{name}"
+        # target_dir = f"C:/Users/kataoka-lab/Desktop/sound_data/mix_data/GNN/subset_DEMAND_hoth_05dB_5000msec/test/clean"
+        # estimation_dir = f"{const.OUTPUT_WAV_DIR}/{model}/subset_DEMAND_hoth_05dB_5000msec/{name}"
+        out_csv_name = f"{name}.csv"
+        main(target_dir=target_dir,
+                estimation_dir=estimation_dir,
+                out_path=os.path.join(const.EVALUATION_DIR, out_csv_name))
+
+
+    # target_dir = "C:/Users/kataoka-lab/Desktop/sound_data/mix_data/subset_DEMAND_hoth_1010dB_1ch/subset_DEMAND_hoth_1010dB_05sec_1ch/test/clean"
+    # estimation_dir = "C:/Users/kataoka-lab/Desktop/sound_data/RESULT/output_wav/UGCN/subset_DEMAND_1ch/random_node/STFT_MSE/noise_only"
+    # out_csv_name = "UGCN_random_node_STFT_MSE_noise_only.csv"
+    # main(target_dir=target_dir,
+    #      estimation_dir=estimation_dir,
+    #      out_path=os.path.join(const.EVALUATION_DIR, out_csv_name))
