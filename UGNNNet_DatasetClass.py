@@ -35,6 +35,8 @@ class AudioDataset(Dataset):
 
         # ファイル数の一致を確認（重要なチェック）
         if len(self.noisy_file_paths) != len(self.clean_file_paths):
+            print("Noisy file paths:", len(self.noisy_file_paths))
+            print("Clean file paths:", len(self.clean_file_paths))
             raise ValueError("The number of noisy and clean audio files does not match.")
 
         # ファイル名のペアリングを確認（これも重要）
@@ -136,6 +138,8 @@ class SpectralDataset(Dataset):
         # print(self.noisy_file_paths)
         # print(self.clean_file_paths)
         if len(self.noisy_file_paths) != len(self.clean_file_paths):
+            print("Noisy file paths:", len(self.noisy_file_paths))
+            print("Clean file paths:", len(self.clean_file_paths))
             raise ValueError("The number of noisy and clean audio files does not match.")
         
         print(f"Found {len(self.noisy_file_paths)} audio pairs for SpectralDataset.")
@@ -185,7 +189,7 @@ class SpectralDataset(Dataset):
 
 
 class AudioDataset_test(Dataset):
-    def __init__(self, noisy_audio_dir, sample_rate=16000, max_length_sec=3):
+    def __init__(self, noisy_audio_dir, sample_rate=16000):
         """
         オーディオデータセットクラス
 
@@ -197,7 +201,6 @@ class AudioDataset_test(Dataset):
         """
         self.noisy_audio_dir = noisy_audio_dir
         self.sample_rate = sample_rate
-        self.max_length_samples = max_length_sec * sample_rate if max_length_sec is not None else None
 
         # 雑音を含む音声ファイルのリストを取得
         # 例えば、.wav ファイルのみを対象とする
@@ -217,34 +220,12 @@ class AudioDataset_test(Dataset):
         # サンプリングレートのリサンプリング
         if current_sample_rate != self.sample_rate:
             noisy_waveform = torchaudio.transforms.Resample(current_sample_rate, self.sample_rate)(noisy_waveform)
-
-        # チャンネル数の調整（例：ステレオ -> モノラル）
-        # モデルが1チャンネル入力を想定している場合、モノラルに変換
-        # if noisy_waveform.shape[0] > 1:
-        #     noisy_waveform = torch.mean(noisy_waveform, dim=0, keepdim=True)
-
-        # 長さの調整
-        # (1) 最大長に切り捨て
-        if self.max_length_samples is not None and noisy_waveform.shape[1] > self.max_length_samples:
-            noisy_waveform = noisy_waveform[:, :self.max_length_samples]
-
-        # (2) パディング（短いサンプルを埋める）
-        # このモデルは固定長入力を必要としないが、バッチ処理のために長さを揃える必要がある場合
-        # または、常に同じ長さのサンプルを入力したい場合は、ここでパディングを行う
-        # 例:
-        if self.max_length_samples is not None and noisy_waveform.shape[1] < self.max_length_samples:
-            padding_amount = self.max_length_samples - noisy_waveform.shape[1]
-            noisy_waveform = F.pad(noisy_waveform, (0, padding_amount))
-
+        
         # 出力の形状 [batch, n_channels, length]
         # print("dataset_out:", noisy_waveform.shape)
         # print("dataset_out:", clean_waveform.shape)
         return noisy_waveform, noisy_name  # パスも返す
-    
-    def get_file_paths(self):
-        """ データセット内の全ファイルパスを取得 """
-        return self.noisy_file_paths
-    
+
 
 # --- 使用例 ---
 if __name__ == "__main__":
