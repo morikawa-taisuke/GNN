@@ -1,6 +1,7 @@
 from models.wave_unet import U_Net
 from models.GCN import UGCNNet, UGATNet, UGCNNet2, UGATNet2
 from models.SpeqGNN import SpeqGCNNet
+from models.ConvTasNet_models import enhance_ConvTasNet
 import time
 import torch
 import torch.nn as nn
@@ -292,7 +293,7 @@ if __name__ == '__main__':
     """ モデルの設定 """
     num_mic = 1  # マイクの数
     num_node = 8  # k近傍の数
-    model_list = ["UGAT2", "UGCN2"]#, "UGAT2"]  # モデルの種類
+    model_list = ["ConvTasNet"]#, "UGAT2"]  # モデルの種類
     for model_type in model_list:
         wave_type = "noise_only"    # 入力信号の種類 (noise_only, reverbe_only, noise_reverbe)
         out_name = f"{model_type}_{wave_type}"  # 出力ファイル名
@@ -305,6 +306,8 @@ if __name__ == '__main__':
             model = UGCNNet2(n_channels=num_mic, n_classes=1, num_node=8).to(device)
         elif model_type == "UGAT2":
             model = UGATNet2(n_channels=num_mic, n_classes=1, num_node=8, gat_heads=4, gat_dropout=0.6).to(device)
+        elif model_type == "ConvTasNet":
+            model = enhance_ConvTasNet().to(device)
         else:
             raise ValueError(f"Unknown model type: {model_type}")
 
