@@ -9,8 +9,11 @@ from pathlib import Path
 
 from mymodule import my_func
 
+
 class AudioDataset(Dataset):
-    def __init__(self, noisy_audio_dir, clean_audio_dir, sample_rate=16000, max_length_sec=3):
+    def __init__(
+        self, noisy_audio_dir, clean_audio_dir, sample_rate=16000, max_length_sec=3
+    ):
         """
         オーディオデータセットクラス
 
@@ -28,13 +31,19 @@ class AudioDataset(Dataset):
 
         # 雑音を含む音声ファイルのリストを取得
         # 例えば、.wav ファイルのみを対象とする
-        self.noisy_file_paths = sorted(glob.glob(os.path.join(noisy_audio_dir, "*.wav")))
+        self.noisy_file_paths = sorted(
+            glob.glob(os.path.join(noisy_audio_dir, "*.wav"))
+        )
 
         # クリーンな音声ファイルのリストを取得
-        self.clean_file_paths = sorted(glob.glob(os.path.join(clean_audio_dir, "*.wav")))
+        self.clean_file_paths = sorted(
+            glob.glob(os.path.join(clean_audio_dir, "*.wav"))
+        )
 
         # ファイル数の一致を確認（重要なチェック）
         if len(self.noisy_file_paths) != len(self.clean_file_paths):
+            print("Noisy file paths:", len(self.noisy_file_paths))
+            print("Clean file paths:", len(self.clean_file_paths))
             raise ValueError("The number of noisy and clean audio files does not match.")
 
         # ファイル名のペアリングを確認（これも重要）
@@ -54,14 +63,18 @@ class AudioDataset(Dataset):
     def __getitem__(self, idx):
         # 音声の読み込み
         clean_path = Path(self.clean_file_paths[idx])
-        clean_waveform, current_sample_rate = torchaudio.load(clean_path)  # サンプリングレートはnoisy_waveformと同じはず
+        clean_waveform, current_sample_rate = torchaudio.load(clean_path)
         noisy_path = Path(self.noisy_file_paths[idx])
         noisy_waveform, _ = torchaudio.load(noisy_path)
 
         # サンプリングレートのリサンプリング
         if current_sample_rate != self.sample_rate:
-            noisy_waveform = torchaudio.transforms.Resample(current_sample_rate, self.sample_rate)(noisy_waveform)
-            clean_waveform = torchaudio.transforms.Resample(current_sample_rate, self.sample_rate)(clean_waveform)
+            noisy_waveform = torchaudio.transforms.Resample(
+                current_sample_rate, self.sample_rate
+            )(noisy_waveform)
+            clean_waveform = torchaudio.transforms.Resample(
+                current_sample_rate, self.sample_rate
+            )(clean_waveform)
 
         # チャンネル数の調整（例：ステレオ -> モノラル）
         # モデルが1チャンネル入力を想定している場合、モノラルに変換
@@ -73,8 +86,8 @@ class AudioDataset(Dataset):
         # 長さの調整
         # (1) 最大長に切り捨て
         if noisy_waveform.shape[-1] > self.max_length_samples:
-            noisy_waveform = noisy_waveform[:, :self.max_length_samples]
-            clean_waveform = clean_waveform[:, :self.max_length_samples]
+            noisy_waveform = noisy_waveform[:, : self.max_length_samples]
+            clean_waveform = clean_waveform[:, : self.max_length_samples]
 
         # (2) パディング（短いサンプルを埋める）
         # このモデルは固定長入力を必要としないが、バッチ処理のために長さを揃える必要がある場合
@@ -90,9 +103,18 @@ class AudioDataset(Dataset):
         # print("dataset_out:", clean_waveform.shape)
         return noisy_waveform, clean_waveform
 
+
 class SpectralDataset(Dataset):
-    def __init__(self, noisy_audio_dir, clean_audio_dir, sample_rate=16000, max_length_sec=3,
-                 n_fft=512, hop_length=256, win_length=None):
+    def __init__(
+        self,
+        noisy_audio_dir,
+        clean_audio_dir,
+        sample_rate=16000,
+        max_length_sec=3,
+        n_fft=512,
+        hop_length=256,
+        win_length=None,
+    ):
         """
         スペクトルデータセットクラス
 
@@ -109,7 +131,9 @@ class SpectralDataset(Dataset):
         self.noisy_audio_dir = noisy_audio_dir
         self.clean_audio_dir = clean_audio_dir
         self.sample_rate = sample_rate
-        self.max_length_samples = max_length_sec * sample_rate if max_length_sec is not None else None
+        self.max_length_samples = (
+            max_length_sec * sample_rate if max_length_sec is not None else None
+        )
         self.n_fft = n_fft
         self.hop_length = hop_length
         self.win_length = win_length if win_length is not None else n_fft
@@ -119,23 +143,29 @@ class SpectralDataset(Dataset):
             hop_length=self.hop_length,
             win_length=self.win_length,
             window_fn=torch.hann_window,
-            power=1.0  # Magnitude spectrogram
+            power=1.0,  # Magnitude spectrogram
         )
         # For complex spectrogram
         self.stft_transform_complex = torchaudio.transforms.Spectrogram(
             n_fft=self.n_fft,
             hop_length=self.hop_length,
             win_length=self.win_length,
-            window_fn=torch.hann_window, # Ensure window is applied
-            power=None, # To get complex output
-            return_complex=True # Explicitly ask for complex output
+            window_fn=torch.hann_window,  # Ensure window is applied
+            power=None,  # To get complex output
+            return_complex=True,  # Explicitly ask for complex output
         )
 
-        self.noisy_file_paths = sorted(glob.glob(os.path.join(noisy_audio_dir, "*.wav")))
-        self.clean_file_paths = sorted(glob.glob(os.path.join(clean_audio_dir, "*.wav")))
+        self.noisy_file_paths = sorted(
+            glob.glob(os.path.join(noisy_audio_dir, "*.wav"))
+        )
+        self.clean_file_paths = sorted(
+            glob.glob(os.path.join(clean_audio_dir, "*.wav"))
+        )
         # print(self.noisy_file_paths)
         # print(self.clean_file_paths)
         if len(self.noisy_file_paths) != len(self.clean_file_paths):
+            print("Noisy file paths:", len(self.noisy_file_paths))
+            print("Clean file paths:", len(self.clean_file_paths))
             raise ValueError("The number of noisy and clean audio files does not match.")
         
         print(f"Found {len(self.noisy_file_paths)} audio pairs for SpectralDataset.")
@@ -150,20 +180,15 @@ class SpectralDataset(Dataset):
         clean_path = self.clean_file_paths[idx]
         clean_waveform, _ = torchaudio.load(clean_path)
 
-        if current_sample_rate != self.sample_rate: # リサンプリング
-            resampler = torchaudio.transforms.Resample(current_sample_rate, self.sample_rate)
-            noisy_waveform = resampler(noisy_waveform)
-            clean_waveform = resampler(clean_waveform)
-
         if noisy_waveform.shape[0] > 1:
             noisy_waveform = torch.mean(noisy_waveform, dim=0, keepdim=True)
         if clean_waveform.shape[0] > 1:
             clean_waveform = torch.mean(clean_waveform, dim=0, keepdim=True)
 
-        if self.max_length_samples is not None: # 長さの調整
+        if self.max_length_samples is not None:  # 長さの調整
             if noisy_waveform.shape[-1] > self.max_length_samples:
-                noisy_waveform = noisy_waveform[:, :self.max_length_samples]
-                clean_waveform = clean_waveform[:, :self.max_length_samples]
+                noisy_waveform = noisy_waveform[:, : self.max_length_samples]
+                clean_waveform = clean_waveform[:, : self.max_length_samples]
             elif noisy_waveform.shape[-1] < self.max_length_samples:
                 padding_amount = self.max_length_samples - noisy_waveform.shape[1]
                 noisy_waveform = F.pad(noisy_waveform, (0, padding_amount))
@@ -174,18 +199,24 @@ class SpectralDataset(Dataset):
         # STFT
         noisy_magnitude_spectrogram = self.spectrogram_transform(noisy_waveform)
         # Ensure complex STFT is applied to the mono waveform
-        noisy_complex_spectrogram = self.stft_transform_complex(noisy_waveform.squeeze(0)) # Squeeze channel for STFT if mono
+        noisy_complex_spectrogram = self.stft_transform_complex(
+            noisy_waveform.squeeze(0)
+        )  # Squeeze channel for STFT if mono
         # clean_spectrogram = self.spectrogram_transform(clean_waveform)
 
-        
         # または、log-magnitude spectrogram
         # noisy_spectrogram = torch.log1p(noisy_spectrogram)
         # clean_spectrogram = torch.log1p(clean_spectrogram)
-        return noisy_magnitude_spectrogram, noisy_complex_spectrogram, original_length, clean_waveform
+        return (
+            noisy_magnitude_spectrogram,
+            noisy_complex_spectrogram,
+            original_length,
+            clean_waveform,
+        )
 
 
 class AudioDataset_test(Dataset):
-    def __init__(self, noisy_audio_dir, sample_rate=16000, max_length_sec=3):
+    def __init__(self, noisy_audio_dir, sample_rate=16000):
         """
         オーディオデータセットクラス
 
@@ -197,11 +228,12 @@ class AudioDataset_test(Dataset):
         """
         self.noisy_audio_dir = noisy_audio_dir
         self.sample_rate = sample_rate
-        self.max_length_samples = max_length_sec * sample_rate if max_length_sec is not None else None
 
         # 雑音を含む音声ファイルのリストを取得
         # 例えば、.wav ファイルのみを対象とする
-        self.noisy_file_paths = sorted(glob.glob(os.path.join(noisy_audio_dir, "*.wav")))
+        self.noisy_file_paths = sorted(
+            glob.glob(os.path.join(noisy_audio_dir, "*.wav"))
+        )
 
         print(f"Found {len(self.noisy_file_paths)} audio pairs.")
 
@@ -211,40 +243,24 @@ class AudioDataset_test(Dataset):
     def __getitem__(self, idx):
         # 音声の読み込み
         noisy_path = self.noisy_file_paths[idx]
-        noisy_name, _ = my_func.get_file_name(noisy_path)  # ファイル名を取得（拡張子なし）
+        noisy_name, _ = my_func.get_file_name(
+            noisy_path
+        )  # ファイル名を取得（拡張子なし）
         noisy_waveform, current_sample_rate = torchaudio.load(noisy_path)
 
         # サンプリングレートのリサンプリング
         if current_sample_rate != self.sample_rate:
             noisy_waveform = torchaudio.transforms.Resample(current_sample_rate, self.sample_rate)(noisy_waveform)
-
-        # チャンネル数の調整（例：ステレオ -> モノラル）
-        # モデルが1チャンネル入力を想定している場合、モノラルに変換
-        # if noisy_waveform.shape[0] > 1:
-        #     noisy_waveform = torch.mean(noisy_waveform, dim=0, keepdim=True)
-
-        # 長さの調整
-        # (1) 最大長に切り捨て
-        if self.max_length_samples is not None and noisy_waveform.shape[1] > self.max_length_samples:
-            noisy_waveform = noisy_waveform[:, :self.max_length_samples]
-
-        # (2) パディング（短いサンプルを埋める）
-        # このモデルは固定長入力を必要としないが、バッチ処理のために長さを揃える必要がある場合
-        # または、常に同じ長さのサンプルを入力したい場合は、ここでパディングを行う
-        # 例:
-        if self.max_length_samples is not None and noisy_waveform.shape[1] < self.max_length_samples:
-            padding_amount = self.max_length_samples - noisy_waveform.shape[1]
-            noisy_waveform = F.pad(noisy_waveform, (0, padding_amount))
-
+        
         # 出力の形状 [batch, n_channels, length]
         # print("dataset_out:", noisy_waveform.shape)
         # print("dataset_out:", clean_waveform.shape)
         return noisy_waveform, noisy_name  # パスも返す
-    
+
     def get_file_paths(self):
-        """ データセット内の全ファイルパスを取得 """
+        """データセット内の全ファイルパスを取得"""
         return self.noisy_file_paths
-    
+
 
 # --- 使用例 ---
 if __name__ == "__main__":
@@ -314,12 +330,14 @@ if __name__ == "__main__":
         noisy_audio_dir=noisy_dir,
         clean_audio_dir=clean_dir,
         sample_rate=test_sample_rate,
-        max_length_sec=3, # 最大5秒にクリップ/パディング
-        n_fft=512,        # STFTパラメータ例
-        hop_length=256
+        max_length_sec=3,  # 最大5秒にクリップ/パディング
+        n_fft=512,  # STFTパラメータ例
+        hop_length=256,
     )
 
-    spectral_dataloader = DataLoader(spectral_dataset, batch_size=4, shuffle=True, num_workers=0)
+    spectral_dataloader = DataLoader(
+        spectral_dataset, batch_size=4, shuffle=True, num_workers=0
+    )
 
     print("\nIterating through Spectral DataLoader:")
     for i, (noisy_spec, clean_spec) in tenumerate(spectral_dataloader):
@@ -329,10 +347,8 @@ if __name__ == "__main__":
 
         # if i >= 2:  # 最初の3バッチだけ表示
         #     break
-    
+
     print("\nSpectralData loading test complete.")
-
-
 
     # # ダミーデータを削除
     # import shutil
