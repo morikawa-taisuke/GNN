@@ -353,6 +353,10 @@ def test(
         # separate の形状を (length,) に整形する
         # モデルの出力が (1, 1, length) と仮定
         data_to_write = separate.squeeze()
+        
+        # 正規化
+        data_to_write = data_to_write / np.max(np.abs(data_to_write)) * mix_max
+
 
         # 分離した speechを出力ファイルとして保存する。
         # ファイル名とフォルダ名を結合してパス文字列を作成
@@ -368,13 +372,9 @@ if __name__ == "__main__":
     """モデルの設定"""
     num_mic = 1  # マイクの数
     num_node = 8  # k近傍の数
-    model_list = ["UGAT2", "UGCN2"]#, "UGAT2"]  # モデルの種類
+    model_list = ["UGAT", "UGAT2", "UGCN", "UGCN2"]#, "UGAT2"]  # モデルの種類
     for model_type in model_list:
-        wave_type = (
-            "noise_only"  # 入力信号の種類 (noise_only, reverbe_only, noise_reverbe)
-        )
-        out_name = f"{model_type}_{wave_type}"  # 出力ファイル名
-
+        
         if model_type == "UGCN":
             model = UGCNNet(n_channels=num_mic, n_classes=1, num_node=8).to(device)
         elif model_type == "UGAT":
@@ -394,21 +394,24 @@ if __name__ == "__main__":
         else:
             raise ValueError(f"Unknown model type: {model_type}")
 
-        train(
-            model=model,
-            mix_dir=f"{const.MIX_DATA_DIR}/GNN/JA_hoth_5dB/train/",
-            clean_dir=f"{const.SAMPLE_DATA_DIR}/speech/JA/train/",
-            out_path=f"{const.PTH_DIR}/{model_type}/JA_hoth_5dB/{out_name}.pth",
-            batchsize=1,
-        )
+        wave_types = [
+            "reverbe_only", "noise_reverbe"  # 入力信号の種類 (noise_only, reverbe_only, noise_reverbe)
+        ]
+        
+        for wave_type in wave_types:
+            out_name = f"{model_type}_{wave_type}"  # 出力ファイル名
+            # C:\Users\kataoka-lab\Desktop\sound_data\mix_data\GNN\subset_DEMAND_hoth_05dB_5000msec\train\reverbe_only
+            train(model=model,
+                mix_dir=f"{const.MIX_DATA_DIR}/GNN/subset_DEMAND_hoth_05dB_5000msec/train/{wave_type}",
+                clean_dir=f"{const.MIX_DATA_DIR}/GNN/subset_DEMAND_hoth_05dB_5000msec/train/clean/",
+                out_path=f"{const.PTH_DIR}/{model_type}/subset_DEMAND_hoth_05dB_5000msec/{out_name}.pth", batchsize=1,
+                loss_func="SISDR")
 
-        test(
-            model=model,
-            mix_dir=f"{const.MIX_DATA_DIR}/GNN/JA_hoth_5dB/test/",
-            out_dir=f"{const.OUTPUT_WAV_DIR}/{model_type}/JA_hoth_5dB/{out_name}",
-            model_path=f"{const.PTH_DIR}/{model_type}/JA_hoth_5dB/{out_name}.pth",
-        )
+            test(model=model,
+                mix_dir=f"{const.MIX_DATA_DIR}/GNN/subset_DEMAND_hoth_05dB_5000msec/test/{wave_type}",
+                out_dir=f"{const.OUTPUT_WAV_DIR}/{model_type}/subset_DEMAND_hoth_05dB_5000msec/{out_name}",
+                model_path=f"{const.PTH_DIR}/{model_type}/subset_DEMAND_hoth_05dB_5000msec/{out_name}.pth")
 
-        # evaluation(target_dir=f"{const.MIX_DATA_DIR}/subset_DEMAND_hoth_1010dB_1ch/subset_DEMAND_hoth_1010dB_05sec_1ch/test/clean",
-        #         estimation_dir=f"{const.OUTPUT_WAV_DIR}/{model_type}/subset_DEMAND_1ch/{out_name}",
-        #         out_path=f"{const.EVALUATION_DIR}/{out_name}.csv")
+            evaluation(target_dir=f"{const.MIX_DATA_DIR}/GNN/subset_DEMAND_hoth_05dB_5000msec/train/clean/",
+                    estimation_dir=f"{const.OUTPUT_WAV_DIR}/{model_type}/subset_DEMAND_hoth_05dB_5000msec/{out_name}",
+                    out_path=f"{const.EVALUATION_DIR}/{out_name}.csv")

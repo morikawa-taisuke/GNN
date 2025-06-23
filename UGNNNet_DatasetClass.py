@@ -42,8 +42,8 @@ class AudioDataset(Dataset):
 
         # ファイル数の一致を確認（重要なチェック）
         if len(self.noisy_file_paths) != len(self.clean_file_paths):
-            print("Noisy file paths:", len(self.noisy_file_paths))
-            print("Clean file paths:", len(self.clean_file_paths))
+            print(f"{noisy_audio_dir}:", len(self.noisy_file_paths))
+            print(f"{clean_audio_dir}:", len(self.clean_file_paths))
             raise ValueError("The number of noisy and clean audio files does not match.")
 
         # ファイル名のペアリングを確認（これも重要）
