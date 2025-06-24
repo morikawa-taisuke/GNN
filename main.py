@@ -371,8 +371,8 @@ def test(
 if __name__ == "__main__":
     """モデルの設定"""
     num_mic = 1  # マイクの数
-    num_node = 8  # k近傍の数
-    model_list = ["UGAT", "UGAT2", "UGCN", "UGCN2"]#, "UGAT2"]  # モデルの種類
+    num_node = 8  # ノードの数
+    model_list = ["ConvTasNet", "UNet"] # モデルの種類  "UGCN", "UGCN2", "UGAT", "UGAT2", 
     for model_type in model_list:
         
         if model_type == "UGCN":
@@ -391,27 +391,26 @@ if __name__ == "__main__":
             model = UGATNet2(n_channels=num_mic, n_classes=1, num_node=8, gat_heads=4, gat_dropout=0.6).to(device)
         elif model_type == "ConvTasNet":
             model = enhance_ConvTasNet().to(device)
+        elif model_type == "UNet":
+            model = U_Net().to(device)
         else:
             raise ValueError(f"Unknown model type: {model_type}")
 
-        wave_types = [
-            "reverbe_only", "noise_reverbe"  # 入力信号の種類 (noise_only, reverbe_only, noise_reverbe)
-        ]
-        
+        wave_types = ["noise_only", "reverbe_only", "noise_reverbe"]    # 入寮信号の種類 (noise_only, reverbe_only, noise_reverbe)
         for wave_type in wave_types:
             out_name = f"{model_type}_{wave_type}"  # 出力ファイル名
-            # C:\Users\kataoka-lab\Desktop\sound_data\mix_data\GNN\subset_DEMAND_hoth_05dB_5000msec\train\reverbe_only
+
             train(model=model,
-                mix_dir=f"{const.MIX_DATA_DIR}/GNN/subset_DEMAND_hoth_05dB_5000msec/train/{wave_type}",
-                clean_dir=f"{const.MIX_DATA_DIR}/GNN/subset_DEMAND_hoth_05dB_5000msec/train/clean/",
-                out_path=f"{const.PTH_DIR}/{model_type}/subset_DEMAND_hoth_05dB_5000msec/{out_name}.pth", batchsize=1,
-                loss_func="SISDR")
+                mix_dir=f"{const.MIX_DATA_DIR}/GNN/subset_DEMAND_hoth_5dB_500msec/train/{wave_type}",
+                clean_dir=f"{const.MIX_DATA_DIR}/GNN/subset_DEMAND_hoth_5dB_500msec/train/clean/",
+                out_path=f"{const.PTH_DIR}/{model_type}/subset_DEMAND_hoth_5dB_500msec/{out_name}.pth", batchsize=1,
+                loss_func="stft_MSE", checkpoint_path=None, train_count=const.EPOCH, earlystopping_threshold=5)
 
             test(model=model,
-                mix_dir=f"{const.MIX_DATA_DIR}/GNN/subset_DEMAND_hoth_05dB_5000msec/test/{wave_type}",
-                out_dir=f"{const.OUTPUT_WAV_DIR}/{model_type}/subset_DEMAND_hoth_05dB_5000msec/{out_name}",
-                model_path=f"{const.PTH_DIR}/{model_type}/subset_DEMAND_hoth_05dB_5000msec/{out_name}.pth")
+                mix_dir=f"{const.MIX_DATA_DIR}/GNN/subset_DEMAND_hoth_5dB_500msec/test/{wave_type}",
+                out_dir=f"{const.OUTPUT_WAV_DIR}/{model_type}/subset_DEMAND_hoth_5dB_500msec/{out_name}",
+                model_path=f"{const.PTH_DIR}/{model_type}/subset_DEMAND_hoth_5dB_500msec/{out_name}.pth")
 
-            evaluation(target_dir=f"{const.MIX_DATA_DIR}/GNN/subset_DEMAND_hoth_05dB_5000msec/train/clean/",
-                    estimation_dir=f"{const.OUTPUT_WAV_DIR}/{model_type}/subset_DEMAND_hoth_05dB_5000msec/{out_name}",
+            evaluation(target_dir=f"{const.MIX_DATA_DIR}/GNN/subset_DEMAND_hoth_5dB_500msec/test/clean",
+                    estimation_dir=f"{const.OUTPUT_WAV_DIR}/{model_type}/subset_DEMAND_hoth_5dB_500msec/{out_name}",
                     out_path=f"{const.EVALUATION_DIR}/{out_name}.csv")
