@@ -372,7 +372,7 @@ if __name__ == "__main__":
     """モデルの設定"""
     num_mic = 1  # マイクの数
     num_node = 8  # ノードの数
-    model_list = ["ConvTasNet", "UNet"] # モデルの種類  "UGCN", "UGCN2", "UGAT", "UGAT2", 
+    model_list = ["UGCN", "UGCN2", "UGAT", "UGAT2"] # モデルの種類  "UGCN", "UGCN2", "UGAT", "UGAT2", "ConvTasNet", "UNet"
     for model_type in model_list:
         
         if model_type == "UGCN":
@@ -404,7 +404,7 @@ if __name__ == "__main__":
                 mix_dir=f"{const.MIX_DATA_DIR}/GNN/subset_DEMAND_hoth_5dB_500msec/train/{wave_type}",
                 clean_dir=f"{const.MIX_DATA_DIR}/GNN/subset_DEMAND_hoth_5dB_500msec/train/clean/",
                 out_path=f"{const.PTH_DIR}/{model_type}/subset_DEMAND_hoth_5dB_500msec/{out_name}.pth", batchsize=1,
-                loss_func="stft_MSE", checkpoint_path=None, train_count=const.EPOCH, earlystopping_threshold=5)
+                loss_func="SISDR", checkpoint_path=None, train_count=const.EPOCH, earlystopping_threshold=5)
 
             test(model=model,
                 mix_dir=f"{const.MIX_DATA_DIR}/GNN/subset_DEMAND_hoth_5dB_500msec/test/{wave_type}",
