@@ -356,7 +356,7 @@ def test(
         
         # 正規化
         mix_max = torch.max(mix_data)  # mix_waveの最大値を取得
-        data_to_write = data_to_write / np.max(data_to_write) * mix_max  # 正規化
+        data_to_write = data_to_write / np.max(data_to_write) * mix_max.cpu().detach().numpy()  # 正規化
 
 
         # 分離した speechを出力ファイルとして保存する。
