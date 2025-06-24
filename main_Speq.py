@@ -310,7 +310,8 @@ def test(model:nn.Module, mix_dir:str, out_dir:str, model_path:str, prm:int=cons
         data_to_write = separate.squeeze()
 
         # 正規化
-        data_to_write = data_to_write / np.max(np.abs(mix_wave.cpu().detach().numpy()))  # 正規化
+        mix_max = torch.max(mix_wave)  # mix_waveの最大値を取得
+        data_to_write = data_to_write / np.max(data_to_write) * mix_max  # 正規化
         
         # 分離した speechを出力ファイルとして保存する。
         # ファイル名とフォルダ名を結合してパス文字列を作成
