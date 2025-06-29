@@ -1,6 +1,7 @@
 from models.wave_unet import U_Net
 from models.GCN import UGCNNet, UGATNet, UGCNNet2, UGATNet2
 from models.SpeqGNN import SpeqGCNNet
+from models.ConvTasNet_models import enhance_ConvTasNet
 import time
 import torch
 import torch.nn as nn
@@ -352,6 +353,11 @@ def test(
         # separate の形状を (length,) に整形する
         # モデルの出力が (1, 1, length) と仮定
         data_to_write = separate.squeeze()
+        
+        # 正規化
+        mix_max = torch.max(mix_data)  # mix_waveの最大値を取得
+        data_to_write = data_to_write / np.max(data_to_write) * mix_max.cpu().detach().numpy()  # 正規化
+
 
         # 分離した speechを出力ファイルとして保存する。
         # ファイル名とフォルダ名を結合してパス文字列を作成
@@ -366,14 +372,10 @@ def test(
 if __name__ == "__main__":
     """モデルの設定"""
     num_mic = 1  # マイクの数
-    num_node = 8  # k近傍の数
-    model_list = ["UGAT2", "UGCN2"]  # , "UGAT2"]  # モデルの種類
+    num_node = 8  # ノードの数
+    model_list = ["UGCN", "UGCN2", "UGAT", "UGAT2"] # モデルの種類  "UGCN", "UGCN2", "UGAT", "UGAT2", "ConvTasNet", "UNet"
     for model_type in model_list:
-        wave_type = (
-            "noise_only"  # 入力信号の種類 (noise_only, reverbe_only, noise_reverbe)
-        )
-        out_name = f"{model_type}_{wave_type}"  # 出力ファイル名
-
+        
         if model_type == "UGCN":
             model = UGCNNet(n_channels=num_mic, n_classes=1, num_node=8).to(device)
         elif model_type == "UGAT":
@@ -387,31 +389,29 @@ if __name__ == "__main__":
         elif model_type == "UGCN2":
             model = UGCNNet2(n_channels=num_mic, n_classes=1, num_node=8).to(device)
         elif model_type == "UGAT2":
-            model = UGATNet2(
-                n_channels=num_mic,
-                n_classes=1,
-                num_node=8,
-                gat_heads=4,
-                gat_dropout=0.6,
-            ).to(device)
+            model = UGATNet2(n_channels=num_mic, n_classes=1, num_node=8, gat_heads=4, gat_dropout=0.6).to(device)
+        elif model_type == "ConvTasNet":
+            model = enhance_ConvTasNet().to(device)
+        elif model_type == "UNet":
+            model = U_Net().to(device)
         else:
             raise ValueError(f"Unknown model type: {model_type}")
 
-        train(
-            model=model,
-            mix_dir=f"{const.MIX_DATA_DIR}/GNN/JA_hoth_5dB/train/",
-            clean_dir=f"{const.SAMPLE_DATA_DIR}/speech/JA/train/",
-            out_path=f"{const.PTH_DIR}/{model_type}/JA_hoth_5dB/{out_name}.pth",
-            batchsize=1,
-        )
+        wave_types = ["noise_only", "reverbe_only", "noise_reverbe"]    # 入寮信号の種類 (noise_only, reverbe_only, noise_reverbe)
+        for wave_type in wave_types:
+            out_name = f"{model_type}_{wave_type}"  # 出力ファイル名
 
-        test(
-            model=model,
-            mix_dir=f"{const.MIX_DATA_DIR}/GNN/JA_hoth_5dB/test/",
-            out_dir=f"{const.OUTPUT_WAV_DIR}/{model_type}/JA_hoth_5dB/{out_name}",
-            model_path=f"{const.PTH_DIR}/{model_type}/JA_hoth_5dB/{out_name}.pth",
-        )
+            train(model=model,
+                mix_dir=f"{const.MIX_DATA_DIR}/GNN/subset_DEMAND_hoth_5dB_500msec/train/{wave_type}",
+                clean_dir=f"{const.MIX_DATA_DIR}/GNN/subset_DEMAND_hoth_5dB_500msec/train/clean/",
+                out_path=f"{const.PTH_DIR}/{model_type}/subset_DEMAND_hoth_5dB_500msec/{out_name}.pth", batchsize=1,
+                loss_func="SISDR", checkpoint_path=None, train_count=const.EPOCH, earlystopping_threshold=5)
 
-        # evaluation(target_dir=f"{const.MIX_DATA_DIR}/subset_DEMAND_hoth_1010dB_1ch/subset_DEMAND_hoth_1010dB_05sec_1ch/test/clean",
-        #         estimation_dir=f"{const.OUTPUT_WAV_DIR}/{model_type}/subset_DEMAND_1ch/{out_name}",
-        #         out_path=f"{const.EVALUATION_DIR}/{out_name}.csv")
+            test(model=model,
+                mix_dir=f"{const.MIX_DATA_DIR}/GNN/subset_DEMAND_hoth_5dB_500msec/test/{wave_type}",
+                out_dir=f"{const.OUTPUT_WAV_DIR}/{model_type}/subset_DEMAND_hoth_5dB_500msec/{out_name}",
+                model_path=f"{const.PTH_DIR}/{model_type}/subset_DEMAND_hoth_5dB_500msec/{out_name}.pth")
+
+            evaluation(target_dir=f"{const.MIX_DATA_DIR}/GNN/subset_DEMAND_hoth_5dB_500msec/test/clean",
+                    estimation_dir=f"{const.OUTPUT_WAV_DIR}/{model_type}/subset_DEMAND_hoth_5dB_500msec/{out_name}",
+                    out_path=f"{const.EVALUATION_DIR}/{out_name}.csv")

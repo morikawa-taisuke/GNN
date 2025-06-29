@@ -145,12 +145,12 @@ def train(model:nn.Module, mix_dir:str, clean_dir:str, out_path:str="./RESULT/pt
         start_epoch = 1
 
     """ 学習の設定を出力 """
-    print("====================")
+    print("="*32)
     print("device: ", device)
     print("out_path: ", out_path)
     print("dataset: ", mix_dir)
     print("loss_func: ", loss_func)
-    print("====================")
+    print("="*32)
 
     my_func.make_dir(out_dir)
     model.train()                   # 学習モードに設定
@@ -259,6 +259,11 @@ def train(model:nn.Module, mix_dir:str, clean_dir:str, out_path:str="./RESULT/pt
 def test(model:nn.Module, mix_dir:str, out_dir:str, model_path:str, prm:int=const.SR):
     # filelist_mixdown = my_func.get_file_list(mix_dir)
     # print('number of mixdown file', len(filelist_mixdown))
+    print("="*32)
+    print("data: ", mix_dir)
+    print("out_path: ", out_path)
+    print("model_path: ", model_path)
+    print("="*32)
 
     # STFTパラメータ (モデルと一致させる)
     n_fft_for_stft = model.n_fft
@@ -303,6 +308,10 @@ def test(model:nn.Module, mix_dir:str, out_dir:str, model_path:str, prm:int=cons
         # separate の形状を (length,) に整形する
         # モデルの出力が (1, 1, length) と仮定
         data_to_write = separate.squeeze()
+
+        # 正規化
+        mix_max = torch.max(mix_wave)  # mix_waveの最大値を取得
+        data_to_write = data_to_write / np.max(data_to_write) * mix_max  # 正規化
         
         # 分離した speechを出力ファイルとして保存する。
         # ファイル名とフォルダ名を結合してパス文字列を作成
@@ -319,11 +328,8 @@ if __name__ == '__main__':
     """ モデルの設定 """
     num_mic = 1  # マイクの数
     num_node = 8  # k近傍の数
-    model_list = ["SpeqGCN", "SpeqGAT"] # モデルの種類をSpeqGCNに限定
+    model_list = ["SpeqGCN", "SpeqGCN2", "SpeqGAT", "SpeqGAT2"] # モデルの種類をSpeqGCNに限定
     for model_type in model_list:
-        wave_type = "noise_only"    # 入寮信号の種類 (noise_only, reverbe_only, noise_reverbe)
-        out_name = f"{model_type}_{wave_type}"  # 出力ファイル名
-
         if model_type == "SpeqGCN": # モデル名をSpeqGCNに変更
             model = SpeqGCNNet(n_channels=num_mic, n_classes=1, num_node=num_node).to(device) # num_node -> k_neighbors
         elif model_type == "SpeqGAT":
@@ -335,18 +341,21 @@ if __name__ == '__main__':
         else:
             raise ValueError(f"Unknown model type: {model_type}")
 
+        wave_types = ["noise_only", "reverbe_only", "noise_reverbe"]    # 入寮信号の種類 (noise_only, reverbe_only, noise_reverbe)
+        for wave_type in wave_types:
+            out_name = f"{model_type}_{wave_type}"  # 出力ファイル名
 
-        train(model=model,
-              mix_dir=f"{const.MIX_DATA_DIR}/GNN/JA_hoth_5dB/train/",
-              clean_dir=f"{const.SAMPLE_DATA_DIR}/speech/JA/train/",
-              out_path=f"{const.PTH_DIR}/{model_type}/JA_hoth_5dB/{out_name}.pth", batchsize=1,
-              loss_func="SISDR")
+            train(model=model,
+                mix_dir=f"{const.MIX_DATA_DIR}/GNN/subset_DEMAND_hoth_5dB_500msec/train/{wave_type}",
+                clean_dir=f"{const.MIX_DATA_DIR}/GNN/subset_DEMAND_hoth_5dB_500msec/train/clean/",
+                out_path=f"{const.PTH_DIR}/{model_type}/subset_DEMAND_hoth_5dB_500msec/{out_name}.pth", batchsize=1,
+                loss_func="SISDR")
 
-        test(model=model,
-             mix_dir=f"{const.MIX_DATA_DIR}/GNN/JA_hoth_5dB/test/",
-             out_dir=f"{const.OUTPUT_WAV_DIR}/{model_type}/JA_hoth_5dB/{out_name}",
-             model_path=f"{const.PTH_DIR}/{model_type}/JA_hoth_5dB/{out_name}.pth")
-        
-        # evaluation(target_dir=f"{const.MIX_DATA_DIR}/subset_DEMAND_hoth_1010dB_1ch/subset_DEMAND_hoth_1010dB_05sec_1ch/test/clean",
-        #         estimation_dir=f"{const.OUTPUT_WAV_DIR}/{model_type}/subset_DEMAND_1ch/{out_name}",
-        #         out_path=f"{const.EVALUATION_DIR}/{out_name}.csv")
+            test(model=model,
+                mix_dir=f"{const.MIX_DATA_DIR}/GNN/subset_DEMAND_hoth_5dB_500msec/test/{wave_type}",
+                out_dir=f"{const.OUTPUT_WAV_DIR}/{model_type}/subset_DEMAND_hoth_5dB_500msec/{out_name}",
+                model_path=f"{const.PTH_DIR}/{model_type}/subset_DEMAND_hoth_5dB_500msec/{out_name}.pth")
+
+            evaluation(target_dir=f"{const.MIX_DATA_DIR}/GNN/subset_DEMAND_hoth_5dB_500msec/test/clean",
+                    estimation_dir=f"{const.OUTPUT_WAV_DIR}/{model_type}/subset_DEMAND_hoth_5dB_500msec/{out_name}",
+                    out_path=f"{const.EVALUATION_DIR}/{out_name}.csv")
