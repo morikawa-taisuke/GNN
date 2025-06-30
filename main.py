@@ -397,7 +397,7 @@ if __name__ == "__main__":
         else:
             raise ValueError(f"Unknown model type: {model_type}")
 
-        wave_types = ["noise_only", "reverbe_only", "noise_reverbe"]    # 入寮信号の種類 (noise_only, reverbe_only, noise_reverbe)
+        wave_types = ["noise_only"]    # 入寮信号の種類 (noise_only, reverbe_only, noise_reverbe)
         for wave_type in wave_types:
             out_name = f"{model_type}_{wave_type}"  # 出力ファイル名
 
