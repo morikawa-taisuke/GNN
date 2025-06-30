@@ -87,19 +87,19 @@ def main(target_dir, estimation_dir, out_path):
 if __name__ == "__main__":
     print("evaluation")
 
-    model_type = ["SpeqGCN", "SpeqGAT", "SpeqGCN2", "SpeqGAT2"]
-    # wave_types = ["noise_only", "reverbe_only", "noise_reverbe"]
+    # model_type = ["SpeqGCN", "SpeqGAT", "SpeqGCN2", "SpeqGAT2"]
+    wave_types = ["clean","noise_only", "reverbe_only", "noise_reverbe"]
 
-    model = "SpeqGAT"
-    wave_type = "noise_only"
-    for model in model_type:
+    model = "subset_DEMAND_hoth_5dB_500msec"
+    # wave_type = "noise_only"
+    for wave_type in wave_types:
         # for wave_type in wave_types:
         name = f"{model}_{wave_type}"
-        target_dir = f"C:/Users/kataoka-lab/Desktop/sound_data/sample_data/speech/JA/test"
-        estimation_dir = f"{const.OUTPUT_WAV_DIR}/{model}/JA_hoth_5dB/{name}"
+        target_dir = f"C:/Users/kataoka-lab/Desktop/sound_data/mix_data/GNN/subset_DEMAND_hoth_5dB_500msec/test/clean"
+        estimation_dir = f"C:/Users/kataoka-lab/Desktop/sound_data/mix_data/GNN/subset_DEMAND_hoth_5dB_500msec/test/{wave_type}"
         # target_dir = f"C:/Users/kataoka-lab/Desktop/sound_data/mix_data/GNN/subset_DEMAND_hoth_05dB_5000msec/test/clean"
         # estimation_dir = f"{const.OUTPUT_WAV_DIR}/{model}/subset_DEMAND_hoth_05dB_5000msec/{name}"
-        out_csv_name = f"{name}.csv"
+        out_csv_name = f"subset_DEMAND_hoth_5dB_500msec/{name}.csv"
         main(target_dir=target_dir,
                 estimation_dir=estimation_dir,
                 out_path=os.path.join(const.EVALUATION_DIR, out_csv_name))

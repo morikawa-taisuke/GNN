@@ -74,6 +74,7 @@ class GCN(nn.Module):
         x = self.conv3(x, edge_index)
         return x
 
+
 class GAT(nn.Module):
     def __init__(self, input_dim, hidden_dim, output_dim, heads=8, dropout_rate=0.5):
         super(GAT, self).__init__()
