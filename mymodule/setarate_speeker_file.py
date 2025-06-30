@@ -24,7 +24,7 @@ def organize_files_by_prefix(directory, out_dir):
 
 if __name__ == "__main__":
     # 整理したいディレクトリのパスを指定
-    target_directory = "C:\\Users\\kataoka-lab\\Desktop\\sound_data\\sample_data\\speech\\sebset_DEMAND\\test\\clean"
-    out_dir = "C:\\Users\\kataoka-lab\\Desktop\\sound_data\\sample_data\\speech\\separate_sebset_DEMAND\\test"
+    target_directory = "C:/Users/kataoka-lab/Desktop/sound_data/sample_data/speech/DEMAND/clean/test"
+    out_dir = "C:/Users/kataoka-lab/Desktop/sound_data/sample_data/speech/DEMAND/clean/test"
 
     organize_files_by_prefix(target_directory, out_dir)
