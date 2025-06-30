@@ -347,7 +347,7 @@ if __name__ == '__main__':
 
             train(model=model,
                 mix_dir=f"{const.MIX_DATA_DIR}/GNN/DEMAND_hoth_0dB_500msec/train/{wave_type}",
-                clean_dir=f"{const.MIX_DATA_DIR}/GNN/DEMAND_hoth_0dB_500msec/train/clean/",
+                clean_dir=f"{const.SAMPLE_DATA_DIR}/speech/DEMAND/clean/train",
                 out_path=f"{const.PTH_DIR}/{model_type}/DEMAND_hoth_0dB_500msec/{out_name}.pth", batchsize=1,
                 loss_func="SISDR")
 
@@ -356,6 +356,6 @@ if __name__ == '__main__':
                 out_dir=f"{const.OUTPUT_WAV_DIR}/{model_type}/DEMAND_hoth_0dB_500msec/{out_name}",
                 model_path=f"{const.PTH_DIR}/{model_type}/DEMAND_hoth_0dB_500msec/{out_name}.pth")
 
-            evaluation(target_dir=f"{const.MIX_DATA_DIR}/GNN/DEMAND_hoth_0dB_500msec/test/clean",
+            evaluation(target_dir=f"{const.SAMPLE_DATA_DIR}/speech/DEMAND/clean/train",
                     estimation_dir=f"{const.OUTPUT_WAV_DIR}/{model_type}/DEMAND_hoth_0dB_500msec/{out_name}",
                     out_path=f"{const.EVALUATION_DIR}/{out_name}.csv")
