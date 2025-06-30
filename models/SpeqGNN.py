@@ -275,6 +275,15 @@ class SpeqGATNet(SpeqGCNNet):
 
 class SpeqGCNNet2(SpeqGCNNet):
     def create_graph(self, x_nodes_batched, k, batch_size, num_nodes_per_sample):
+        """ Create a k-NN graph for the given node features.
+        Args:
+            x_nodes_batched (torch.Tensor): Node features of shape [batch_size * num_nodes_per_sample, num_features].
+            k (int): Number of nearest neighbors to connect.
+            batch_size (int): Number of samples in the batch.
+            num_nodes_per_sample (int): Number of nodes per sample in the batch.
+        Returns:
+            torch.Tensor: Edge index tensor of shape [2, num_edges].
+        """
         # x: [batch_size * num_nodes_per_sample, num_features]
         batch_indices = torch.arange(batch_size, device=x_nodes_batched.device).repeat_interleave(num_nodes_per_sample)
         edge_index = knn_graph(x=x_nodes_batched, k=k, batch=batch_indices, loop=False) # 自己ループなし
