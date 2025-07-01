@@ -41,19 +41,10 @@ class AudioDataset(Dataset):
         )
 
         # ファイル数の一致を確認（重要なチェック）
-        if len(self.noisy_file_paths) != len(self.clean_file_paths):
+        if len(self.noisy_file_paths) != len(self.clean_file_paths) or len(self.noisy_file_paths) == 0 or len(self.clean_file_paths) == 0:
             print(f"{noisy_audio_dir}:", len(self.noisy_file_paths))
             print(f"{clean_audio_dir}:", len(self.clean_file_paths))
             raise ValueError("The number of noisy and clean audio files does not match.")
-
-        # ファイル名のペアリングを確認（これも重要）
-        # for i in range(len(self.noisy_file_paths)):
-        #     # noisy_filename = os.path.basename(self.noisy_file_paths[i])
-        #     # clean_filename = os.path.basename(self.clean_file_paths[i])
-        #     noisy_filename = my_func.get_file_name(self.noisy_file_paths[i])[0]
-        #     clean_filename = my_func.get_file_name(self.clean_file_paths[i])[0]
-        #     if not(noisy_filename in clean_filename):
-        #         raise ValueError(f"Mismatched filenames: {noisy_filename} != {clean_filename} at index {i}")
 
         print(f"Found {len(self.noisy_file_paths)} audio pairs.")
 
@@ -67,33 +58,15 @@ class AudioDataset(Dataset):
         noisy_path = Path(self.noisy_file_paths[idx])
         noisy_waveform, _ = torchaudio.load(noisy_path)
 
-        # サンプリングレートのリサンプリング
-        if current_sample_rate != self.sample_rate:
-            noisy_waveform = torchaudio.transforms.Resample(
-                current_sample_rate, self.sample_rate
-            )(noisy_waveform)
-            clean_waveform = torchaudio.transforms.Resample(
-                current_sample_rate, self.sample_rate
-            )(clean_waveform)
-
-        # チャンネル数の調整（例：ステレオ -> モノラル）
-        # モデルが1チャンネル入力を想定している場合、モノラルに変換
-        # if noisy_waveform.shape[0] > 1:
-        #     noisy_waveform = torch.mean(noisy_waveform, dim=0, keepdim=True)
-        # if clean_waveform.shape[0] > 1:
-        #     clean_waveform = torch.mean(clean_waveform, dim=0, keepdim=True)
-
         # 長さの調整
         # (1) 最大長に切り捨て
-        if noisy_waveform.shape[-1] > self.max_length_samples:
-            noisy_waveform = noisy_waveform[:, : self.max_length_samples]
-            clean_waveform = clean_waveform[:, : self.max_length_samples]
-
         # (2) パディング（短いサンプルを埋める）
         # このモデルは固定長入力を必要としないが、バッチ処理のために長さを揃える必要がある場合
         # または、常に同じ長さのサンプルを入力したい場合は、ここでパディングを行う
-        # 例:
-        if noisy_waveform.shape[-1] < self.max_length_samples:
+        if noisy_waveform.shape[-1] > self.max_length_samples:
+            noisy_waveform = noisy_waveform[:, : self.max_length_samples]
+            clean_waveform = clean_waveform[:, : self.max_length_samples]
+        elif noisy_waveform.shape[-1] < self.max_length_samples:
             padding_amount = self.max_length_samples - noisy_waveform.shape[1]
             noisy_waveform = F.pad(noisy_waveform, (0, padding_amount))
             clean_waveform = F.pad(clean_waveform, (0, padding_amount))
@@ -163,7 +136,7 @@ class SpectralDataset(Dataset):
         )
         # print(self.noisy_file_paths)
         # print(self.clean_file_paths)
-        if len(self.noisy_file_paths) != len(self.clean_file_paths):
+        if len(self.noisy_file_paths) != len(self.clean_file_paths) or len(self.noisy_file_paths) == 0 or len(self.clean_file_paths) == 0:
             print("Noisy file paths:", len(self.noisy_file_paths))
             print("Clean file paths:", len(self.clean_file_paths))
             raise ValueError("The number of noisy and clean audio files does not match.")
@@ -175,18 +148,13 @@ class SpectralDataset(Dataset):
 
     def __getitem__(self, idx):
         noisy_path = self.noisy_file_paths[idx]
-        noisy_waveform, current_sample_rate = torchaudio.load(noisy_path)
+        noisy_waveform, _ = torchaudio.load(noisy_path)
 
         clean_path = self.clean_file_paths[idx]
         clean_waveform, _ = torchaudio.load(clean_path)
 
-        if noisy_waveform.shape[0] > 1:
-            noisy_waveform = torch.mean(noisy_waveform, dim=0, keepdim=True)
-        if clean_waveform.shape[0] > 1:
-            clean_waveform = torch.mean(clean_waveform, dim=0, keepdim=True)
-
         if self.max_length_samples is not None:  # 長さの調整
-            if noisy_waveform.shape[-1] > self.max_length_samples:
+            if noisy_waveform.shape[-1] > self.max_length_samples: # 長さが最大長を超える場合
                 noisy_waveform = noisy_waveform[:, : self.max_length_samples]
                 clean_waveform = clean_waveform[:, : self.max_length_samples]
             elif noisy_waveform.shape[-1] < self.max_length_samples:
