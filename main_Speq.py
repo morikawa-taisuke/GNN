@@ -261,7 +261,7 @@ def test(model:nn.Module, mix_dir:str, out_dir:str, model_path:str, prm:int=cons
     # print('number of mixdown file', len(filelist_mixdown))
     print("="*32)
     print("data: ", mix_dir)
-    print("out_path: ", out_path)
+    print("out_dir: ", out_dir)
     print("model_path: ", model_path)
     print("="*32)
 
@@ -311,7 +311,7 @@ def test(model:nn.Module, mix_dir:str, out_dir:str, model_path:str, prm:int=cons
 
         # 正規化
         mix_max = torch.max(mix_wave)  # mix_waveの最大値を取得
-        data_to_write = data_to_write / np.max(data_to_write) * mix_max  # 正規化
+        data_to_write = data_to_write / np.max(data_to_write) * mix_max.cpu().detach().numpy()  # 正規化
         
         # 分離した speechを出力ファイルとして保存する。
         # ファイル名とフォルダ名を結合してパス文字列を作成
@@ -343,19 +343,22 @@ if __name__ == '__main__':
 
         wave_types = ["noise_only", "reverbe_only", "noise_reverbe"]    # 入寮信号の種類 (noise_only, reverbe_only, noise_reverbe)
         for wave_type in wave_types:
+            # if wave_type == "noise_only" and model_type in ["SpeqGAT"]:
+            #     print(f"Skipping {model_type} with {wave_type} due to model limitations.")
+            #     continue
             out_name = f"{model_type}_{wave_type}_{num_node}node"  # 出力ファイル名
 
-            train(model=model,
-                mix_dir=f"{const.MIX_DATA_DIR}/GNN/DEMAND_hoth_0dB_500msec/train/{wave_type}",
-                clean_dir=f"{const.SAMPLE_DATA_DIR}/speech/DEMAND/train/clean",
-                out_path=f"{const.PTH_DIR}/{model_type}/DEMAND_hoth_0dB_500msec/{out_name}.pth", batchsize=1,
-                loss_func="SISDR")
+            # train(model=model,
+            #     mix_dir=f"{const.MIX_DATA_DIR}/GNN/DEMAND_hoth_0dB_500msec/train/{wave_type}",
+            #     clean_dir=f"{const.SAMPLE_DATA_DIR}/speech/DEMAND/train/clean",
+            #     out_path=f"{const.PTH_DIR}/{model_type}/DEMAND_hoth_0dB_500msec/{out_name}.pth", batchsize=1,
+            #     loss_func="SISDR")
 
             test(model=model,
                 mix_dir=f"{const.MIX_DATA_DIR}/GNN/DEMAND_hoth_0dB_500msec/test/{wave_type}",
                 out_dir=f"{const.OUTPUT_WAV_DIR}/{model_type}/DEMAND_hoth_0dB_500msec/{out_name}",
                 model_path=f"{const.PTH_DIR}/{model_type}/DEMAND_hoth_0dB_500msec/{out_name}.pth")
 
-            evaluation(target_dir=f"{const.SAMPLE_DATA_DIR}/speech/DEMAND/train/clean",
+            evaluation(target_dir=f"{const.SAMPLE_DATA_DIR}/speech/DEMAND/test/clean",
                     estimation_dir=f"{const.OUTPUT_WAV_DIR}/{model_type}/DEMAND_hoth_0dB_500msec/{out_name}",
                     out_path=f"{const.EVALUATION_DIR}/{out_name}.csv")
