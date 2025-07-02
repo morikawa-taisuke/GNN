@@ -3,6 +3,7 @@
 import torch
 import torchaudio
 import numpy as np
+import pandas as pd
 from pathlib import Path
 from tqdm import tqdm
 from typing import Dict, Any, Optional, Tuple
@@ -250,81 +251,79 @@ class EnhancementTrainer:
         推論と客観評価をまとめて実行する。
 
         このメソッドは、データセットに対してモデルの推論を行い、オプションで
-        強調された音声をファイルに保存したり、客観評価指標を計算したりできる。
+        強調された音声をファイルに保存したり、客観評価指標を計算・保存したりできる。
 
         Args:
             loader (torch.utils.data.DataLoader): 推論・評価用のデータローダー。
-                返すタプルの内容は、引数 `output_dir` と `calculate_metrics` に依存する。
-                - `calculate_metrics=True`, `output_dir` が指定されている場合:
-                  `(noisy_tensor, clean_tensor, filename_list)` を返す必要がある。
-                - `calculate_metrics=True`, `output_dir=None` の場合:
-                  `(noisy_tensor, clean_tensor)` を返す必要がある。
-                - `calculate_metrics=False`, `output_dir` が指定されている場合:
-                  `(noisy_tensor, filename_list)` を返す必要がある。
+                返すタプルの内容は、実行するタスクに依存します。
+                - 評価 (`calculate_metrics=True`) と WAV/CSV保存の両方を行う場合:
+                  `(noisy_tensor, clean_tensor, filename_list)` を返す必要があります。
+                - 評価のみを行う場合:
+                  `(noisy_tensor, clean_tensor)` を返す必要があります。
+                - WAV保存のみを行う場合:
+                  `(noisy_tensor, filename_list)` を返す必要があります。
             output_wav_dir (Optional[str], optional): 強調された音声の保存先ディレクトリ。
                 Noneの場合、音声ファイルは保存されない。 Defaults to None.
-            output_csv_dir (Optional[str], optional): 客観評価を記録したcsvファイルの保存先ディレクトリ。
-                Noneの場合、csvファイルは保存されない。 Defaults to None.
+            output_csv_dir (Optional[str], optional): ファイルごとの客観評価を記録したCSVファイルの保存先ディレクトリ。
+                `calculate_metrics=True` の場合のみ有効。 Defaults to None.
             calculate_metrics (bool, optional): 客観評価指標 (SI-SDR, STOI, PESQ) を
-                計算するかどうか。Trueの場合、データローダーはクリーンな音声を提供する必要がある。
-                Defaults to True.
+                計算するかどうか。 Defaults to True.
 
         Returns:
-            Optional[Dict[str, float]]: `calculate_metrics=True` の場合、評価結果の辞書を返す。
-                                        それ以外の場合は None を返す。
+            Optional[Dict[str, float]]: `calculate_metrics=True` の場合、データセット全体の
+                                        平均評価結果の辞書を返す。それ以外の場合は None を返す。
         """
         if not output_wav_dir and not calculate_metrics:
-            print("Warning: Both output_dir and calculate_metrics are disabled. No action will be performed.")
+            print("Warning: Both output_wav_dir and calculate_metrics are disabled. No action will be performed.")
             return None
+
+        if output_csv_dir and not calculate_metrics:
+            print("Warning: `output_csv_dir` is specified, but `calculate_metrics` is False. No CSV will be generated.")
+            output_csv_dir = None
 
         self.model.eval()
 
         # --- 初期設定 ---
-        # ファイル保存の準備
         if output_wav_dir:
             output_path = Path(output_wav_dir)
             output_path.mkdir(parents=True, exist_ok=True)
             print(f"Starting inference, saving files to {output_path}...")
 
-        # 評価指標の準備
+        per_file_results = []
         if calculate_metrics:
-            # PESQのサンプルレートチェック
             if self.sample_rate not in [8000, 16000]:
-                print(f"Warning: PESQ requires 8kHz or 16kHz sample rate. Current is {self.sample_rate}. PESQ will be skipped.")
+                print(
+                    f"Warning: PESQ requires 8kHz or 16kHz sample rate. Current is {self.sample_rate}. PESQ will be skipped.")
                 use_pesq = False
             else:
                 use_pesq = True
-
-            # 評価指標の初期化
-            si_sdr_metric = SI_SDR().to(self.device)
-            stoi_metric = STOI(self.sample_rate, extended=False).to(self.device)
-            if use_pesq:
                 mode = 'wb' if self.sample_rate == 16000 else 'nb'
-                pesq_metric = PESQ(self.sample_rate, mode).to(self.device)
-            print("Starting evaluation...")
+
+            if output_csv_dir:
+                output_csv_path = Path(output_csv_dir)
+                output_csv_path.mkdir(parents=True, exist_ok=True)
+                print(f"Evaluation results will be saved to {output_csv_path}")
 
         # --- メインループ ---
         progress_bar_desc = "Inference"
-        if calculate_metrics:
-            progress_bar_desc = "Evaluation"
-        if output_wav_dir:
-            progress_bar_desc = f"Inference to {Path(output_wav_dir).name}"
-        if calculate_metrics and output_wav_dir:
-            progress_bar_desc = f"Eval & Save to {Path(output_wav_dir).name}"
+        if calculate_metrics: progress_bar_desc = "Evaluation"
+        if output_wav_dir: progress_bar_desc = f"Inference to {Path(output_wav_dir).name}"
+        if calculate_metrics and output_wav_dir: progress_bar_desc = f"Eval & Save to {Path(output_wav_dir).name}"
 
         progress_bar = tqdm(loader, desc=progress_bar_desc)
+
         with torch.no_grad():
             for batch in progress_bar:
                 # --- データのアンパック ---
-                if calculate_metrics and output_wav_dir:
-                    noisy, clean, noisy_file_name, clean_file_name = batch
+                if calculate_metrics and (output_wav_dir or output_csv_dir):
+                    noisy, clean, filenames = batch
                 elif calculate_metrics:
                     noisy, clean = batch
-                    noisy_file_name = None
+                    filenames = None
                 elif output_wav_dir:
-                    noisy, noisy_file_name = batch
+                    noisy, filenames = batch
                     clean = None
-                else:  # この分岐には到達しないはず
+                else:
                     continue
 
                 noisy = noisy.to(self.device)
@@ -335,46 +334,77 @@ class EnhancementTrainer:
                 model_output = self.model(model_input)
                 enhanced = self._process_output(model_output, original_len, phase)
 
-                # --- 評価指標の更新 ---
+                # --- 評価指標の計算 (ファイルごと) ---
                 if calculate_metrics:
                     clean = clean.to(self.device)
-                    si_sdr_metric.update(enhanced, clean)
-                    stoi_metric.update(enhanced, clean)
-                    if use_pesq:
-                        try:
-                            pesq_metric.update(enhanced, clean)
-                        except Exception as e:
-                            print(f"Could not update PESQ for a batch, skipping. Error: {e}")
+                    # バッチ内の各ファイルに対して計算
+                    for i in range(enhanced.shape[0]):
+                        enh_i, cln_i = enhanced[i:i + 1], clean[i:i + 1]
+
+                        si_sdr_val = scale_invariant_signal_distortion_ratio(enh_i, cln_i).item()
+                        stoi_val = short_time_objective_intelligibility(enh_i, cln_i, self.sample_rate,
+                                                                        extended=False).item()
+
+                        pesq_val = None
+                        if use_pesq:
+                            try:
+                                pesq_val = perceptual_evaluation_speech_quality(enh_i, cln_i, self.sample_rate,
+                                                                                mode).item()
+                            except Exception as e:
+                                print(f"Could not compute PESQ for a file, skipping. Error: {e}")
+
+                        file_metric = {"SI-SDR": si_sdr_val, "STOI": stoi_val}
+                        if pesq_val is not None:
+                            file_metric["PESQ"] = pesq_val
+
+                        if filenames:
+                            file_metric["filename"] = Path(filenames[i]).name
+                            per_file_results.append(file_metric)
 
                 # --- 音声ファイルの保存 ---
-                if output_wav_dir:
+                if output_wav_dir and filenames:
                     for i in range(enhanced.shape[0]):
-                        save_file = output_path / Path(noisy_file_name[i]).name
-                        torchaudio.save(
-                            str(save_file),
-                            enhanced[i].cpu().unsqueeze(0),
-                            self.sample_rate
-                        )
+                        save_file = output_path / Path(filenames[i]).name
+                        torchaudio.save(str(save_file), enhanced[i].cpu().unsqueeze(0), self.sample_rate)
 
-        # --- 結果の集計と返却 ---
+        # --- 結果の集計と保存 ---
         if output_wav_dir:
             print("Inference finished.")
 
         if calculate_metrics:
-            results = {
-                "SI-SDR": si_sdr_metric.compute().item(),
-                "STOI": stoi_metric.compute().item(),
-            }
-            if use_pesq and pesq_metric.total > 0:
-                results["PESQ"] = pesq_metric.compute().item()
+            if not per_file_results:
+                print(
+                    "Warning: No results to calculate metrics from. Ensure your dataloader provides filenames for CSV output.")
+                return None
 
-            print("Evaluation finished. Results:")
+            df = pd.DataFrame(per_file_results)
+
+            # データセット全体の平均を計算
+            mean_metrics = df.mean(numeric_only=True)
+            results = mean_metrics.to_dict()
+
+            print("\nEvaluation finished. Average Results:")
             for metric, value in results.items():
                 print(f"  {metric}: {value:.4f}")
+
+            # CSVファイルに保存
+            if output_csv_dir:
+                # 平均値の行を追加
+                mean_row = mean_metrics.to_frame().T
+                mean_row['filename'] = 'Average'
+                df = pd.concat([df, mean_row], ignore_index=True)
+
+                # 列の順序を調整
+                cols = ['filename'] + [col for col in df.columns if col != 'filename']
+                df = df[cols]
+
+                csv_path = output_csv_path / "evaluation_results.csv"
+                df.to_csv(csv_path, index=False, float_format='%.4f')
+                print(f"\nPer-file and average results saved to {csv_path}")
+
             return results
 
         return None
-
     def _save_checkpoint(self, epoch: int, is_best: bool):
         """モデルのチェックポイントを保存する。"""
         state = {
