@@ -184,7 +184,7 @@ class SpectralDataset(Dataset):
 
 
 class AudioDataset_test(Dataset):
-    def __init__(self, noisy_audio_dir, sample_rate=16000):
+    def __init__(self, noisy_audio_dir, clean_audio_dir, sample_rate=16000):
         """
         オーディオデータセットクラス
 
@@ -195,15 +195,22 @@ class AudioDataset_test(Dataset):
                                   Noneの場合、最大長の制限なし。
         """
         self.noisy_audio_dir = noisy_audio_dir
+        self.clean_audio_dir = clean_audio_dir
+
         self.sample_rate = sample_rate
 
         # 雑音を含む音声ファイルのリストを取得
         # 例えば、.wav ファイルのみを対象とする
-        self.noisy_file_paths = sorted(
-            glob.glob(os.path.join(noisy_audio_dir, "*.wav"))
-        )
+        self.noisy_file_paths = sorted(glob.glob(os.path.join(noisy_audio_dir, "*.wav")))
+        # print(self.noisy_file_paths)
+        self.clean_file_paths = sorted(glob.glob(os.path.join(clean_audio_dir, "*.wav")))
 
-        print(f"Found {len(self.noisy_file_paths)} audio pairs.")
+        # ファイル数の一致を確認（重要なチェック）
+        if len(self.noisy_file_paths) != len(self.clean_file_paths) or len(self.noisy_file_paths) == 0 or len(
+                self.clean_file_paths) == 0:
+            print(f"{noisy_audio_dir}:", len(self.noisy_file_paths))
+            print(f"{clean_audio_dir}:", len(self.clean_file_paths))
+            raise ValueError("ファイル数が一致しませんでした.\nディレクトリのパスを確認してください.")
 
     def __len__(self):
         return len(self.noisy_file_paths)
@@ -211,19 +218,23 @@ class AudioDataset_test(Dataset):
     def __getitem__(self, idx):
         # 音声の読み込み
         noisy_path = self.noisy_file_paths[idx]
-        noisy_name, _ = my_func.get_file_name(
-            noisy_path
-        )  # ファイル名を取得（拡張子なし）
+        clean_path = self.clean_file_paths[idx]
+
+        noisy_name, _ = my_func.get_file_name(noisy_path)  # ファイル名を取得（拡張子なし）
+        clean_name, _ = my_func.get_file_name(clean_path)  # ファイル名を取得（拡張子なし）
+
         noisy_waveform, current_sample_rate = torchaudio.load(noisy_path)
+        clean_waveform, _ = torchaudio.load(clean_path)
 
         # サンプリングレートのリサンプリング
         if current_sample_rate != self.sample_rate:
             noisy_waveform = torchaudio.transforms.Resample(current_sample_rate, self.sample_rate)(noisy_waveform)
-        
+            clean_waveform = torchaudio.transforms.Resample(current_sample_rate, self.sample_rate)(clean_waveform)
+
         # 出力の形状 [batch, n_channels, length]
         # print("dataset_out:", noisy_waveform.shape)
         # print("dataset_out:", clean_waveform.shape)
-        return noisy_waveform, noisy_name  # パスも返す
+        return noisy_waveform, clean_waveform, noisy_name, clean_name  # パスも返す
 
     def get_file_paths(self):
         """データセット内の全ファイルパスを取得"""
