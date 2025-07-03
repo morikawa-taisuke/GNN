@@ -327,8 +327,8 @@ def test(model:nn.Module, mix_dir:str, out_dir:str, model_path:str, prm:int=cons
 if __name__ == '__main__':
     """ モデルの設定 """
     num_mic = 1  # マイクの数
-    num_node = 8  # k近傍の数
-    model_list = ["SpeqGCN", "SpeqGCN2", "SpeqGAT", "SpeqGAT2"] # モデルの種類をSpeqGCNに限定
+    num_node = 16  # k近傍の数
+    model_list = ["SpeqGCN", "SpeqGCN2"] # モデルの種類をSpeqGCNに限定 , "SpeqGAT", "SpeqGAT2"
     for model_type in model_list:
         if model_type == "SpeqGCN": # モデル名をSpeqGCNに変更
             model = SpeqGCNNet(n_channels=num_mic, n_classes=1, num_node=num_node).to(device) # num_node -> k_neighbors
@@ -348,17 +348,17 @@ if __name__ == '__main__':
             #     continue
             out_name = f"{model_type}_{wave_type}_{num_node}node"  # 出力ファイル名
 
-            # train(model=model,
-            #     mix_dir=f"{const.MIX_DATA_DIR}/GNN/DEMAND_hoth_0dB_500msec/train/{wave_type}",
-            #     clean_dir=f"{const.SAMPLE_DATA_DIR}/speech/DEMAND/train/clean",
-            #     out_path=f"{const.PTH_DIR}/{model_type}/DEMAND_hoth_0dB_500msec/{out_name}.pth", batchsize=1,
-            #     loss_func="SISDR")
+            train(model=model,
+                mix_dir=f"{const.MIX_DATA_DIR}/GNN/DEMAND_hoth_0dB_500msec/train/{wave_type}",
+                clean_dir=f"{const.SAMPLE_DATA_DIR}/speech/DEMAND/train/clean",
+                out_path=f"{const.PTH_DIR}/{model_type}/DEMAND_hoth_0dB_500msec/{out_name}.pth", batchsize=1,
+                loss_func="SISDR")
 
             test(model=model,
-                mix_dir=f"{const.MIX_DATA_DIR}/GNN/DEMAND_hoth_0dB_500msec/test/{wave_type}",
-                out_dir=f"{const.OUTPUT_WAV_DIR}/{model_type}/DEMAND_hoth_0dB_500msec/{out_name}",
-                model_path=f"{const.PTH_DIR}/{model_type}/DEMAND_hoth_0dB_500msec/{out_name}.pth")
+                mix_dir=f"{const.MIX_DATA_DIR}/GNN/subset_DEMAND_hoth_5dB_500msec/test/{wave_type}",
+                out_dir=f"{const.OUTPUT_WAV_DIR}/{model_type}/subset_DEMAND_hoth_5dB_500msec/{out_name}",
+                model_path=f"{const.PTH_DIR}/{model_type}/subset_DEMAND_hoth_5dB_500msec/{out_name}.pth")
 
             evaluation(target_dir=f"{const.SAMPLE_DATA_DIR}/speech/DEMAND/test/clean",
-                    estimation_dir=f"{const.OUTPUT_WAV_DIR}/{model_type}/DEMAND_hoth_0dB_500msec/{out_name}",
+                    estimation_dir=f"{const.OUTPUT_WAV_DIR}/{model_type}/subset_DEMAND_hoth_5dB_500msec/{out_name}",
                     out_path=f"{const.EVALUATION_DIR}/{out_name}.csv")
