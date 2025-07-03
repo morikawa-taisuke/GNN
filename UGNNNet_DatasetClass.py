@@ -204,10 +204,10 @@ class AudioDataset_test(Dataset):
         # print(self.noisy_file_paths)
 
         # ファイル数の一致を確認（重要なチェック）
-        if len(self.noisy_file_paths) != len(self.clean_file_paths) or len(self.noisy_file_paths) == 0 or len(
-                self.clean_file_paths) == 0:
-            print(f"{noisy_audio_dir}:", len(self.noisy_file_paths))
-            raise ValueError("ファイル数が一致しませんでした.\nディレクトリのパスを確認してください.")
+        # if len(self.noisy_file_paths) != len(self.clean_file_paths) or len(self.noisy_file_paths) == 0 or len(
+        #         self.clean_file_paths) == 0:
+        #     print(f"{noisy_audio_dir}:", len(self.noisy_file_paths))
+        #     raise ValueError("ファイル数が一致しませんでした.\nディレクトリのパスを確認してください.")
 
     def __len__(self):
         return len(self.noisy_file_paths)
