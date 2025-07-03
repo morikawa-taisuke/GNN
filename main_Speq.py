@@ -340,7 +340,6 @@ if __name__ == '__main__':
             model = SpeqGATNet2(n_channels=num_mic, n_classes=1, num_node=num_node).to(device)
         else:
             raise ValueError(f"Unknown model type: {model_type}")
-
         wave_types = ["noise_only", "reverbe_only", "noise_reverbe"]    # 入寮信号の種類 (noise_only, reverbe_only, noise_reverbe)
         for wave_type in wave_types:
             # if wave_type == "noise_only" and model_type in ["SpeqGAT"]:
@@ -351,7 +350,7 @@ if __name__ == '__main__':
             train(model=model,
                 mix_dir=f"{const.MIX_DATA_DIR}/GNN/subset_DEMAND_hoth_5dB_500msec/train/{wave_type}",
                 clean_dir=f"{const.MIX_DATA_DIR}/GNN/subset_DEMAND_hoth_5dB_500msec/train/clean",
-                out_path=f"{const.PTH_DIR}/{model_type}/DEMAND_hoth_0dB_500msec/{out_name}.pth", batchsize=1,
+                out_path=f"{const.PTH_DIR}/{model_type}/subset_DEMAND_hoth_5dB_500msec/{out_name}.pth", batchsize=1,
                 loss_func="SISDR")
 
             test(model=model,
