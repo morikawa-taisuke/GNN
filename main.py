@@ -308,9 +308,7 @@ def train(
     print(f"time：{str(time_h)}h")  # 出力
 
 
-def test(
-        model: nn.Module, mix_dir: str, out_dir: str, model_path: str, prm: int = const.SR
-):
+def test(model: nn.Module, mix_dir: str, out_dir: str, model_path: str, prm: int = const.SR):
     # filelist_mixdown = my_func.get_file_list(mix_dir)
     # print('number of mixdown file', len(filelist_mixdown))
 
@@ -332,9 +330,7 @@ def test(
     dataset = UGNNNet_DatasetClass.AudioDataset_test(mix_dir)  # データセットの読み込み
     dataset_loader = DataLoader(dataset, batch_size=1, shuffle=True, pin_memory=True)
 
-    for mix_data, mix_name in tqdm(
-            dataset_loader
-    ):  # filelist_mixdownを全て確認して、それぞれをfmixdownに代入
+    for mix_data, mix_name in tqdm(dataset_loader):
         mix_data = mix_data.to(device)  # データをGPUに移動
         mix_data = mix_data.to(torch.float32)  # データの型を変換 int16→float32
 
@@ -356,9 +352,7 @@ def test(
 
         # 正規化
         mix_max = torch.max(mix_data)  # mix_waveの最大値を取得
-        data_to_write = (
-                data_to_write / np.max(data_to_write) * mix_max.cpu().detach().numpy()
-        )  # 正規化
+        data_to_write = (data_to_write / np.max(data_to_write) * mix_max.cpu().detach().numpy())
 
         # 分離した speechを出力ファイルとして保存する。
         # ファイル名とフォルダ名を結合してパス文字列を作成
