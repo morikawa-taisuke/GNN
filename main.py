@@ -1,26 +1,25 @@
-from models.wave_unet import U_Net
-from models.GCN import UGCNNet, UGATNet, UGCNNet2, UGATNet2
-from models.SpeqGNN import SpeqGCNNet
-from models.ConvTasNet_models import enhance_ConvTasNet
+import os
 import time
+from itertools import permutations
+from pathlib import Path
+
+import numpy as np
+import soundfile as sf
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
 from torch.utils.data import DataLoader
-import soundfile as sf
-import numpy as np
-from tqdm.contrib import tenumerate
-from tqdm import tqdm
 from torch.utils.tensorboard import SummaryWriter
-from itertools import permutations
-import os
-from pathlib import Path
+from tqdm import tqdm
+from tqdm.contrib import tenumerate
 
 import UGNNNet_DatasetClass
-from mymodule import my_func, const
 from All_evaluation import main as evaluation
-
+from models.ConvTasNet_models import enhance_ConvTasNet
+from models.GCN import UGCNNet, UGATNet, UGCNNet2, UGATNet2
+from models.wave_unet import U_Net
+from mymodule import my_func, const
 
 # CUDAのメモリ管理設定
 # os.environ['PYTORCH_CUDA_ALLOC_CONF'] = 'expandable_segments:True'
@@ -77,9 +76,9 @@ def sisdr(x, s, eps=1e-8):
     x_zm = x - torch.mean(x, dim=-1, keepdim=True)
     s_zm = s - torch.mean(s, dim=-1, keepdim=True)
     t = (
-        torch.sum(x_zm * s_zm, dim=-1, keepdim=True)
-        * s_zm
-        / torch.sum(s_zm * s_zm, dim=-1, keepdim=True)
+            torch.sum(x_zm * s_zm, dim=-1, keepdim=True)
+            * s_zm
+            / torch.sum(s_zm * s_zm, dim=-1, keepdim=True)
     )
     return 20 * torch.log10(eps + l2norm(t) / (l2norm(t - x_zm) + eps))
 
@@ -90,6 +89,7 @@ def si_sdr_loss(ests, egs):
     # egs: target
     refs = egs
     num_speeker = len(refs)
+
     # print("spks", num_speeker)
     # print(f"ests:{ests.shape}")
     # print(f"egs:{egs.shape}")
@@ -110,17 +110,9 @@ def si_sdr_loss(ests, egs):
     return -torch.sum(max_perutt) / N
 
 
-def train(
-    model: nn.Module,
-    mix_dir: str,
-    clean_dir: str,
-    out_path: str = "./RESULT/pth/result.pth",
-    loss_func: str = "stft_MSE",
-    batchsize: int = const.BATCHSIZE,
-    checkpoint_path: str = None,
-    train_count: int = const.EPOCH,
-    earlystopping_threshold: int = 5,
-):
+def train(model: nn.Module, mix_dir: str, clean_dir: str, out_path: str = "./RESULT/pth/result.pth",
+          loss_func: str = "stft_MSE", batchsize: int = const.BATCHSIZE, checkpoint_path: str = None,
+          train_count: int = const.EPOCH, earlystopping_threshold: int = 5, ):
     """GPUの設定"""
     device = "cuda" if torch.cuda.is_available() else "cpu"  # GPUが使えれば使う
     """ その他の設定 """
@@ -308,19 +300,14 @@ def train(
     print(f"time：{str(time_h)}h")  # 出力
 
 
-def test(
-    model: nn.Module, mix_dir: str, out_dir: str, model_path: str, prm: int = const.SR
-):
+def test(model: nn.Module, mix_dir: str, out_dir: str, model_path: str, prm: int = const.SR):
     # filelist_mixdown = my_func.get_file_list(mix_dir)
     # print('number of mixdown file', len(filelist_mixdown))
 
     # ディレクトリを作成
     my_func.make_dir(out_dir)
     model_path = Path(model_path)  # path型に変換
-    model_dir, model_name = (
-        model_path.parent,
-        model_path.stem,
-    )  # ファイル名とディレクトリを分離
+    model_dir, model_name = (model_path.parent, model_path.stem,)  # ファイル名とディレクトリを分離
 
     model.load_state_dict(
         torch.load(
@@ -332,9 +319,7 @@ def test(
     dataset = UGNNNet_DatasetClass.AudioDataset_test(mix_dir)  # データセットの読み込み
     dataset_loader = DataLoader(dataset, batch_size=1, shuffle=True, pin_memory=True)
 
-    for mix_data, mix_name in tqdm(
-        dataset_loader
-    ):  # filelist_mixdownを全て確認して、それぞれをfmixdownに代入
+    for mix_data, mix_name in tqdm(dataset_loader):  # filelist_mixdownを全て確認して、それぞれをfmixdownに代入
         mix_data = mix_data.to(device)  # データをGPUに移動
         mix_data = mix_data.to(torch.float32)  # データの型を変換 int16→float32
 
@@ -353,11 +338,10 @@ def test(
         # separate の形状を (length,) に整形する
         # モデルの出力が (1, 1, length) と仮定
         data_to_write = separate.squeeze()
-        
+
         # 正規化
         mix_max = torch.max(mix_data)  # mix_waveの最大値を取得
         data_to_write = data_to_write / np.max(data_to_write) * mix_max.cpu().detach().numpy()  # 正規化
-
 
         # 分離した speechを出力ファイルとして保存する。
         # ファイル名とフォルダ名を結合してパス文字列を作成
@@ -373,9 +357,9 @@ if __name__ == "__main__":
     """モデルの設定"""
     num_mic = 1  # マイクの数
     num_node = 8  # ノードの数
-    model_list = ["UGCN", "UGCN2", "UGAT", "UGAT2"] # モデルの種類  "UGCN", "UGCN2", "UGAT", "UGAT2", "ConvTasNet", "UNet"
+    model_list = ["UGCN", "UGCN2", "UGAT", "UGAT2"]  # モデルの種類  "UGCN", "UGCN2", "UGAT", "UGAT2", "ConvTasNet", "UNet"
     for model_type in model_list:
-        
+
         if model_type == "UGCN":
             model = UGCNNet(n_channels=num_mic, n_classes=1, num_node=8).to(device)
         elif model_type == "UGAT":
@@ -397,22 +381,23 @@ if __name__ == "__main__":
         else:
             raise ValueError(f"Unknown model type: {model_type}")
 
-        wave_types = ["noise_only", "reverbe_only", "noise_reverbe"]    # 入寮信号の種類 (noise_only, reverbe_only, noise_reverbe)
+        wave_types = ["noise_only", "reverbe_only",
+                      "noise_reverbe"]  # 入寮信号の種類 (noise_only, reverbe_only, noise_reverbe)
         for wave_type in wave_types:
             out_name = f"{model_type}_{wave_type}_{num_node}node"  # 出力ファイル名
 
             # C:\Users\kataoka-lab\Desktop\sound_data\sample_data\speech\DEMAND\clean\train
             train(model=model,
-                mix_dir=f"{const.MIX_DATA_DIR}/GNN/DEMAND_hoth_0dB_500msec/train/{wave_type}",
-                clean_dir=f"{const.SAMPLE_DATA_DIR}/speech/DEMAND/clean/train",
-                out_path=f"{const.PTH_DIR}/{model_type}/DEMAND_hoth_0dB_500msec/{out_name}.pth", batchsize=1,
-                loss_func="SISDR", checkpoint_path=None, train_count=const.EPOCH, earlystopping_threshold=5)
+                  mix_dir=f"{const.MIX_DATA_DIR}/GNN/DEMAND_hoth_0dB_500msec/train/{wave_type}",
+                  clean_dir=f"{const.SAMPLE_DATA_DIR}/speech/DEMAND/clean/train",
+                  out_path=f"{const.PTH_DIR}/{model_type}/DEMAND_hoth_0dB_500msec/{out_name}.pth", batchsize=1,
+                  loss_func="SISDR", checkpoint_path=None, train_count=const.EPOCH, earlystopping_threshold=5)
 
             test(model=model,
-                mix_dir=f"{const.MIX_DATA_DIR}/GNN/DEMAND_hoth_0dB_500msec/test/{wave_type}",
-                out_dir=f"{const.OUTPUT_WAV_DIR}/{model_type}/DEMAND_hoth_0dB_500msec/{out_name}",
-                model_path=f"{const.PTH_DIR}/{model_type}/DEMAND_hoth_0dB_500msec/{out_name}.pth")
+                 mix_dir=f"{const.MIX_DATA_DIR}/GNN/DEMAND_hoth_0dB_500msec/test/{wave_type}",
+                 out_dir=f"{const.OUTPUT_WAV_DIR}/{model_type}/DEMAND_hoth_0dB_500msec/{out_name}",
+                 model_path=f"{const.PTH_DIR}/{model_type}/DEMAND_hoth_0dB_500msec/{out_name}.pth")
 
             evaluation(target_dir=f"{const.SAMPLE_DATA_DIR}/speech/DEMAND/clean/train",
-                    estimation_dir=f"{const.OUTPUT_WAV_DIR}/{model_type}/DEMAND_hoth_0dB_500msec/{out_name}",
-                    out_path=f"{const.EVALUATION_DIR}/{out_name}.csv")
+                       estimation_dir=f"{const.OUTPUT_WAV_DIR}/{model_type}/DEMAND_hoth_0dB_500msec/{out_name}",
+                       out_path=f"{const.EVALUATION_DIR}/{out_name}.csv")
