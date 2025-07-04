@@ -327,7 +327,7 @@ def test(model:nn.Module, mix_dir:str, out_dir:str, model_path:str, prm:int=cons
 if __name__ == '__main__':
     """ モデルの設定 """
     num_mic = 1  # マイクの数
-    num_node = 16  # k近傍の数
+    num_node = 32  # k近傍の数
     model_list = ["SpeqGCN", "SpeqGCN2"] # モデルの種類をSpeqGCNに限定 , "SpeqGAT", "SpeqGAT2"
     for model_type in model_list:
         if model_type == "SpeqGCN": # モデル名をSpeqGCNに変更
@@ -358,6 +358,6 @@ if __name__ == '__main__':
                 out_dir=f"{const.OUTPUT_WAV_DIR}/{model_type}/subset_DEMAND_hoth_5dB_500msec/{out_name}",
                 model_path=f"{const.PTH_DIR}/{model_type}/subset_DEMAND_hoth_5dB_500msec/{out_name}.pth")
 
-            evaluation(target_dir=f"{const.SAMPLE_DATA_DIR}/speech/DEMAND/test/clean",
+            evaluation(target_dir=f"{const.MIX_DATA_DIR}/GNN/subset_DEMAND_hoth_5dB_500msec/test/clean",
                     estimation_dir=f"{const.OUTPUT_WAV_DIR}/{model_type}/subset_DEMAND_hoth_5dB_500msec/{out_name}",
                     out_path=f"{const.EVALUATION_DIR}/{out_name}.csv")
