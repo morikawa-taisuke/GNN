@@ -1,0 +1,34 @@
+{
+	"model": {
+		"domain": "frequency",
+		"name": "unet_stft",
+		"checkpoint_path": null
+	},
+	"epochs": 100,
+	"save_dir": "experiments/unet_stft",
+	"sample_rate": 16000,
+	"early_stopping_patience": 10,
+	"stft_params": {
+		"n_fft": 512,
+		"hop_length": 256,
+		"win_length": 512,
+		"window": "hann"
+	},
+	"log": {
+		"use_tensorboard": true,
+		"save_interval": 1,
+		"eval_interval": 1
+	},
+	"eval": {
+		"output_dir": "enhanced"
+	},
+	"optim": {
+		"lr": 0.001,
+		"scheduler": "reduce_on_plateau",
+		"scheduler_params": {
+			"mode": "min",
+			"factor": 0.5,
+			"patience": 5
+		}
+	}
+}
