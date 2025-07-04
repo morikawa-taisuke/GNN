@@ -100,8 +100,7 @@ def si_sdr_loss(ests, egs):
 		return sum([sisdr(ests[s], refs[t]) for s, t in enumerate(permute)]) / len(
 			permute
 		)
-
-	# average the value
+		# average the value
 
 	# P x N
 	N = egs.size(0)
@@ -435,7 +434,7 @@ if __name__ == "__main__":
 			)
 
 			evaluation(
-				target_dir=f"{const.MIX_DATA_DIR}/GNN/subset_DEMAND_hoth_5dB_500msec//clean",
+				target_dir=f"{const.MIX_DATA_DIR}/GNN/subset_DEMAND_hoth_5dB_500msec/test/clean",
 				estimation_dir=f"{const.OUTPUT_WAV_DIR}/{model_type}/subset_DEMAND_hoth_5dB_500msec/{out_name}",
 				out_path=f"{const.EVALUATION_DIR}/{out_name}.csv",
 			)
