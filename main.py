@@ -352,10 +352,7 @@ if __name__ == "__main__":
     """モデルの設定"""
     num_mic = 1  # マイクの数
     num_node = 16  # ノードの数
-    model_list = [
-        "UGCN",
-        "UGCN2",
-    ]  # モデルの種類  "UGCN", "UGCN2", "UGAT", "UGAT2", "ConvTasNet", "UNet"
+    model_list = ["UGCN", "UGCN2",]  # モデルの種類  "UGCN", "UGCN2", "UGAT", "UGAT2", "ConvTasNet", "UNet"
     for model_type in model_list:
         if model_type == "UGCN":
             model = UGCNNet(n_channels=num_mic, n_classes=1, num_node=num_node).to(device)
