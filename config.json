@@ -1,0 +1,47 @@
+{
+    "model": {
+        "name": "GCN",
+        "domain": "time",
+        "checkpoint_path": null,
+        "num_mic": 1,
+        "num_node": 16,
+        "criterion": "SISDR"
+    },
+    "dataset": {
+        "name": "DNS-Challenge",
+        "train_dir": "data/DNS-Challenge/train_list",
+        "val_noisy_dir": "data/DNS-Challenge/val_list",
+        "val_clean_dir": "data/DNS-Challenge/val_list",
+        "test_dir": "data/DNS-Challenge/test_list",
+        "batch_size": 32,
+        "pin_memory": true,
+        "max_length": 4
+    },
+    "epochs": 100,
+    "save_dir": "experiments/GCN",
+    "sample_rate": 16000,
+    "early_stopping_patience": 10,
+    "stft_params": {
+        "n_fft": 512,
+        "hop_length": 256,
+        "win_length": 512,
+        "window": "hann"
+    },
+    "log": {
+        "use_tensorboard": true,
+        "save_interval": 1,
+        "eval_interval": 1
+    },
+    "eval": {
+        "output_dir": "GCN"
+    },
+    "optim": {
+        "lr": 0.001,
+        "scheduler": "reduce_on_plateau",
+        "scheduler_params": {
+            "mode": "min",
+            "factor": 0.5,
+            "patience": 5
+        }
+    }
+}
