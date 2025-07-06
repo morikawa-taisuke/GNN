@@ -101,7 +101,7 @@ class AudioDataset(_BaseAudioDataset):
         noisy_waveform = self._process_waveform(noisy_path)
 
         # ノイズあり波形、クリーン波形、ノイズありファイルパスを返す
-        return noisy_waveform, clean_waveform
+        return noisy_waveform, clean_waveform, str(noisy_path)
 
 
 class AudioDatasetTest(_BaseAudioDataset):
