@@ -73,12 +73,15 @@
 
 ### 4.1. クラスインターフェース
 
-    python class AudioDataset(torch.utils.data.Dataset): def **init**(self, clean_dir: str, noisy_dir: str, sample_rate: int, max_length: int, transform: Optional[Callable] = None): pass
-        def __len__(self) -> int:
-            pass
-    
-        def __getitem__(self, idx: int) -> Tuple[torch.Tensor, torch.Tensor, str]:
-            pass
+```python
+class AudioDataset(torch.utils.data.Dataset): 
+    def **init**(self, clean_dir: str, noisy_dir: str, sample_rate: int, max_length: int, transform: Optional[Callable] = None): pass
+    def __len__(self) -> int:
+        pass
+
+    def __getitem__(self, idx: int) -> Tuple[torch.Tensor, torch.Tensor, str]:
+        pass
+```
 
 ### 4.2. 設定パラメータ
 
