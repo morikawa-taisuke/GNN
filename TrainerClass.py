@@ -94,6 +94,12 @@ class EnhancementTrainer:
         self.start_epoch = 1
         self.global_step = 0
 
+        # Early Stoppingの設定
+        self.early_stopping_patience = self.config.get("early_stopping_patience", None)
+        self.early_stopping_counter = 0
+        if self.early_stopping_patience:
+            print(f"Early Stoppingが有効です (patience={self.early_stopping_patience})")
+
     def _stft(self, waveform: torch.Tensor) -> torch.Tensor:
         """時間領域の波形を複素スペクトログラムに変換する。"""
         return torch.stft(
@@ -230,14 +236,23 @@ class EnhancementTrainer:
 
             is_best = val_loss < self.best_val_loss
             if is_best:
+                print(f"BEST Loss[ {epoch} Epoch] : {val_loss:.4f}")
                 self.best_val_loss = val_loss
-                print(f"New best model found at epoch {epoch} with validation loss: {val_loss:.4f}")
+                self.early_stopping_counter = 0  # 改善したのでカウンターをリセット
+            else:
+                if self.early_stopping_patience is not None:
+                    self.early_stopping_counter += 1
 
             self._save_checkpoint(epoch, is_best)
 
+            # Early Stoppingのチェック
+            if self.early_stopping_patience is not None and self.early_stopping_counter >= self.early_stopping_patience:
+                print(f"Early stoppingが作動しました。")
+                break  # 学習ループを抜ける
+
         if self.writer:
             self.writer.close()
-        print("Training finished.")
+        print("学習が完了しました。")
 
     def inference(
             self,
@@ -340,15 +355,13 @@ class EnhancementTrainer:
                     for i in range(enhanced.shape[0]):
                         enh_i, cln_i = enhanced[i:i + 1], clean[i:i + 1]
 
-                        si_sdr_val = scale_invariant_signal_distortion_ratio(enh_i, cln_i).item()
-                        stoi_val = short_time_objective_intelligibility(enh_i, cln_i, self.sample_rate,
-                                                                        extended=False).item()
+                        si_sdr_val = SI_SDR(enh_i, cln_i).item()
+                        stoi_val = STOI(enh_i, cln_i, self.sample_rate, extended=False).item()
 
                         pesq_val = None
                         if use_pesq:
                             try:
-                                pesq_val = perceptual_evaluation_speech_quality(enh_i, cln_i, self.sample_rate,
-                                                                                mode).item()
+                                pesq_val = PESQ(enh_i, cln_i, self.sample_rate, mode).item()
                             except Exception as e:
                                 print(f"Could not compute PESQ for a file, skipping. Error: {e}")
 
@@ -404,6 +417,7 @@ class EnhancementTrainer:
             return results
 
         return None
+
     def _save_checkpoint(self, epoch: int, is_best: bool):
         """モデルのチェックポイントを保存する。"""
         state = {
