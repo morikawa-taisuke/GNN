@@ -41,17 +41,16 @@ class EnhancementTrainer:
         start_epoch (int): 学習を開始するエポック番号。
     """
 
-    def __init__(
-            self,
-            model: torch.nn.Module,
-            criterion: torch.nn.Module,
-            optimizer: torch.optim.Optimizer,
-            train_loader: torch.utils.data.DataLoader,
-            val_loader: torch.utils.data.DataLoader,
-            config: Dict[str, Any],
-            device: torch.device,
-            scheduler: Optional[torch.optim.lr_scheduler._LRScheduler] = None,
-    ):
+    def __init__(self,
+                 model: torch.nn.Module,
+                 criterion: torch.nn.Module,
+                 optimizer: torch.optim.Optimizer,
+                 train_loader: torch.utils.data.DataLoader,
+                 val_loader: torch.utils.data.DataLoader,
+                 config: Dict[str, Any],
+                 device: torch.device,
+                 scheduler: Optional[torch.optim.lr_scheduler._LRScheduler] = None,
+                 ):
         """
         EnhancementTrainerのインスタンスを初期化する。
         """
