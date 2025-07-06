@@ -364,7 +364,6 @@ def train(
 
 def test(
     model: nn.Module, mix_dir: str, out_dir: str, model_path: str, prm: int = const.SR
-    model: nn.Module, mix_dir: str, out_dir: str, model_path: str, prm: int = const.SR
 ):
     # filelist_mixdown = my_func.get_file_list(mix_dir)
     # print('number of mixdown file', len(filelist_mixdown))
@@ -477,35 +476,14 @@ if __name__ == "__main__":
         "UGCN2",
     ]  # モデルの種類  "UGCN", "UGCN2", "UGAT", "UGAT2", "ConvTasNet", "UNet"
     for model_type in model_list:
-    """モデルの設定"""
-    num_mic = 1  # マイクの数
-    num_node = 16  # ノードの数
-    model_list = [
-        "UGCN",
-        "UGCN2",
-    ]  # モデルの種類  "UGCN", "UGCN2", "UGAT", "UGAT2", "ConvTasNet", "UNet"
-    for model_type in model_list:
-
         if model_type == "UGCN":
             model = UGCNNet(n_channels=num_mic, n_classes=1, num_node=num_node).to(device)
         elif model_type == "UGAT":
-            model = UGATNet(
-                n_channels=num_mic,
-                n_classes=1,
-                num_node=num_node,
-                gat_heads=4,
-                gat_dropout=0.6,
-            ).to(device)
+            model = UGATNet(n_channels=num_mic, n_classes=1, num_node=num_node, gat_heads=4, gat_dropout=0.6).to(device)
         elif model_type == "UGCN2":
             model = UGCNNet2(n_channels=num_mic, n_classes=1, num_node=num_node).to(device)
         elif model_type == "UGAT2":
-            model = UGATNet2(
-                n_channels=num_mic,
-                n_classes=1,
-                num_node=num_node,
-                gat_heads=4,
-                gat_dropout=0.6,
-            ).to(device)
+            model = UGATNet2(n_channels=num_mic, n_classes=1, num_node=num_node, gat_heads=4,gat_dropout=0.6,).to(device)
         elif model_type == "ConvTasNet":
             model = enhance_ConvTasNet().to(device)
         elif model_type == "UNet":
@@ -513,33 +491,9 @@ if __name__ == "__main__":
         else:
             raise ValueError(f"Unknown model type: {model_type}")
 
-        wave_types = [
-            "noise_only",
-            "reverbe_only",
-            "noise_reverbe",
-        ]  # 入力信号の種類 (noise_only, reverbe_only, noise_reverbe)
+        wave_types = ["noise_only", "reverbe_only","noise_reverbe",]  # 入力信号の種類 (noise_only, reverbe_only, noise_reverbe)
         for wave_type in wave_types:
             out_name = f"{model_type}_{wave_type}_{num_node}node"  # 出力ファイル名
-        wave_types = [
-            "noise_only",
-            "reverbe_only",
-            "noise_reverbe",
-        ]  # 入力信号の種類 (noise_only, reverbe_only, noise_reverbe)
-        for wave_type in wave_types:
-            out_name = f"{model_type}_{wave_type}_{num_node}node"  # 出力ファイル名
-
-            # C:\Users\kataoka-lab\Desktop\sound_data\sample_data\speech\DEMAND\clean\train
-            train(
-                model=model,
-                mix_dir=f"{const.MIX_DATA_DIR}/GNN/subset_DEMAND_hoth_5dB_500msec/train/{wave_type}",
-                clean_dir=f"{const.MIX_DATA_DIR}/GNN/subset_DEMAND_hoth_5dB_500msec/train/clean",
-                out_path=f"{const.PTH_DIR}/{model_type}/subset_DEMAND_hoth_5dB_500msec/{out_name}.pth",
-                batchsize=1,
-                loss_func="SISDR",
-                checkpoint_path=None,
-                train_count=const.EPOCH,
-                earlystopping_threshold=5,
-            )
             # C:\Users\kataoka-lab\Desktop\sound_data\sample_data\speech\DEMAND\clean\train
             train(
                 model=model,
@@ -559,18 +513,7 @@ if __name__ == "__main__":
                 out_dir=f"{const.OUTPUT_WAV_DIR}/{model_type}/subset_DEMAND_hoth_5dB_500msec/{out_name}",
                 model_path=f"{const.PTH_DIR}/{model_type}/subset_DEMAND_hoth_5dB_500msec/{out_name}.pth",
             )
-            test(
-                model=model,
-                mix_dir=f"{const.MIX_DATA_DIR}/GNN/subset_DEMAND_hoth_5dB_500msec/test/{wave_type}",
-                out_dir=f"{const.OUTPUT_WAV_DIR}/{model_type}/subset_DEMAND_hoth_5dB_500msec/{out_name}",
-                model_path=f"{const.PTH_DIR}/{model_type}/subset_DEMAND_hoth_5dB_500msec/{out_name}.pth",
-            )
 
-            evaluation(
-                target_dir=f"{const.MIX_DATA_DIR}/GNN/subset_DEMAND_hoth_5dB_500msec/test/clean",
-                estimation_dir=f"{const.OUTPUT_WAV_DIR}/{model_type}/subset_DEMAND_hoth_5dB_500msec/{out_name}",
-                out_path=f"{const.EVALUATION_DIR}/{out_name}.csv",
-            )
             evaluation(
                 target_dir=f"{const.MIX_DATA_DIR}/GNN/subset_DEMAND_hoth_5dB_500msec/test/clean",
                 estimation_dir=f"{const.OUTPUT_WAV_DIR}/{model_type}/subset_DEMAND_hoth_5dB_500msec/{out_name}",
