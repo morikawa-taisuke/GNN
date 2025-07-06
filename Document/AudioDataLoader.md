@@ -84,10 +84,12 @@ class AudioDataset(torch.utils.data.Dataset):
 ```
 
 ### 4.2. 設定パラメータ
-
-    python dataset_config = { 'sample_rate': 16000, 'max_length': 16000 * 4, # 4秒 'transform': None }
-    dataloader_config = { 'batch_size': 16, 'shuffle': True, 'pin_memory': True }
-
+```python
+dataset_config = { 'sample_rate': 16000, 
+                   'max_length': 4, # 4sec
+                   'transform': None }
+dataloader_config = { 'batch_size': 16, 'shuffle': True, 'pin_memory': True }
+```
 ## 5. 性能要件
 
 - データ読み込みのレイテンシ: バッチあたり100ms以下
