@@ -1,8 +1,8 @@
 import torch
 from torch.profiler import profile, record_function, ProfilerActivity
 import torch.nn as nn
-from models.urelnet import URelNet
-from models.GCN import UGATNet2
+from models.GCN import UGCNNet, UGCNNet2
+from models.SpeqGNN import SpeqGCNNet, SpeqGCNNet2
 import time
 import torch.optim as optim
 
@@ -48,7 +48,15 @@ if __name__ == '__main__':
     batch_size = 1
     num_mic = 1
     length = 128000
+    num_node = 8  # ノード数の設定
 
-    model = UGATNet2(n_channels=num_mic, n_classes=1, num_node=8, gat_heads=4, gat_dropout=0.6).to(device)
+    model_list = ["UGCN", "UGCN2"]
 
-    profile_model(model=model, device=device) 
+    for model_type in model_list:
+        if model_type == "UGCN":
+            model = UGCNNet(n_channels=num_mic, n_classes=1, num_node=num_node).to(device)
+        elif model_type == "UGCN2":
+            model = UGCNNet2(n_channels=num_mic, n_classes=1, num_node=num_node).to(device)
+        else:
+            raise ValueError(f"Unknown model type: {model_type}")
+        profile_model(model=model, device=device) 
