@@ -21,7 +21,7 @@ def profile_model(model, model_name, device="cpu", batch_size=1, num_mic=1, leng
     x_time = torch.randn(batch_size, num_mic, length, device=device)
 
     # --- 入力データをSTFTでスペクトログラムに変換 ---
-    x_magnitude_spec = torch.stft(x_time, n_fft=n_fft, hop_length=hop_length, win_length=win_length, window=window, return_complex=False)
+    x_magnitude_spec = torch.stft(x_time.squeeze(1), n_fft=n_fft, hop_length=hop_length, win_length=win_length, window=window, return_complex=False)
     x_magnitude_spec = torch.sqrt(x_magnitude_spec[..., 0]**2 + x_magnitude_spec[..., 1]**2).unsqueeze(1) # (B, 1, F, T_spec)
 
     # 複素スペクトログラム (B, F, T_spec)
