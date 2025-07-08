@@ -119,8 +119,8 @@ def train(model:nn.Module, mix_dir:str, clean_dir:str, out_path:str="./RESULT/pt
     
     # STFTパラメータをモデルから取得 (SpectralDatasetと一致させる必要がある)
     # 本来はconfigファイル等で一元管理するのが望ましい
-    n_fft_for_stft = model.n_fft
-    hop_length_for_stft = model.hop_length
+    n_fft = model.n_fft
+    hop_length = model.hop_length
 
     # print(f"\nmodel:{model}\n")                           # モデルのアーキテクチャの出力
     """ 最適化関数の設定 """
@@ -196,8 +196,8 @@ def train(model:nn.Module, mix_dir:str, clean_dir:str, out_path:str="./RESULT/pt
                     # estimate_wave, target_wave_padded は (B, C, T) or (B, T) の形状
                     # torch.stftは (..., L) or (B, L) を期待
                     # squeeze(1) はチャンネル数が1の場合。
-                    stft_estimate_data = torch.stft(estimate_wave.squeeze(1), n_fft=n_fft_for_stft, hop_length=hop_length_for_stft, return_complex=True)
-                    stft_target_data = torch.stft(target_wave_padded.squeeze(1), n_fft=n_fft_for_stft, hop_length=hop_length_for_stft, return_complex=True)
+                    stft_estimate_data = torch.stft(estimate_wave.squeeze(1), n_fft=n_fft, hop_length=hop_length, return_complex=True)
+                    stft_target_data = torch.stft(target_wave_padded.squeeze(1), n_fft=n_fft, hop_length=hop_length, return_complex=True)
                     model_loss = loss_function(stft_estimate_data, stft_target_data)  # 時間周波数上MSEによる損失の計算
 
             model_loss_sum += model_loss  # 損失の加算
@@ -266,10 +266,10 @@ def test(model:nn.Module, mix_dir:str, out_dir:str, model_path:str, prm:int=cons
     print("="*32)
 
     # STFTパラメータ (モデルと一致させる)
-    n_fft_for_stft = model.n_fft
-    hop_length_for_stft = model.hop_length
-    win_length_for_stft = model.win_length
-    window_for_stft = model.window.to(device)
+    n_fft = model.n_fft
+    hop_length = model.hop_length
+    win_length = model.win_length
+    window = model.window.to(device)
 
     # ディレクトリを作成
     my_func.make_dir(out_dir)
@@ -288,11 +288,11 @@ def test(model:nn.Module, mix_dir:str, out_dir:str, model_path:str, prm:int=cons
 
         # STFT実行
         # 振幅スペクトログラム (B, C, F, T_spec)
-        mix_magnitude_spec = torch.stft(mix_wave.squeeze(1), n_fft=n_fft_for_stft, hop_length=hop_length_for_stft, win_length=win_length_for_stft, window=window_for_stft, return_complex=False)
+        mix_magnitude_spec = torch.stft(mix_wave.squeeze(1), n_fft=n_fft, hop_length=hop_length, win_length=win_length, window=window, return_complex=False)
         mix_magnitude_spec = torch.sqrt(mix_magnitude_spec[..., 0]**2 + mix_magnitude_spec[..., 1]**2).unsqueeze(1) # (B, 1, F, T_spec)
 
         # 複素スペクトログラム (B, F, T_spec)
-        mix_complex_spec = torch.stft(mix_wave.squeeze(1), n_fft=n_fft_for_stft, hop_length=hop_length_for_stft, win_length=win_length_for_stft, window=window_for_stft, return_complex=True)
+        mix_complex_spec = torch.stft(mix_wave.squeeze(1), n_fft=n_fft, hop_length=hop_length, win_length=win_length, window=window, return_complex=True)
 
         original_len = mix_wave.shape[-1]
 
