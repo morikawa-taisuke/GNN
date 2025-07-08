@@ -21,17 +21,16 @@ def profile_model(model, model_name, device="cpu", batch_size=1, num_mic=1, leng
     x_time = torch.randn(batch_size, num_mic, length, device=device)
 
     # --- 入力データをSTFTでスペクトログラムに変換 ---
-    # (batch, mic, length) -> (batch * mic, length)
-    x_time_reshaped = x_time.view(-1, length)
-    # STFTを実行し、複素数テンソルを得る
-    x_stft = torch.stft(x_time_reshaped, n_fft=n_fft, hop_length=hop_length, win_length=win_length, window=window, return_complex=True)
-    # 絶対値を取って振幅スペクトログラムに変換
-    x_spec = x_stft.abs()
-    # (batch * mic, freq, time) -> (batch, mic, freq, time)
-    x = x_spec.view(batch_size, num_mic, x_spec.shape[-2], x_spec.shape[-1])
+    x_magnitude_spec = torch.stft(x_time, n_fft=n_fft, hop_length=hop_length, win_length=win_length, window=window, return_complex=False)
+    x_magnitude_spec = torch.sqrt(x_magnitude_spec[..., 0]**2 + x_magnitude_spec[..., 1]**2).unsqueeze(1) # (B, 1, F, T_spec)
+
+    # 複素スペクトログラム (B, F, T_spec)
+    x_complex_spec = torch.stft(x_time.squeeze(1), n_fft=n_fft, hop_length=hop_length, win_length=win_length, window=window, return_complex=True)
+
+    original_len = x_time.shape[-1]
 
     # y (教師データ) も同じ形状のダミーデータを作成します
-    y = torch.randn_like(x)
+    y = torch.randn_like(x_time).to(device)
 
     # プロファイリングの実行
     optimizer = optim.Adam(model.parameters(), lr=0.001)
@@ -52,7 +51,7 @@ def profile_model(model, model_name, device="cpu", batch_size=1, num_mic=1, leng
         for _ in range(5): # wait+warmup+activeの合計ステップ数
             optimizer.zero_grad()
             with record_function("model_inference"):
-                e = model(x)
+                e = model(x_magnitude_spec, x_complex_spec, original_len)
             loss = loss_function(e, y)
             with record_function("model_backward"):
                 loss.backward()
