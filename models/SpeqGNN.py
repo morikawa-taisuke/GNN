@@ -410,9 +410,9 @@ class SpeqGATNet2(SpeqGCNNet2):
 
 def print_model_summary(model, batch_size, channels, length):
     # --- STFTパラメータ (モデルの設計に合わせて調整してください) ---
-    n_fft = 512
-    hop_length = 256
-    win_length = 512
+    n_fft = 1024
+    hop_length = n_fft // 2
+    win_length = n_fft
     window = torch.hann_window(win_length, device=device)
 
     # サンプル入力データの作成
@@ -427,12 +427,12 @@ def print_model_summary(model, batch_size, channels, length):
 
     original_len = x_time.shape[-1]
 
-    # y (教師データ) も同じ形状のダミーデータを作成します
+    # 上記のinputデータの形状を確認
+    print(f"Input shape: x_magnitude_spec: {x_magnitude_spec.shape}, x_complex_spec: {x_complex_spec.shape}, original_len: {original_len}")
 
     # モデルのサマリーを表示
     print(f"\n{model.__class__.__name__} Model Summary:")
-    summary(model, input_data=(x_magnitude_spec, x_complex_spec, original_len),)
-
+    summary(model, input_data=(x_magnitude_spec, x_complex_spec, original_len), device=device)
 
 def padding_tensor(tensor1, tensor2):
     """
@@ -463,38 +463,46 @@ def main():
     # サンプルデータの作成（入力サイズを縮小）
     batch = 1
     num_mic = 1
-    length = 16000 * 8  # 2秒の音声データ (例)
+    length = 16000 * 8  # 8秒の音声データ (例)
 
-    # ランダムな入力データを作成
-    # x = torch.randn(batch, num_mic, length).to(device)
+    # --- STFTパラメータ ---
+    n_fft = 1024
+    hop_length = n_fft // 2
+    win_length = n_fft
+    window = torch.hann_window(win_length, device=device)
+
+    # --- サンプル入力データの作成 ---
+    x_time = torch.randn(batch, 1, length, device=device)
+    # マグニチュードスペクトログラム
+    stft_result = torch.stft(x_time.squeeze(1), n_fft=n_fft, hop_length=hop_length, win_length=win_length, window=window, return_complex=False)
+    x_magnitude_spec = torch.sqrt(stft_result[..., 0]**2 + stft_result[..., 1]**2).unsqueeze(1) # (B, 1, F, T_spec)
+    # 複素スペクトログラム
+    x_complex_spec = torch.stft(x_time.squeeze(1), n_fft=n_fft, hop_length=hop_length, win_length=win_length, window=window, return_complex=True)
+    original_len = x_time.shape[-1]
 
     print("\n--- SpeqGCNNet (Random Graph) ---")
-    ugcn_model = SpeqGCNNet(n_channels=num_mic, n_classes=1, num_node=8).to(device)
-    print_model_summary(ugcn_model, batch, num_mic, length)
-    x_ugcn = torch.randn(batch, num_mic, length).to(device)
-    output_ugcn = ugcn_model(x_ugcn)
-    print(f"SpeqGCNNet Input shape: {x_ugcn.shape}, Output shape: {output_ugcn.shape}")
+    speq_gcn_model = SpeqGCNNet(n_channels=num_mic, n_classes=1, num_node=8, n_fft=n_fft, hop_length=hop_length, win_length=win_length).to(device)
+    print_model_summary(speq_gcn_model, batch, num_mic, length)
+    output_gcn = speq_gcn_model(x_magnitude_spec, x_complex_spec, original_len)
+    print(f"SpeqGCNNet Input shape: {x_magnitude_spec.shape}, Output shape: {output_gcn.shape}")
 
     print("\n--- SpeqGATNet (Random Graph, GAT in bottleneck) ---")
-    ugat_model = SpeqGATNet(n_channels=num_mic, n_classes=1, num_node=8, gat_heads=4, gat_dropout=0.6).to(device)
-    print_model_summary(ugat_model, batch, num_mic, length)
-    x_ugat = torch.randn(batch, num_mic, length).to(device)
-    output_ugat = ugat_model(x_ugat) # forwardはUGCNNetのものを継承
-    print(f"SpeqGATNet Input shape: {x_ugat.shape}, Output shape: {output_ugat.shape}")
+    speq_gat_model = SpeqGATNet(n_channels=num_mic, n_classes=1, num_node=8, gat_heads=4, gat_dropout=0.6, n_fft=n_fft, hop_length=hop_length, win_length=win_length).to(device)
+    print_model_summary(speq_gat_model, batch, num_mic, length)
+    output_gat = speq_gat_model(x_magnitude_spec, x_complex_spec, original_len)
+    print(f"SpeqGATNet Input shape: {x_magnitude_spec.shape}, Output shape: {output_gat.shape}")
 
     print("\n--- SpeqGCNNet2 (k-NN Graph, GCN in bottleneck) ---")
-    ugcn2_model = SpeqGCNNet2(n_channels=num_mic, n_classes=1, num_node=8).to(device)
-    print_model_summary(ugcn2_model, batch, num_mic, length)
-    x_ugcn2 = torch.randn(batch, num_mic, length).to(device)
-    output_ugcn2 = ugcn2_model(x_ugcn2)
-    print(f"SpeqGCNNet2 Input shape: {x_ugcn2.shape}, Output shape: {output_ugcn2.shape}")
+    speq_gcn2_model = SpeqGCNNet2(n_channels=num_mic, n_classes=1, num_node=8, n_fft=n_fft, hop_length=hop_length, win_length=win_length).to(device)
+    print_model_summary(speq_gcn2_model, batch, num_mic, length)
+    output_gcn2 = speq_gcn2_model(x_magnitude_spec, x_complex_spec, original_len)
+    print(f"SpeqGCNNet2 Input shape: {x_magnitude_spec.shape}, Output shape: {output_gcn2.shape}")
 
     print("\n--- SpeqGATNet2 (k-NN Graph, GAT in bottleneck) ---")
-    ugat2_model = SpeqGATNet2(n_channels=num_mic, n_classes=1, num_node=8, gat_heads=4, gat_dropout=0.6).to(device)
-    print_model_summary(ugat2_model, batch, num_mic, length)
-    x_ugat2 = torch.randn(batch, num_mic, length).to(device)
-    output_ugat2 = ugat2_model(x_ugat2) # forwardはUGCNNet2のものを継承
-    print(f"UGATNet2 Input shape: {x_ugat2.shape}, Output shape: {output_ugat2.shape}")
+    speq_gat2_model = SpeqGATNet2(n_channels=num_mic, n_classes=1, num_node=8, gat_heads=4, gat_dropout=0.6, n_fft=n_fft, hop_length=hop_length, win_length=win_length).to(device)
+    print_model_summary(speq_gat2_model, batch, num_mic, length)
+    output_gat2 = speq_gat2_model(x_magnitude_spec, x_complex_spec, original_len)
+    print(f"SpeqGATNet2 Input shape: {x_magnitude_spec.shape}, Output shape: {output_gat2.shape}")
 
 
     # メモリ使用量の表示
