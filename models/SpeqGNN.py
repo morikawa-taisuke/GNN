@@ -406,4 +406,103 @@ class SpeqGATNet2(SpeqGCNNet2):
                                           hop_length=hop_length, win_length=win_length)
         # GNN部分をGATで上書き
         self.gnn = GAT(512, hidden_dim, 512, heads=gat_heads, dropout_rate=gat_dropout)
-    # forward と create_graph メ
+
+
+def print_model_summary(model, batch_size, channels, length):
+    # --- STFTパラメータ (モデルの設計に合わせて調整してください) ---
+    n_fft = 512
+    hop_length = 256
+    win_length = 512
+    window = torch.hann_window(win_length, device=device)
+
+    # サンプル入力データの作成
+    x_time = torch.randn(batch_size, 1, length, device=device)
+
+    # --- 入力データをSTFTでスペクトログラムに変換 ---
+    x_magnitude_spec = torch.stft(x_time.squeeze(1), n_fft=n_fft, hop_length=hop_length, win_length=win_length, window=window, return_complex=False)
+    x_magnitude_spec = torch.sqrt(x_magnitude_spec[..., 0]**2 + x_magnitude_spec[..., 1]**2).unsqueeze(1) # (B, 1, F, T_spec)
+
+    # 複素スペクトログラム (B, F, T_spec)
+    x_complex_spec = torch.stft(x_time.squeeze(1), n_fft=n_fft, hop_length=hop_length, win_length=win_length, window=window, return_complex=True)
+
+    original_len = x_time.shape[-1]
+
+    # y (教師データ) も同じ形状のダミーデータを作成します
+
+    # モデルのサマリーを表示
+    print(f"\n{model.__class__.__name__} Model Summary:")
+    summary(model, input_data=(x_magnitude_spec, x_complex_spec, original_len),)
+
+
+def padding_tensor(tensor1, tensor2):
+    """
+    最後の次元（例: 時系列長）が異なる2つのテンソルに対して、
+    短い方を末尾にゼロパディングして長さをそろえる。
+
+    Args:
+        tensor1, tensor2 (torch.Tensor): 任意の次元数のテンソル
+
+    Returns:
+        padded_tensor1, padded_tensor2 (torch.Tensor)
+    """
+    len1 = tensor1.size(-1)
+    len2 = tensor2.size(-1)
+    max_len = max(len1, len2)
+
+    pad1 = [0, max_len - len1]  # 最後の次元だけパディング
+    pad2 = [0, max_len - len2]
+
+    padded_tensor1 = F.pad(tensor1, pad1)
+    padded_tensor2 = F.pad(tensor2, pad2)
+
+    return padded_tensor1, padded_tensor2
+
+
+def main():
+    print("GCN.py main execution")
+    # サンプルデータの作成（入力サイズを縮小）
+    batch = 1
+    num_mic = 1
+    length = 16000 * 8  # 2秒の音声データ (例)
+
+    # ランダムな入力データを作成
+    # x = torch.randn(batch, num_mic, length).to(device)
+
+    print("\n--- SpeqGCNNet (Random Graph) ---")
+    ugcn_model = SpeqGCNNet(n_channels=num_mic, n_classes=1, num_node=8).to(device)
+    print_model_summary(ugcn_model, batch, num_mic, length)
+    x_ugcn = torch.randn(batch, num_mic, length).to(device)
+    output_ugcn = ugcn_model(x_ugcn)
+    print(f"SpeqGCNNet Input shape: {x_ugcn.shape}, Output shape: {output_ugcn.shape}")
+
+    print("\n--- SpeqGATNet (Random Graph, GAT in bottleneck) ---")
+    ugat_model = SpeqGATNet(n_channels=num_mic, n_classes=1, num_node=8, gat_heads=4, gat_dropout=0.6).to(device)
+    print_model_summary(ugat_model, batch, num_mic, length)
+    x_ugat = torch.randn(batch, num_mic, length).to(device)
+    output_ugat = ugat_model(x_ugat) # forwardはUGCNNetのものを継承
+    print(f"SpeqGATNet Input shape: {x_ugat.shape}, Output shape: {output_ugat.shape}")
+
+    print("\n--- SpeqGCNNet2 (k-NN Graph, GCN in bottleneck) ---")
+    ugcn2_model = SpeqGCNNet2(n_channels=num_mic, n_classes=1, num_node=8).to(device)
+    print_model_summary(ugcn2_model, batch, num_mic, length)
+    x_ugcn2 = torch.randn(batch, num_mic, length).to(device)
+    output_ugcn2 = ugcn2_model(x_ugcn2)
+    print(f"SpeqGCNNet2 Input shape: {x_ugcn2.shape}, Output shape: {output_ugcn2.shape}")
+
+    print("\n--- SpeqGATNet2 (k-NN Graph, GAT in bottleneck) ---")
+    ugat2_model = SpeqGATNet2(n_channels=num_mic, n_classes=1, num_node=8, gat_heads=4, gat_dropout=0.6).to(device)
+    print_model_summary(ugat2_model, batch, num_mic, length)
+    x_ugat2 = torch.randn(batch, num_mic, length).to(device)
+    output_ugat2 = ugat2_model(x_ugat2) # forwardはUGCNNet2のものを継承
+    print(f"UGATNet2 Input shape: {x_ugat2.shape}, Output shape: {output_ugat2.shape}")
+
+
+    # メモリ使用量の表示
+    if torch.cuda.is_available():
+        print(f"\nGPU Memory Usage (after initializations):")
+        print(f"Allocated: {torch.cuda.memory_allocated(device) / 1024 ** 2:.2f} MB")
+        print(f"Cached: {torch.cuda.memory_reserved(device) / 1024 ** 2:.2f} MB")
+
+
+if __name__ == '__main__':
+    main()

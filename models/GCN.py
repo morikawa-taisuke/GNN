@@ -385,32 +385,31 @@ def main():
     # サンプルデータの作成（入力サイズを縮小）
     batch = 1
     num_mic = 1
-    length = 16000 * 2  # 2秒の音声データ (例)
+    length = 16000 * 8  # 2秒の音声データ (例)
 
     # ランダムな入力データを作成
     # x = torch.randn(batch, num_mic, length).to(device)
 
-    # print("\n--- UGCNNet (Random Graph) ---")
-    # ugcn_model = UGCNNet(n_channels=num_mic, n_classes=1, num_node=8).to(device)
-    # print_model_summary(ugcn_model, batch, num_mic, length)
-    # x_ugcn = torch.randn(batch, num_mic, length).to(device)
-    # output_ugcn = ugcn_model(x_ugcn)
-    # print(f"UGCNNet Input shape: {x_ugcn.shape}, Output shape: {output_ugcn.shape}")
+    print("\n--- UGCNNet (Random Graph) ---")
+    ugcn_model = UGCNNet(n_channels=num_mic, n_classes=1, num_node=8).to(device)
+    print_model_summary(ugcn_model, batch, num_mic, length)
+    x_ugcn = torch.randn(batch, num_mic, length).to(device)
+    output_ugcn = ugcn_model(x_ugcn)
+    print(f"UGCNNet Input shape: {x_ugcn.shape}, Output shape: {output_ugcn.shape}")
 
+    print("\n--- UGATNet (Random Graph, GAT in bottleneck) ---")
+    ugat_model = UGATNet(n_channels=num_mic, n_classes=1, num_node=8, gat_heads=4, gat_dropout=0.6).to(device)
+    print_model_summary(ugat_model, batch, num_mic, length)
+    x_ugat = torch.randn(batch, num_mic, length).to(device)
+    output_ugat = ugat_model(x_ugat) # forwardはUGCNNetのものを継承
+    print(f"UGATNet Input shape: {x_ugat.shape}, Output shape: {output_ugat.shape}")
 
-    # print("\n--- UGATNet (Random Graph, GAT in bottleneck) ---")
-    # ugat_model = UGATNet(n_channels=num_mic, n_classes=1, num_node=8, gat_heads=4, gat_dropout=0.6).to(device)
-    # print_model_summary(ugat_model, batch, num_mic, length)
-    # x_ugat = torch.randn(batch, num_mic, length).to(device)
-    # output_ugat = ugat_model(x_ugat) # forwardはUGCNNetのものを継承
-    # print(f"UGATNet Input shape: {x_ugat.shape}, Output shape: {output_ugat.shape}")
-
-    # print("\n--- UGCNNet2 (k-NN Graph, GCN in bottleneck) ---")
-    # ugcn2_model = UGCNNet2(n_channels=num_mic, n_classes=1, num_node=8).to(device)
-    # print_model_summary(ugcn2_model, batch, num_mic, length)
-    # x_ugcn2 = torch.randn(batch, num_mic, length).to(device)
-    # output_ugcn2 = ugcn2_model(x_ugcn2)
-    # print(f"UGCNNet2 Input shape: {x_ugcn2.shape}, Output shape: {output_ugcn2.shape}")
+    print("\n--- UGCNNet2 (k-NN Graph, GCN in bottleneck) ---")
+    ugcn2_model = UGCNNet2(n_channels=num_mic, n_classes=1, num_node=8).to(device)
+    print_model_summary(ugcn2_model, batch, num_mic, length)
+    x_ugcn2 = torch.randn(batch, num_mic, length).to(device)
+    output_ugcn2 = ugcn2_model(x_ugcn2)
+    print(f"UGCNNet2 Input shape: {x_ugcn2.shape}, Output shape: {output_ugcn2.shape}")
 
     print("\n--- UGATNet2 (k-NN Graph, GAT in bottleneck) ---")
     ugat2_model = UGATNet2(n_channels=num_mic, n_classes=1, num_node=8, gat_heads=4, gat_dropout=0.6).to(device)
