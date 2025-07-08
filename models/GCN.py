@@ -149,9 +149,7 @@ class UGCNNet(nn.Module):
         注意: num_nodesが大きい場合、num_nodes x num_nodes の行列を一時的に使用するため、
               メモリ使用量が増加する可能性があります。
         """
-        if num_nodes == 0:
-            return torch.empty((2, 0), dtype=torch.long, device=device)
-        if self.num_node == 0:
+        if num_nodes == 0 or self.num_node == 0:
             return torch.empty((2, 0), dtype=torch.long, device=device)
 
         # 実際に選択する隣接ノードの数 (num_nodes - 1 を超えることはない)
