@@ -45,33 +45,47 @@ def profile_model(model, model_name, device="cpu", batch_size=1, num_mic=1, leng
 
     # --- プロファイル結果をコンソールに出力 ---
     print(f"\n--- Profiling Results for {model_name} ---")
-    print(prof.key_averages().table(sort_by="self_cuda_time_total", row_limit=15))
+    # デバイスに応じてソートキーを変更
+    sort_key = "self_cuda_time_total" if "cuda" in device.type else "self_cpu_time_total"
+    print(prof.key_averages().table(sort_by=sort_key, row_limit=15))
 
     # --- プロファイル結果をマークダウンファイルに書き出し ---
     md_content = []
     md_content.append(f"# Profiling Report for {model_name}\n")
 
-    # CUDA Time
-    md_content.append("## Operator Performance (CUDA Time)\n")
-    md_content.append("| Operator | Self CUDA Time | CUDA Time | Calls |\n")
-    md_content.append("|---|---|---|---|\n")
-    key_avg_by_cuda_time = sorted(prof.key_averages(), key=lambda k: k.self_cuda_time_total, reverse=True)
-    for event in key_avg_by_cuda_time[:20]: # 上位20件
-        if event.self_cuda_time_total > 0:
-            md_content.append(f"| `{event.key}` | {event.self_cuda_time_total_str} | {event.cuda_time_total_str} | {event.count} |")
-    md_content.append("\n")
+    # CUDAが利用可能な場合のみCUDA関連のレポートを出力
+    if "cuda" in device.type:
+        # CUDA Time
+        md_content.append("## Operator Performance (CUDA Time)\n")
+        md_content.append("| Operator | Self CUDA Time | CUDA Time | Calls |\n")
+        md_content.append("|---|---|---|---|\n")
+        key_avg_by_cuda_time = sorted(prof.key_averages(), key=lambda k: k.self_cuda_time_total, reverse=True)
+        for event in key_avg_by_cuda_time[:20]: # 上位20件
+            if hasattr(event, 'self_cuda_time_total') and event.self_cuda_time_total > 0:
+                md_content.append(f"| `{event.key}` | {event.self_cuda_time_total_str} | {event.cuda_time_total_str} | {event.count} |")
+        md_content.append("\n")
 
-    # Memory Usage
-    md_content.append("## Memory Usage (CUDA)\n")
-    md_content.append("| Operator | Self CUDA Mem | CUDA Mem | Calls |\n")
-    md_content.append("|---|---|---|---|\n")
-    key_avg_by_cuda_mem = sorted(prof.key_averages(), key=lambda k: k.self_cuda_memory_usage, reverse=True)
-    for event in key_avg_by_cuda_mem[:20]: # 上位20件
-        if event.self_cuda_memory_usage > 0:
-            self_mem_str = f"{event.self_cuda_memory_usage / 1024**2:.2f} MB"
-            total_mem_str = f"{event.cuda_memory_usage / 1024**2:.2f} MB"
-            md_content.append(f"| `{event.key}` | {self_mem_str} | {total_mem_str} | {event.count} |")
-    md_content.append("\n")
+        # Memory Usage
+        md_content.append("## Memory Usage (CUDA)\n")
+        md_content.append("| Operator | Self CUDA Mem | CUDA Mem | Calls |\n")
+        md_content.append("|---|---|---|---|\n")
+        key_avg_by_cuda_mem = sorted(prof.key_averages(), key=lambda k: k.self_cuda_memory_usage, reverse=True)
+        for event in key_avg_by_cuda_mem[:20]: # 上位20件
+            if hasattr(event, 'self_cuda_memory_usage') and event.self_cuda_memory_usage > 0:
+                self_mem_str = f"{event.self_cuda_memory_usage / 1024**2:.2f} MB"
+                total_mem_str = f"{event.cuda_memory_usage / 1024**2:.2f} MB"
+                md_content.append(f"| `{event.key}` | {self_mem_str} | {total_mem_str} | {event.count} |")
+        md_content.append("\n")
+    else: # CPUの場合
+        # CPU Time
+        md_content.append("## Operator Performance (CPU Time)\n")
+        md_content.append("| Operator | Self CPU Time | CPU Time | Calls |\n")
+        md_content.append("|---|---|---|---|\n")
+        key_avg_by_cpu_time = sorted(prof.key_averages(), key=lambda k: k.self_cpu_time_total, reverse=True)
+        for event in key_avg_by_cpu_time[:20]: # 上位20件
+            if event.self_cpu_time_total > 0:
+                md_content.append(f"| `{event.key}` | {event.self_cpu_time_total_str} | {event.cpu_time_total_str} | {event.count} |")
+        md_content.append("\n")
 
     # ファイルに書き込み
     md_filepath = log_dir / "profile_summary.md"
