@@ -459,7 +459,7 @@ def padding_tensor(tensor1, tensor2):
 
 
 def main():
-    print("GCN.py main execution")
+    print("SpecGNN.py main execution")
     # サンプルデータの作成（入力サイズを縮小）
     batch = 1
     num_mic = 1
