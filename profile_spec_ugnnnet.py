@@ -12,9 +12,9 @@ def profile_model(model, model_name, device="cpu", batch_size=1, num_mic=1, leng
     model.eval()  # 評価モードに設定
 
     # --- STFTパラメータ (モデルの設計に合わせて調整してください) ---
-    n_fft = 512
-    hop_length = 256
-    win_length = 512
+    n_fft = 1024
+    hop_length = n_fft // 2
+    win_length = n_fft
     window = torch.hann_window(win_length, device=device)
 
     # サンプル入力データの作成
@@ -94,17 +94,23 @@ if __name__ == '__main__':
     # モデルのパラメータ設定
     batch_size_main = 1
     num_mic_main = 1
-    length_main = 128000
+    length_main = 16000* 8  # 8秒の音声データ (例)
     num_node_main = 8  # ノード数の設定
+
+    # stftパラメータ (モデルの設計に合わせて調整してください)
+    n_fft = 1024
+    hop_length = n_fft // 2
+    win_length = n_fft
+
 
     model_list = ["SpeqGCN", "SpeqGCN2"]
 
     for model_type in model_list:
         print(f"\n===== Profiling {model_type} =====")
         if model_type == "SpeqGCN":
-            model = SpeqGCNNet(n_channels=num_mic_main, n_classes=1, num_node=num_node_main).to(device)
+            model = SpeqGCNNet(n_channels=num_mic_main, n_classes=1, num_node=num_node_main, n_fft=n_fft, hop_length=hop_length, win_length=win_length).to(device)
         elif model_type == "SpeqGCN2":
-            model = SpeqGCNNet2(n_channels=num_mic_main, n_classes=1, num_node=num_node_main).to(device)
+            model = SpeqGCNNet2(n_channels=num_mic_main, n_classes=1, num_node=num_node_main, n_fft=n_fft, hop_length=hop_length, win_length=win_length).to(device)
         else:
             raise ValueError(f"Unknown model type: {model_type}")
         profile_model(

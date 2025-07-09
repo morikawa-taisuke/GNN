@@ -78,7 +78,7 @@ if __name__ == '__main__':
     # モデルのパラメータ設定
     batch_size_main = 1
     num_mic_main = 1
-    length_main = 128000
+    length_main = 16000 * 8  # 8秒の音声データ (例)
     num_node_main = 8  # ノード数の設定
 
     model_list = ["UGCN", "UGCN2"]
