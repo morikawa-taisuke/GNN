@@ -410,7 +410,7 @@ class SpeqGATNet2(SpeqGCNNet2):
 
 def print_model_summary(model, batch_size, channels, length):
     # --- STFTパラメータ (モデルの設計に合わせて調整してください) ---
-    n_fft = 1024
+    n_fft = 512
     hop_length = n_fft // 2
     win_length = n_fft
     window = torch.hann_window(win_length, device=device)
