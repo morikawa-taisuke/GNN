@@ -37,27 +37,22 @@ def overlap_save(input, flame_size):
 # --- 実行例 ---
 if __name__ == '__main__':
     # パラメータ設定
-    SIGNAL_LENGTH = 1000
-    FILTER_LENGTH = 50
+    SAMPLE_RATE = 16000  # サンプリングレート
+    SIGNAL_LENGTH = SAMPLE_RATE * 8  # 信号の長さ（2秒）
+    FLAME_SIZE = int(SAMPLE_RATE * 0.1)  # フレームサイズ（100ms）
 
-    # FFTサイズ/ブロックサイズ N を設定
-    # Nはフィルタ長Mより大きく、2のべき乗が効率的
-    # ここでは50%オーバーラップを考慮し、Mの4倍程度の2のべき乗を選択
-    N = 256  
+    HOP_SIZE = FLAME_SIZE // 2  # ホップサイズ（50%オーバーラップ）
     
     # ランダムな入力信号とフィルタを生成
     x = torch.randn(SIGNAL_LENGTH)
-    h = torch.arange(1, FILTER_LENGTH + 1, dtype=torch.float32)
-    h = h / torch.sum(h)
 
     print("--- パラメータ ---")
     print(f"入力信号の長さ (len(x)): {x.numel()}")
-    print(f"フィルタの長さ (M): {len(h)}")
-    print(f"ブロックサイズ (N): {N}")
-    print(f"ホップサイズ (N/2): {N // 2}  <-- 50%のオーバーラップ\n")
+    print(f"フレームサイズ (FLAME_SIZE): {FLAME_SIZE}")
+    print(f"ホップサイズ (HOP_SIZE = FLAME_SIZE/2): {HOP_SIZE}  <-- 50%のオーバーラップ\n")
     
     # オーバーラップセーブ法で畳み込みを計算
-    y_os = overlap_save(x, N)
+    y_os = overlap_save(x, HOP_SIZE)
 
     # --- 結果の検証 ---
     print("--- 結果の検証 ---")
