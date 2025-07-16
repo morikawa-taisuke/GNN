@@ -191,57 +191,61 @@ def train(
             target_data = target_data.to(torch.float32)  # target_dataのタイプを変換 int16→float32
 
             """ ↓↓↓ オーバーラップアドの導入 ↓↓↓ """
+            batchsize, num_channels, signal_length = mix_data.shape  # データの形状を取得
             flame_size = int(const.SR * 0.1)  # フレームサイズ（100ms）
             hop_size = flame_size // 2  # ホップサイズはフィルタ長の半分
-            mix_padded = torch.cat((torch.zeros(hop_size), mix_data))    # 入力信号の前に0を追加
-            estimation = torch.zeros(len(mix_padded))   # 出力用の配列
-            num_flame = len(mix_padded) // hop_size  # フレーム数の計算
+            mix_padded = torch.cat((torch.zeros(batchsize, num_channels, hop_size, device=device), mix_data), dim=2).requires_grad_(True)   # 入力信号の前に0を追加
+            target_padded = torch.cat((torch.zeros(batchsize, num_channels, hop_size, device=device), target_data), dim=2).requires_grad_(True) # 入力信号の前に0を追加
+            estimation = torch.zeros(mix_padded.shape, device=device, requires_grad=True)   # 出力用の配列
+            num_flame = mix_padded.shape[-1] // hop_size  # フレーム数の計算
 
             for i in range(num_flame):
                 start = i * hop_size
                 end = start + flame_size
                 
                 # ブロックを取得
-                flame = mix_padded[start:end]
+                flame = mix_padded[:, :, start:end]
 
                 # 窓かけ
-                window = torch.hann_window(len(flame))
+                window = torch.hann_window(flame_size, requires_grad=True, device=device)
                 flame_windowed = flame * window  # ハニング窓を適用
                 """ モデルに通す(予測値の計算) """
                 # print("model_input", mix_data.shape)
                 estimate_flame = model(flame_windowed)  # モデルに通す
 
                 # 出力に結果を加算
-                end = min(len(estimation), end)  # 出力の長さを調整
-                estimation[start:end] += estimate_flame.clone()
+                end_index = min(estimation.shape[-1], end) # 配列の長さを超えないように調整
+                estimation[:, :, start:end_index] += estimate_flame[:, :, :]
             """ ↑↑↑ オーバーラップアドの導入 ↑↑↑ """
+
 
             """ データの整形 """
             # print("estimation:", estimate_data.shape)
             # print("target:", target_data.shape)
-            estimation, target_data = padding_tensor(estimation, target_data)
+            estimation, target_padded = padding_tensor(estimation, target_padded)
 
             """ 損失の計算 """
             model_loss = 0
             match loss_func:
                 case "SISDR":
-                    model_loss = si_sdr_loss(estimate_data, target_data)
+                    model_loss = si_sdr_loss(estimation, target_padded)
                 case "wave_MSE":
                     model_loss = loss_function(
-                        estimate_data, target_data
+                        estimation, target_padded
                     )  # 時間波形上でMSEによる損失関数の計算
                 case "stft_MSE":
                     """周波数軸に変換"""
                     stft_estimate_data = torch.stft(
-                        estimate_data[0], n_fft=1024, return_complex=False
+                        estimation[0], n_fft=1024, return_complex=False
                     )
                     stft_target_data = torch.stft(
-                        target_data[0], n_fft=1024, return_complex=False
+                        target_padded[0], n_fft=1024, return_complex=False
                     )
                     model_loss = loss_function(
                         stft_estimate_data, stft_target_data
                     )  # 時間周波数上MSEによる損失の計算
 
+            # print(f"model_loss: {model_loss.item()}")  # 損失の出力
             model_loss_sum += model_loss  # 損失の加算
 
             """ 後処理 """
@@ -282,10 +286,10 @@ def train(
             )  # 出力ファイルの保存
             best_loss = model_loss_sum  # best_lossの変更
             earlystopping_count = 0
-            estimate_data = estimate_data.cpu()
-            estimate_data = estimate_data.detach().numpy()
-            estimate_data = estimate_data.squeeze()  # (1, 1, length) -> (length,)
-            sf.write("./RESULT/BEST.wav", estimate_data, const.SR)
+            estimation = estimation.cpu()
+            estimation = estimation.detach().numpy()
+            estimation = estimation.squeeze()  # (1, 1, length) -> (length,)
+            sf.write("./RESULT/BEST.wav", estimation, const.SR)
 
         else:
             earlystopping_count += 1
@@ -407,15 +411,15 @@ if __name__ == "__main__":
                 earlystopping_threshold=5,
             )
 
-            test(
-                model=model,
-                mix_dir=f"{const.MIX_DATA_DIR}/GNN/subset_DEMAND_hoth_5dB_500msec/test/{wave_type}",
-                out_dir=f"{const.OUTPUT_WAV_DIR}/{model_type}/subset_DEMAND_hoth_5dB_500msec/{out_name}",
-                model_path=f"{const.PTH_DIR}/{model_type}/subset_DEMAND_hoth_5dB_500msec/{out_name}.pth",
-            )
+            # test(
+            #     model=model,
+            #     mix_dir=f"{const.MIX_DATA_DIR}/GNN/subset_DEMAND_hoth_5dB_500msec/test/{wave_type}",
+            #     out_dir=f"{const.OUTPUT_WAV_DIR}/{model_type}/subset_DEMAND_hoth_5dB_500msec/{out_name}",
+            #     model_path=f"{const.PTH_DIR}/{model_type}/subset_DEMAND_hoth_5dB_500msec/{out_name}.pth",
+            # )
 
-            evaluation(
-                target_dir=f"{const.MIX_DATA_DIR}/GNN/subset_DEMAND_hoth_5dB_500msec/test/clean",
-                estimation_dir=f"{const.OUTPUT_WAV_DIR}/{model_type}/subset_DEMAND_hoth_5dB_500msec/{out_name}",
-                out_path=f"{const.EVALUATION_DIR}/{out_name}.csv",
-            )
+            # evaluation(
+            #     target_dir=f"{const.MIX_DATA_DIR}/GNN/subset_DEMAND_hoth_5dB_500msec/test/clean",
+            #     estimation_dir=f"{const.OUTPUT_WAV_DIR}/{model_type}/subset_DEMAND_hoth_5dB_500msec/{out_name}",
+            #     out_path=f"{const.EVALUATION_DIR}/{out_name}.csv",
+            # )
