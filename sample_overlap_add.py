@@ -52,7 +52,7 @@ if __name__ == '__main__':
     print(f"ホップサイズ (HOP_SIZE = FLAME_SIZE/2): {HOP_SIZE}  <-- 50%のオーバーラップ\n")
     
     # オーバーラップセーブ法で畳み込みを計算
-    y_os = overlap_save(x, HOP_SIZE)
+    y_os = overlap_save(x, flame_size=FLAME_SIZE)
 
     # --- 結果の検証 ---
     print("--- 結果の検証 ---")
