@@ -196,7 +196,7 @@ def train(
             hop_size = flame_size // 2  # ホップサイズはフィルタ長の半分
             mix_padded = torch.cat((torch.zeros(batchsize, num_channels, hop_size, device=device), mix_data), dim=2).requires_grad_(True)   # 入力信号の前に0を追加
             target_padded = torch.cat((torch.zeros(batchsize, num_channels, hop_size, device=device), target_data), dim=2).requires_grad_(True) # 入力信号の前に0を追加
-            estimation = torch.zeros(mix_padded.shape, device=device, requires_grad=True)   # 出力用の配列
+            estimation = torch.zeros(mix_padded.shape, device=device)   # 出力用の配列
             num_flame = mix_padded.shape[-1] // hop_size  # フレーム数の計算
 
             for i in range(num_flame):
@@ -208,6 +208,12 @@ def train(
 
                 # 窓かけ
                 window = torch.hann_window(flame_size, requires_grad=True, device=device)
+                # print("AAA"*50)
+                # print(f"flame_windowed: {flame.shape}, window: {window.shape}")
+                # print("AAA"*50)
+                if flame.shape[-1] != flame_size:
+                    # フレームサイズが異なる場合は、フレームサイズに合わせて切り詰める
+                    flame = F.pad(flame, (0, flame_size - flame.shape[-1]), mode='constant', value=0)
                 flame_windowed = flame * window  # ハニング窓を適用
                 """ モデルに通す(予測値の計算) """
                 # print("model_input", mix_data.shape)
@@ -215,7 +221,7 @@ def train(
 
                 # 出力に結果を加算
                 end_index = min(estimation.shape[-1], end) # 配列の長さを超えないように調整
-                estimation[:, :, start:end_index] += estimate_flame[:, :, :]
+                estimation[:, :, start:end_index] = estimation[:, :, start:end_index] + estimate_flame[:, :, :end_index-start]
             """ ↑↑↑ オーバーラップアドの導入 ↑↑↑ """
 
 
