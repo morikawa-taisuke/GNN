@@ -383,7 +383,7 @@ def test(model: nn.Module, mix_dir: str, out_dir: str, model_path: str, prm: int
 if __name__ == "__main__":
     """モデルの設定"""
     num_mic = 1  # マイクの数
-    num_node = 16  # ノードの数
+    num_node = 8  # ノードの数
     model_list = ["UGCN", "UGCN2", "UGAT", "UGAT2"]  # モデルの種類  "UGCN", "UGCN2", "UGAT", "UGAT2", "ConvTasNet", "UNet"
     for model_type in model_list:
         if model_type == "UGCN":
