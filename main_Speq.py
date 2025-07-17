@@ -114,7 +114,7 @@ def train(model:nn.Module, mix_dir:str, clean_dir:str, out_path:str="./RESULT/pt
     earlystopping_count = 0
 
     """ Load dataset データセットの読み込み """
-    dataset = UGNNNet_DatasetClass.SpectralDataset(clean_audio_dir=clean_dir, noisy_audio_dir=mix_dir) # データセットの読み込み
+    dataset = UGNNNet_DatasetClass.SpectralDataset(clean_audio_dir=clean_dir, noisy_audio_dir=mix_dir, n_fft=model.n_fft, hop_length=model.hop_length, win_length=model.win_length) # データセットの読み込み
     dataset_loader = DataLoader(dataset, batch_size=batchsize, shuffle=True, pin_memory=True)
     
     # STFTパラメータをモデルから取得 (SpectralDatasetと一致させる必要がある)
@@ -325,19 +325,23 @@ def test(model:nn.Module, mix_dir:str, out_dir:str, model_path:str, prm:int=cons
 
 
 if __name__ == '__main__':
+    """ stftのパラメータ """
+    n_fft = 1024  # STFTのフレームサイズ
+    hop_length = n_fft // 2  # STFTのホップサイズ
+    win_length = n_fft  # STFTのウィンドウ長
     """ モデルの設定 """
     num_mic = 1  # マイクの数
-    num_node = 32  # k近傍の数
+    num_node = 8  # k近傍の数
     model_list = ["SpeqGCN", "SpeqGCN2"] # モデルの種類をSpeqGCNに限定 , "SpeqGAT", "SpeqGAT2"
     for model_type in model_list:
         if model_type == "SpeqGCN": # モデル名をSpeqGCNに変更
-            model = SpeqGCNNet(n_channels=num_mic, n_classes=1, num_node=num_node).to(device) # num_node -> k_neighbors
+            model = SpeqGCNNet(n_channels=num_mic, n_classes=1, num_node=num_node, n_fft=n_fft, hop_length=hop_length, win_length=win_length).to(device)
         elif model_type == "SpeqGAT":
-            model = SpeqGATNet(n_channels=num_mic, n_classes=1, num_node=num_node).to(device)
+            model = SpeqGATNet(n_channels=num_mic, n_classes=1, num_node=num_node, n_fft=n_fft, hop_length=hop_length, win_length=win_length).to(device)
         elif model_type == "SpeqGCN2":
-            model = SpeqGCNNet2(n_channels=num_mic, n_classes=1, num_node=num_node).to(device)
+            model = SpeqGCNNet2(n_channels=num_mic, n_classes=1, num_node=num_node, n_fft=n_fft, hop_length=hop_length, win_length=win_length).to(device)
         elif model_type == "SpeqGAT2":
-            model = SpeqGATNet2(n_channels=num_mic, n_classes=1, num_node=num_node).to(device)
+            model = SpeqGATNet2(n_channels=num_mic, n_classes=1, num_node=num_node, n_fft=n_fft, hop_length=hop_length, win_length=win_length).to(device)
         else:
             raise ValueError(f"Unknown model type: {model_type}")
         wave_types = ["noise_only", "reverbe_only", "noise_reverbe"]    # 入寮信号の種類 (noise_only, reverbe_only, noise_reverbe)
@@ -345,7 +349,7 @@ if __name__ == '__main__':
             # if wave_type == "noise_only" and model_type in ["SpeqGAT"]:
             #     print(f"Skipping {model_type} with {wave_type} due to model limitations.")
             #     continue
-            out_name = f"{model_type}_{wave_type}_{num_node}node"  # 出力ファイル名
+            out_name = f"{model_type}_{wave_type}_{num_node}node_{n_fft}fft"  # 出力ファイル名
 
             train(model=model,
                 mix_dir=f"{const.MIX_DATA_DIR}/GNN/subset_DEMAND_hoth_5dB_500msec/train/{wave_type}",
