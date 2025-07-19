@@ -282,10 +282,7 @@ def test(model: nn.Module, mix_dir: str, out_dir: str, model_path: str, prm: int
     # ディレクトリを作成
     my_func.make_dir(out_dir)
     model_path = Path(model_path)  # path型に変換
-    model_dir, model_name = (
-        model_path.parent,
-        model_path.stem,
-    )  # ファイル名とディレクトリを分離
+    model_dir, model_name = (model_path.parent, model_path.stem)  # ファイル名とディレクトリを分離
 
     model.load_state_dict(torch.load(os.path.join(model_dir, f"BEST_{model_name}.pth"), map_location=device))
     model.eval()
@@ -299,30 +296,63 @@ def test(model: nn.Module, mix_dir: str, out_dir: str, model_path: str, prm: int
 
         mix_max = torch.max(mix_data)  # 最大値の取得
 
-        separate = model(mix_data)  # モデルの適用
-        # print(f"Initial separate shape: {separate.shape}") # デバッグ用
+        """ ↓↓↓ オーバーラップアドの導入 ↓↓↓ """
+        batchsize, num_channels, _ = mix_data.shape  # データの形状を取得
+        flame_size = int(const.SR * 0.1)  # フレームサイズ（100ms）
+        hop_size = flame_size // 2  # ホップサイズはフィルタ長の半分
+        mix_padded = torch.cat(
+            (
+                torch.zeros(batchsize, num_channels, hop_size, device=device),
+                mix_data,
+            ),
+            dim=2,
+        ).requires_grad_(
+            True
+        )  # 入力信号の前に0を追加
+        estimation = torch.zeros(mix_padded.shape, device=device)  # 出力用の配列
+        num_flame = mix_padded.shape[-1] // hop_size  # フレーム数の計算
 
-        # separate = separate * (mix_max / torch.max(separate))     # 最大値を揃える
-        separate = separate.cpu()
-        separate = separate.detach().numpy()
-        # print(f"separate: {separate.shape}")
-        # print(f"mix_name: {mix_name}")
-        # print(f"mix_name: {type(mix_name)}")
+        for i in range(num_flame):
+            start = i * hop_size
+            end = start + flame_size
 
-        # separate の形状を (length,) に整形する
+            # ブロックを取得
+            flame = mix_padded[:, :, start:end]
+
+            # 窓かけ
+            window = torch.hann_window(flame_size, requires_grad=True, device=device)
+            if flame.shape[-1] != flame_size:
+                # フレームサイズが異なる場合は、フレームサイズに合わせて切り詰める
+                flame = F.pad(
+                    flame,
+                    (0, flame_size - flame.shape[-1]),
+                    mode="constant",
+                    value=0,
+                )
+            flame_windowed = flame * window  # ハニング窓を適用
+            """ モデルに通す(予測値の計算) """
+            # print("model_input", mix_data.shape)
+            estimate_flame = model(flame_windowed)  # モデルに通す
+
+            # 出力に結果を加算
+            end_index = min(estimation.shape[-1], end)  # 配列の長さを超えないように調整
+            estimation[:, :, start:end_index] = estimation[:, :, start:end_index] + estimate_flame[:, :, : end_index - start]
+        """ ↑↑↑ オーバーラップアドの導入 ↑↑↑ """
+
+        estimation = estimation.cpu()
+        estimation = estimation.detach().numpy()
+
         # モデルの出力が (1, 1, length) と仮定
-        data_to_write = separate.squeeze()
+        data_to_write = estimation.squeeze()
 
         # 正規化
         mix_max = torch.max(mix_data)  # mix_waveの最大値を取得
         data_to_write = data_to_write / np.max(data_to_write) * mix_max.cpu().detach().numpy()
 
-        # 分離した speechを出力ファイルとして保存する。
+        # 保存
         # ファイル名とフォルダ名を結合してパス文字列を作成
         out_path = os.path.join(out_dir, (mix_name[0] + ".wav"))
-        # print('saving... ', fname)
         # 混合データを保存
-        # my_func.save_wav(out_path, separate[0], prm)
         sf.write(out_path, data_to_write, prm)
         torch.cuda.empty_cache()  # メモリの解放 1音声ごとに解放
 
@@ -383,12 +413,12 @@ if __name__ == "__main__":
                 earlystopping_threshold=5,
             )
 
-            # test(
-            #     model=model,
-            #     mix_dir=f"{const.MIX_DATA_DIR}/GNN/subset_DEMAND_hoth_5dB_500msec/test/{wave_type}",
-            #     out_dir=f"{const.OUTPUT_WAV_DIR}/{model_type}/subset_DEMAND_hoth_5dB_500msec/{out_name}",
-            #     model_path=f"{const.PTH_DIR}/{model_type}/subset_DEMAND_hoth_5dB_500msec/{out_name}.pth",
-            # )
+            test(
+                model=model,
+                mix_dir=f"{const.MIX_DATA_DIR}/GNN/subset_DEMAND_hoth_5dB_500msec/test/{wave_type}",
+                out_dir=f"{const.OUTPUT_WAV_DIR}/{model_type}/subset_DEMAND_hoth_5dB_500msec/{out_name}",
+                model_path=f"{const.PTH_DIR}/{model_type}/subset_DEMAND_hoth_5dB_500msec/{out_name}.pth",
+            )
 
             # evaluation(
             #     target_dir=f"{const.MIX_DATA_DIR}/GNN/subset_DEMAND_hoth_5dB_500msec/test/clean",
