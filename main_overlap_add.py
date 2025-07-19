@@ -367,6 +367,11 @@ if __name__ == "__main__":
         "UGAT",
         "UGAT2",
     ]  # モデルの種類  "UGCN", "UGCN2", "UGAT", "UGAT2", "ConvTasNet", "UNet"
+    wave_types = [
+        "noise_only",
+        "reverbe_only",
+        "noise_reverbe",
+    ]  # 入力信号の種類 (noise_only, reverbe_only, noise_reverbe)
     for model_type in model_list:
         if model_type == "UGCN":
             model = UGCNNet(n_channels=num_mic, num_node=num_node).to(device)
@@ -393,11 +398,6 @@ if __name__ == "__main__":
         else:
             raise ValueError(f"Unknown model type: {model_type}")
 
-        wave_types = [
-            "noise_only",
-            "reverbe_only",
-            "noise_reverbe",
-        ]  # 入力信号の種類 (noise_only, reverbe_only, noise_reverbe)
         for wave_type in wave_types:
             out_name = f"{model_type}_{wave_type}_{num_node}node_overlap"  # 出力ファイル名
             # C:\Users\kataoka-lab\Desktop\sound_data\sample_data\speech\DEMAND\clean\train
