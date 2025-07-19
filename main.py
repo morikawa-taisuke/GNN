@@ -1,6 +1,5 @@
 import os
 import time
-from itertools import permutations
 from pathlib import Path
 
 import numpy as np
@@ -13,6 +12,10 @@ from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
 from tqdm.contrib import tenumerate
+
+# Import torchmetrics for loss functions
+from torchmetrics.regression import MeanSquaredError as MSE
+from torchmetrics.audio import ScaleInvariantSignalDistortionRatio as SISDR
 
 import UGNNNet_DatasetClass
 from All_evaluation import main as evaluation
@@ -54,61 +57,7 @@ def padding_tensor(tensor1, tensor2):
     return padded_tensor1, padded_tensor2
 
 
-def sisdr(x, s, eps=1e-8):
-    """
-    calculate training loss
-    input:
-        x: separated signal, N x S tensor
-        s: reference signal, N x S tensor
-    Return:
-        sisdr: N tensor
-    """
-
-    def l2norm(mat, keepdim=False):
-        return torch.norm(mat, dim=-1, keepdim=keepdim)
-
-    if x.shape != s.shape:
-        raise RuntimeError(
-            "Dimention mismatch when calculate si-sdr, {} vs {}".format(
-                x.shape, s.shape
-            )
-        )
-    x_zm = x - torch.mean(x, dim=-1, keepdim=True)
-    s_zm = s - torch.mean(s, dim=-1, keepdim=True)
-    t = (
-        torch.sum(x_zm * s_zm, dim=-1, keepdim=True)
-        * s_zm
-        / torch.sum(s_zm * s_zm, dim=-1, keepdim=True)
-    )
-    return 20 * torch.log10(eps + l2norm(t) / (l2norm(t - x_zm) + eps))
-
-
-def si_sdr_loss(ests, egs):
-    # spks x n x S
-    # ests: estimation
-    # egs: target
-    refs = egs
-    num_speeker = len(refs)
-
-    # print("spks", num_speeker)
-    # print(f"ests:{ests.shape}")
-    # print(f"egs:{egs.shape}")
-
-    def sisdr_loss(permute):
-        # for one permute
-        # print("permute", permute)
-        return sum([sisdr(ests[s], refs[t]) for s, t in enumerate(permute)]) / len(
-            permute
-        )
-
-    # average the value
-
-    # P x N
-    N = egs.size(0)
-    sisdr_mat = torch.stack([sisdr_loss(p) for p in permutations(range(num_speeker))])
-    max_perutt, _ = torch.max(sisdr_mat, dim=0)
-    # si-snr
-    return -torch.sum(max_perutt) / N
+# sisdr および si_sdr_loss 関数はtorchmetricsに置き換えられるため削除
 
 
 def train(
@@ -145,8 +94,14 @@ def train(
     # print(f"\nmodel:{model}\n")                           # モデルのアーキテクチャの出力
     """ 最適化関数の設定 """
     optimizer = optim.Adam(model.parameters(), lr=0.001)  # optimizerを選択(Adam)
-    if loss_func != "SISDR":
-        loss_function = nn.MSELoss().to(device)  # 損失関数に使用する式の指定(最小二乗誤差)
+
+    # torchmetricsを用いた損失関数の初期化
+    if loss_func == "SISDR":
+        loss_metric = SISDR().to(device)
+    elif loss_func == "wave_MSE" or loss_func == "stft_MSE":
+        loss_metric = MSE().to(device)
+    else:
+        raise ValueError(f"Unknown loss function: {loss_func}")
 
     """ チェックポイントの設定 """
     if checkpoint_path != None:
@@ -203,22 +158,16 @@ def train(
             model_loss = 0
             match loss_func:
                 case "SISDR":
-                    model_loss = si_sdr_loss(estimate_data, target_data)
+                    # ScaleInvariantSignalDistortionRatioはSI-SDR値を返す（高いほど良い）。
+                    # 損失として最小化するためには、負の値をとる。
+                    model_loss = -1 * loss_metric(estimate_data, target_data)
                 case "wave_MSE":
-                    model_loss = loss_function(
-                        estimate_data, target_data
-                    )  # 時間波形上でMSEによる損失関数の計算
+                    model_loss = loss_metric(estimate_data, target_data)  # 時間波形上でMSEによる損失関数の計算
                 case "stft_MSE":
                     """周波数軸に変換"""
-                    stft_estimate_data = torch.stft(
-                        estimate_data[0], n_fft=1024, return_complex=False
-                    )
-                    stft_target_data = torch.stft(
-                        target_data[0], n_fft=1024, return_complex=False
-                    )
-                    model_loss = loss_function(
-                        stft_estimate_data, stft_target_data
-                    )  # 時間周波数上MSEによる損失の計算
+                    stft_estimate_data = torch.stft(estimate_data[0], n_fft=1024, return_complex=False)
+                    stft_target_data = torch.stft(target_data[0], n_fft=1024, return_complex=False)
+                    model_loss = loss_metric(stft_estimate_data, stft_target_data)  # 時間周波数上MSEによる損失の計算
 
             model_loss_sum += model_loss  # 損失の加算
 
@@ -255,9 +204,7 @@ def train(
         # best_lossとmodel_loss_sumを比較
         if model_loss_sum < best_loss:  # model_lossのほうが小さい場合
             print(f"{epoch:3} [epoch] | {model_loss_sum:.6} <- {best_loss:.6}")
-            torch.save(
-                model.to(device).state_dict(), f"{out_dir}/BEST_{out_name}.pth"
-            )  # 出力ファイルの保存
+            torch.save(model.to(device).state_dict(), f"{out_dir}/BEST_{out_name}.pth")  # 出力ファイルの保存
             best_loss = model_loss_sum  # best_lossの変更
             earlystopping_count = 0
             estimate_data = estimate_data.cpu()
@@ -270,15 +217,11 @@ def train(
             if (epoch > 100) and (earlystopping_count > earlystopping_threshold):
                 break
         if epoch == 100:
-            torch.save(
-                model.to(device).state_dict(), f"{out_dir}/{out_name}_{epoch}.pth"
-            )  # 出力ファイルの保存
+            torch.save(model.to(device).state_dict(), f"{out_dir}/{out_name}_{epoch}.pth")  # 出力ファイルの保存
 
     """ 学習モデル(pthファイル)の出力 """
     print("model save")
-    torch.save(
-        model.to(device).state_dict(), f"{out_dir}/{out_name}_{epoch}.pth"
-    )  # 出力ファイルの保存
+    torch.save(model.to(device).state_dict(), f"{out_dir}/{out_name}_{epoch}.pth")  # 出力ファイルの保存
 
     writer.close()
 
@@ -287,7 +230,6 @@ def train(
     time_sec = time_end - start_time  # 経過時間の計算(sec)
     time_h = float(time_sec) / 3600.0  # sec->hour
     print(f"time：{str(time_h)}h")  # 出力
-
 
 
 def test(model: nn.Module, mix_dir: str, out_dir: str, model_path: str, prm: int = const.SR):
@@ -302,11 +244,7 @@ def test(model: nn.Module, mix_dir: str, out_dir: str, model_path: str, prm: int
         model_path.stem,
     )  # ファイル名とディレクトリを分離
 
-    model.load_state_dict(
-        torch.load(
-            os.path.join(model_dir, f"BEST_{model_name}.pth"), map_location=device
-        )
-    )
+    model.load_state_dict(torch.load(os.path.join(model_dir, f"BEST_{model_name}.pth"), map_location=device))
     model.eval()
 
     dataset = UGNNNet_DatasetClass.AudioDataset_test(mix_dir)  # データセットの読み込み
@@ -334,9 +272,7 @@ def test(model: nn.Module, mix_dir: str, out_dir: str, model_path: str, prm: int
 
         # 正規化
         mix_max = torch.max(mix_data)  # mix_waveの最大値を取得
-        data_to_write = (
-            data_to_write / np.max(data_to_write) * mix_max.cpu().detach().numpy()
-        )
+        data_to_write = data_to_write / np.max(data_to_write) * mix_max.cpu().detach().numpy()
 
         # 分離した speechを出力ファイルとして保存する。
         # ファイル名とフォルダ名を結合してパス文字列を作成
@@ -352,16 +288,29 @@ if __name__ == "__main__":
     """モデルの設定"""
     num_mic = 1  # マイクの数
     num_node = 16  # ノードの数
-    model_list = ["UGCN", "UGCN2",]  # モデルの種類  "UGCN", "UGCN2", "UGAT", "UGAT2", "ConvTasNet", "UNet"
+    model_list = [
+        "UGCN",
+        "UGCN2",
+    ]  # モデルの種類  "UGCN", "UGCN2", "UGAT", "UGAT2", "ConvTasNet", "UNet"
     for model_type in model_list:
         if model_type == "UGCN":
-            model = UGCNNet(n_channels=num_mic, n_classes=1, num_node=num_node).to(device)
+            model = UGCNNet(n_channels=num_mic, num_node=num_node).to(device)
         elif model_type == "UGAT":
-            model = UGATNet(n_channels=num_mic, n_classes=1, num_node=num_node, gat_heads=4, gat_dropout=0.6).to(device)
+            model = UGATNet(
+                n_channels=num_mic,
+                num_node=num_node,
+                gat_heads=4,
+                gat_dropout=0.6,
+            ).to(device)
         elif model_type == "UGCN2":
-            model = UGCNNet2(n_channels=num_mic, n_classes=1, num_node=num_node).to(device)
+            model = UGCNNet2(n_channels=num_mic, num_node=num_node).to(device)
         elif model_type == "UGAT2":
-            model = UGATNet2(n_channels=num_mic, n_classes=1, num_node=num_node, gat_heads=4,gat_dropout=0.6,).to(device)
+            model = UGATNet2(
+                n_channels=num_mic,
+                num_node=num_node,
+                gat_heads=4,
+                gat_dropout=0.6,
+            ).to(device)
         elif model_type == "ConvTasNet":
             model = enhance_ConvTasNet().to(device)
         elif model_type == "UNet":
@@ -369,7 +318,11 @@ if __name__ == "__main__":
         else:
             raise ValueError(f"Unknown model type: {model_type}")
 
-        wave_types = ["noise_only", "reverbe_only","noise_reverbe",]  # 入力信号の種類 (noise_only, reverbe_only, noise_reverbe)
+        wave_types = [
+            "noise_only",
+            "reverbe_only",
+            "noise_reverbe",
+        ]  # 入力信号の種類 (noise_only, reverbe_only, noise_reverbe)
         for wave_type in wave_types:
             out_name = f"{model_type}_{wave_type}_{num_node}node"  # 出力ファイル名
             # C:\Users\kataoka-lab\Desktop\sound_data\sample_data\speech\DEMAND\clean\train
