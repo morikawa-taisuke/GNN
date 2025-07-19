@@ -1,6 +1,5 @@
 import os
 import time
-from itertools import permutations
 from pathlib import Path
 
 import numpy as np
@@ -13,6 +12,9 @@ from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
 from tqdm.contrib import tenumerate
+
+# Import torchmetrics for loss functions
+from torchmetrics.regression import MeanSquaredError as MSE
 from torchmetrics.audio import ScaleInvariantSignalDistortionRatio as SISDR
 
 import UGNNNet_DatasetClass
@@ -55,53 +57,6 @@ def padding_tensor(tensor1, tensor2):
     return padded_tensor1, padded_tensor2
 
 
-def sisdr(x, s, eps=1e-8):
-    """
-    calculate training loss
-    input:
-        x: separated signal, N x S tensor
-        s: reference signal, N x S tensor
-    Return:
-        sisdr: N tensor
-    """
-
-    def l2norm(mat, keepdim=False):
-        return torch.norm(mat, dim=-1, keepdim=keepdim)
-
-    if x.shape != s.shape:
-        raise RuntimeError("Dimention mismatch when calculate si-sdr, {} vs {}".format(x.shape, s.shape))
-    x_zm = x - torch.mean(x, dim=-1, keepdim=True)
-    s_zm = s - torch.mean(s, dim=-1, keepdim=True)
-    t = torch.sum(x_zm * s_zm, dim=-1, keepdim=True) * s_zm / torch.sum(s_zm * s_zm, dim=-1, keepdim=True)
-    return 20 * torch.log10(eps + l2norm(t) / (l2norm(t - x_zm) + eps))
-
-
-def si_sdr_loss(ests, egs):
-    # spks x n x S
-    # ests: estimation
-    # egs: target
-    refs = egs
-    num_speeker = len(refs)
-
-    # print("spks", num_speeker)
-    # print(f"ests:{ests.shape}")
-    # print(f"egs:{egs.shape}")
-
-    def sisdr_loss(permute):
-        # for one permute
-        # print("permute", permute)
-        return sum([sisdr(ests[s], refs[t]) for s, t in enumerate(permute)]) / len(permute)
-
-    # average the value
-
-    # P x N
-    N = egs.size(0)
-    sisdr_mat = torch.stack([sisdr_loss(p) for p in permutations(range(num_speeker))])
-    max_perutt, _ = torch.max(sisdr_mat, dim=0)
-    # si-snr
-    return -torch.sum(max_perutt) / N
-
-
 def train(
     model: nn.Module,
     mix_dir: str,
@@ -136,8 +91,12 @@ def train(
     # print(f"\nmodel:{model}\n")                           # モデルのアーキテクチャの出力
     """ 最適化関数の設定 """
     optimizer = optim.Adam(model.parameters(), lr=0.001)  # optimizerを選択(Adam)
-    if loss_func != "SISDR":
-        loss_function = nn.MSELoss().to(device)  # 損失関数に使用する式の指定(最小二乗誤差)
+    if loss_func == "SISDR":
+        loss_metric = SISDR().to(device)
+    elif loss_func == "wave_MSE" or loss_func == "stft_MSE":
+        loss_metric = MSE().to(device)
+    else:
+        raise ValueError(f"Unknown loss function: {loss_func}")
 
     """ チェックポイントの設定 """
     if checkpoint_path != None:
@@ -215,9 +174,6 @@ def train(
 
                 # 窓かけ
                 window = torch.hann_window(flame_size, requires_grad=True, device=device)
-                # print("AAA"*50)
-                # print(f"flame_windowed: {flame.shape}, window: {window.shape}")
-                # print("AAA"*50)
                 if flame.shape[-1] != flame_size:
                     # フレームサイズが異なる場合は、フレームサイズに合わせて切り詰める
                     flame = F.pad(
@@ -245,14 +201,14 @@ def train(
             model_loss = 0
             match loss_func:
                 case "SISDR":
-                    model_loss = si_sdr_loss(estimation, target_padded)
+                    model_loss = -1 * loss_metric(estimation, target_data)
                 case "wave_MSE":
-                    model_loss = loss_function(estimation, target_padded)  # 時間波形上でMSEによる損失関数の計算
+                    model_loss = loss_metric(estimation, target_padded)  # 時間波形上でMSEによる損失関数の計算
                 case "stft_MSE":
                     """周波数軸に変換"""
                     stft_estimate_data = torch.stft(estimation[0], n_fft=1024, return_complex=False)
                     stft_target_data = torch.stft(target_padded[0], n_fft=1024, return_complex=False)
-                    model_loss = loss_function(stft_estimate_data, stft_target_data)  # 時間周波数上MSEによる損失の計算
+                    model_loss = loss_metric(stft_estimate_data, stft_target_data)  # 時間周波数上MSEによる損失の計算
 
             # print(f"model_loss: {model_loss.item()}")  # 損失の出力
             model_loss_sum += model_loss  # 損失の加算
@@ -264,6 +220,7 @@ def train(
             del (
                 mix_data,
                 target_data,
+                estimation,
                 model_loss,
             )  # 使用していない変数の削除 estimate_data,
             torch.cuda.empty_cache()  # メモリの解放 1iterationごとに解放
