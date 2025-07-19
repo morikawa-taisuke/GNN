@@ -13,6 +13,7 @@ from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
 from tqdm.contrib import tenumerate
+from torchmetrics.audio import ScaleInvariantSignalDistortionRatio as SISDR
 
 import UGNNNet_DatasetClass
 from All_evaluation import main as evaluation
@@ -127,9 +128,13 @@ def train(
     """ その他の設定 """
     out_path = Path(out_path)  # path型に変換
     out_name, out_dir = out_path.stem, out_path.parent  # ファイル名とディレクトリを分離
-    writer = SummaryWriter(log_dir=f"{const.LOG_DIR}\\{out_name}")  # logの保存先の指定("tensorboard --logdir ./logs"で確認できる)
+    writer = SummaryWriter(
+        log_dir=f"{const.LOG_DIR}\\{out_name}"
+    )  # logの保存先の指定("tensorboard --logdir ./logs"で確認できる)
     now = my_func.get_now_time()
-    csv_path = os.path.join(const.LOG_DIR, out_name, f"{out_name}_{now}.csv")  # CSVファイルのパス
+    csv_path = os.path.join(
+        const.LOG_DIR, out_name, f"{out_name}_{now}.csv"
+    )  # CSVファイルのパス
     my_func.make_dir(csv_path)
     with open(csv_path, "w") as csv_file:  # ファイルオープン
         csv_file.write(f"dataset,out_name,loss_func\n{mix_dir},{out_path},{loss_func}")
@@ -139,21 +144,31 @@ def train(
     earlystopping_count = 0
 
     """ Load dataset データセットの読み込み """
-    dataset = UGNNNet_DatasetClass.AudioDataset(clean_audio_dir=clean_dir, noisy_audio_dir=mix_dir)  # データセットの読み込み
-    dataset_loader = DataLoader(dataset, batch_size=batchsize, shuffle=True, pin_memory=True)
+    dataset = UGNNNet_DatasetClass.AudioDataset(
+        clean_audio_dir=clean_dir, noisy_audio_dir=mix_dir
+    )  # データセットの読み込み
+    dataset_loader = DataLoader(
+        dataset, batch_size=batchsize, shuffle=True, pin_memory=True
+    )
 
     # print(f"\nmodel:{model}\n")                           # モデルのアーキテクチャの出力
     """ 最適化関数の設定 """
     optimizer = optim.Adam(model.parameters(), lr=0.001)  # optimizerを選択(Adam)
     if loss_func != "SISDR":
-        loss_function = nn.MSELoss().to(device)  # 損失関数に使用する式の指定(最小二乗誤差)
+        loss_function = nn.MSELoss().to(
+            device
+        )  # 損失関数に使用する式の指定(最小二乗誤差)
 
     """ チェックポイントの設定 """
     if checkpoint_path != None:
         print("restart_training")
         checkpoint = torch.load(checkpoint_path)  # checkpointの読み込み
-        model.load_state_dict(checkpoint["model_state_dict"])  # 学習途中のモデルの読み込み
-        optimizer.load_state_dict(checkpoint["optimizer_state_dict"])  # オプティマイザの読み込み
+        model.load_state_dict(
+            checkpoint["model_state_dict"]
+        )  # 学習途中のモデルの読み込み
+        optimizer.load_state_dict(
+            checkpoint["optimizer_state_dict"]
+        )  # オプティマイザの読み込み
         # optimizerのstateを現在のdeviceに移す。これをしないと、保存前後でdeviceの不整合が起こる可能性がある。
         for state in optimizer.state.values():
             for k, v in state.items():
@@ -181,49 +196,84 @@ def train(
         print("Train Epoch:", epoch)  # 学習回数の表示
         model_loss_sum = 0  # 総損失の初期化
         for _, (mix_data, target_data) in tenumerate(dataset_loader):
-            mix_data, target_data = mix_data.to(device), target_data.to(device)  # データをGPUに移動
+            mix_data, target_data = mix_data.to(device), target_data.to(
+                device
+            )  # データをGPUに移動
 
             """ 勾配のリセット """
             optimizer.zero_grad()  # optimizerの初期化
 
             """ データの整形 """
-            mix_data = mix_data.to(torch.float32)  # target_dataのタイプを変換 int16→float32
-            target_data = target_data.to(torch.float32)  # target_dataのタイプを変換 int16→float32
+            mix_data = mix_data.to(
+                torch.float32
+            )  # target_dataのタイプを変換 int16→float32
+            target_data = target_data.to(
+                torch.float32
+            )  # target_dataのタイプを変換 int16→float32
 
             """ ↓↓↓ オーバーラップアドの導入 ↓↓↓ """
-            batchsize, num_channels, signal_length = mix_data.shape  # データの形状を取得
+            batchsize, num_channels, signal_length = (
+                mix_data.shape
+            )  # データの形状を取得
             flame_size = int(const.SR * 0.1)  # フレームサイズ（100ms）
             hop_size = flame_size // 2  # ホップサイズはフィルタ長の半分
-            mix_padded = torch.cat((torch.zeros(batchsize, num_channels, hop_size, device=device), mix_data), dim=2).requires_grad_(True)   # 入力信号の前に0を追加
-            target_padded = torch.cat((torch.zeros(batchsize, num_channels, hop_size, device=device), target_data), dim=2).requires_grad_(True) # 入力信号の前に0を追加
-            estimation = torch.zeros(mix_padded.shape, device=device)   # 出力用の配列
+            mix_padded = torch.cat(
+                (
+                    torch.zeros(batchsize, num_channels, hop_size, device=device),
+                    mix_data,
+                ),
+                dim=2,
+            ).requires_grad_(
+                True
+            )  # 入力信号の前に0を追加
+            target_padded = torch.cat(
+                (
+                    torch.zeros(batchsize, num_channels, hop_size, device=device),
+                    target_data,
+                ),
+                dim=2,
+            ).requires_grad_(
+                True
+            )  # 入力信号の前に0を追加
+            estimation = torch.zeros(mix_padded.shape, device=device)  # 出力用の配列
             num_flame = mix_padded.shape[-1] // hop_size  # フレーム数の計算
 
             for i in range(num_flame):
                 start = i * hop_size
                 end = start + flame_size
-                
+
                 # ブロックを取得
                 flame = mix_padded[:, :, start:end]
 
                 # 窓かけ
-                window = torch.hann_window(flame_size, requires_grad=True, device=device)
+                window = torch.hann_window(
+                    flame_size, requires_grad=True, device=device
+                )
                 # print("AAA"*50)
                 # print(f"flame_windowed: {flame.shape}, window: {window.shape}")
                 # print("AAA"*50)
                 if flame.shape[-1] != flame_size:
                     # フレームサイズが異なる場合は、フレームサイズに合わせて切り詰める
-                    flame = F.pad(flame, (0, flame_size - flame.shape[-1]), mode='constant', value=0)
+                    flame = F.pad(
+                        flame,
+                        (0, flame_size - flame.shape[-1]),
+                        mode="constant",
+                        value=0,
+                    )
                 flame_windowed = flame * window  # ハニング窓を適用
                 """ モデルに通す(予測値の計算) """
                 # print("model_input", mix_data.shape)
                 estimate_flame = model(flame_windowed)  # モデルに通す
 
                 # 出力に結果を加算
-                end_index = min(estimation.shape[-1], end) # 配列の長さを超えないように調整
-                estimation[:, :, start:end_index] = estimation[:, :, start:end_index] + estimate_flame[:, :, :end_index-start]
+                end_index = min(
+                    estimation.shape[-1], end
+                )  # 配列の長さを超えないように調整
+                estimation[:, :, start:end_index] = (
+                    estimation[:, :, start:end_index]
+                    + estimate_flame[:, :, : end_index - start]
+                )
             """ ↑↑↑ オーバーラップアドの導入 ↑↑↑ """
-
 
             """ データの整形 """
             # print("estimation:", estimate_data.shape)
@@ -321,8 +371,9 @@ def train(
     print(f"time：{str(time_h)}h")  # 出力
 
 
-
-def test(model: nn.Module, mix_dir: str, out_dir: str, model_path: str, prm: int = const.SR):
+def test(
+    model: nn.Module, mix_dir: str, out_dir: str, model_path: str, prm: int = const.SR
+):
     # filelist_mixdown = my_func.get_file_list(mix_dir)
     # print('number of mixdown file', len(filelist_mixdown))
 
@@ -384,16 +435,37 @@ if __name__ == "__main__":
     """モデルの設定"""
     num_mic = 1  # マイクの数
     num_node = 8  # ノードの数
-    model_list = ["UGCN", "UGCN2", "UGAT", "UGAT2"]  # モデルの種類  "UGCN", "UGCN2", "UGAT", "UGAT2", "ConvTasNet", "UNet"
+    model_list = [
+        "UGCN",
+        "UGCN2",
+        "UGAT",
+        "UGAT2",
+    ]  # モデルの種類  "UGCN", "UGCN2", "UGAT", "UGAT2", "ConvTasNet", "UNet"
     for model_type in model_list:
         if model_type == "UGCN":
-            model = UGCNNet(n_channels=num_mic, n_classes=1, num_node=num_node).to(device)
+            model = UGCNNet(n_channels=num_mic, n_classes=1, num_node=num_node).to(
+                device
+            )
         elif model_type == "UGAT":
-            model = UGATNet(n_channels=num_mic, n_classes=1, num_node=num_node, gat_heads=4, gat_dropout=0.6).to(device)
+            model = UGATNet(
+                n_channels=num_mic,
+                n_classes=1,
+                num_node=num_node,
+                gat_heads=4,
+                gat_dropout=0.6,
+            ).to(device)
         elif model_type == "UGCN2":
-            model = UGCNNet2(n_channels=num_mic, n_classes=1, num_node=num_node).to(device)
+            model = UGCNNet2(n_channels=num_mic, n_classes=1, num_node=num_node).to(
+                device
+            )
         elif model_type == "UGAT2":
-            model = UGATNet2(n_channels=num_mic, n_classes=1, num_node=num_node, gat_heads=4,gat_dropout=0.6,).to(device)
+            model = UGATNet2(
+                n_channels=num_mic,
+                n_classes=1,
+                num_node=num_node,
+                gat_heads=4,
+                gat_dropout=0.6,
+            ).to(device)
         elif model_type == "ConvTasNet":
             model = enhance_ConvTasNet().to(device)
         elif model_type == "UNet":
@@ -401,9 +473,15 @@ if __name__ == "__main__":
         else:
             raise ValueError(f"Unknown model type: {model_type}")
 
-        wave_types = ["noise_only", "reverbe_only","noise_reverbe",]  # 入力信号の種類 (noise_only, reverbe_only, noise_reverbe)
+        wave_types = [
+            "noise_only",
+            "reverbe_only",
+            "noise_reverbe",
+        ]  # 入力信号の種類 (noise_only, reverbe_only, noise_reverbe)
         for wave_type in wave_types:
-            out_name = f"{model_type}_{wave_type}_{num_node}node_overlap"  # 出力ファイル名
+            out_name = (
+                f"{model_type}_{wave_type}_{num_node}node_overlap"  # 出力ファイル名
+            )
             # C:\Users\kataoka-lab\Desktop\sound_data\sample_data\speech\DEMAND\clean\train
             train(
                 model=model,
