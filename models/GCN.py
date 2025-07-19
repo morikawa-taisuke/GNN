@@ -3,15 +3,15 @@ from torch import nn
 import os
 from torchinfo import summary
 import torch.nn.functional as F
-from torch_geometric.nn import GCNConv, GATConv # GATConv をインポート
+from torch_geometric.nn import GCNConv, GATConv  # GATConv をインポート
 from torch_geometric.nn import knn_graph
 
 
 # CUDAのメモリ管理設定
-os.environ['PYTORCH_CUDA_ALLOC_CONF'] = 'expandable_segments:True'
+os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "expandable_segments:True"
 
 # CUDAの可用性をチェック
-device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 print(f"Using device: {device}")
 
 
@@ -24,7 +24,7 @@ class DoubleConv(nn.Module):
             nn.ReLU(inplace=True),
             nn.Conv2d(out_channels, out_channels, kernel_size=3, padding=1),
             nn.BatchNorm2d(out_channels),
-            nn.ReLU(inplace=True)
+            nn.ReLU(inplace=True),
         )
 
     def forward(self, x):
@@ -34,10 +34,7 @@ class DoubleConv(nn.Module):
 class Down(nn.Module):
     def __init__(self, in_channels, out_channels):
         super().__init__()
-        self.maxpool_conv = nn.Sequential(
-            nn.MaxPool2d(2),
-            DoubleConv(in_channels, out_channels)
-        )
+        self.maxpool_conv = nn.Sequential(nn.MaxPool2d(2), DoubleConv(in_channels, out_channels))
 
     def forward(self, x):
         return self.maxpool_conv(x)
@@ -53,8 +50,7 @@ class Up(nn.Module):
         x1 = self.up(x1)
         diffY = x2.size()[2] - x1.size()[2]
         diffX = x2.size()[3] - x1.size()[3]
-        x1 = F.pad(x1, [diffX // 2, diffX - diffX // 2,
-                        diffY // 2, diffY - diffY // 2])
+        x1 = F.pad(x1, [diffX // 2, diffX - diffX // 2, diffY // 2, diffY - diffY // 2])
         x = torch.cat([x2, x1], dim=1)
         return self.conv(x)
 
@@ -89,19 +85,18 @@ class GAT(nn.Module):
         # または、headsを維持して後で平均化するなら concat=True のまま heads を指定
         self.conv3 = GATConv(hidden_dim * heads, output_dim, heads=1, concat=False, dropout=dropout_rate)
 
-
     def forward(self, x, edge_index):
         x = F.dropout(x, p=self.dropout_rate, training=self.training)
         x = F.elu(self.conv1(x, edge_index))
         x = F.dropout(x, p=self.dropout_rate, training=self.training)
         x = F.elu(self.conv2(x, edge_index))
         x = F.dropout(x, p=self.dropout_rate, training=self.training)
-        x = self.conv3(x, edge_index) # 最終層の出力はそのまま（softmaxなどはモデル全体の後段で）
+        x = self.conv3(x, edge_index)  # 最終層の出力はそのまま（softmaxなどはモデル全体の後段で）
         return x
 
 
 class UGCNNet(nn.Module):
-    def __init__(self, n_channels, n_classes, hidden_dim=32, num_node=8):
+    def __init__(self, n_channels, n_classes=1, hidden_dim=32, num_node=8):
         super(UGCNNet, self).__init__()
         self.n_channels = n_channels
         self.n_classes = n_classes
@@ -114,32 +109,36 @@ class UGCNNet(nn.Module):
         self.stride = self.win // 2  # 畳み込み処理におけるフィルタが移動する幅
 
         # エンコーダ
-        self.encoder = nn.Conv1d(in_channels=n_channels,  # 入力データの次元数 #=1もともとのやつ
-                                 out_channels=self.encoder_dim,  # 出力データの次元数
-                                 kernel_size=self.win,  # 畳み込みのサイズ(波形領域なので窓長なの?)
-                                 bias=False,  # バイアスの有無(出力に学習可能なバイアスの追加)
-                                 stride=self.stride)  # 畳み込み処理の移動幅
+        self.encoder = nn.Conv1d(
+            in_channels=n_channels,  # 入力データの次元数 #=1もともとのやつ
+            out_channels=self.encoder_dim,  # 出力データの次元数
+            kernel_size=self.win,  # 畳み込みのサイズ(波形領域なので窓長なの?)
+            bias=False,  # バイアスの有無(出力に学習可能なバイアスの追加)
+            stride=self.stride,
+        )  # 畳み込み処理の移動幅
         # デコーダ
-        self.decoder = nn.ConvTranspose1d(in_channels=self.encoder_dim,  # 入力次元数
-                                          out_channels=n_channels,  # 出力次元数 1もともとのやつ
-                                          kernel_size=self.win,  # カーネルサイズ
-                                          bias=False,
-                                          stride=self.stride)  # 畳み込み処理の移動幅
+        self.decoder = nn.ConvTranspose1d(
+            in_channels=self.encoder_dim,  # 入力次元数
+            out_channels=n_channels,  # 出力次元数 1もともとのやつ
+            kernel_size=self.win,  # カーネルサイズ
+            bias=False,
+            stride=self.stride,
+        )  # 畳み込み処理の移動幅
 
         # エンコーダー部分
-        self.inc = DoubleConv(n_channels, 64) # U-Netの入力は1チャンネルの特徴マップを想定
+        self.inc = DoubleConv(n_channels, 64)  # U-Netの入力は1チャンネルの特徴マップを想定
         self.down1 = Down(64, 128)
         self.down2 = Down(128, 256)
         self.down3 = Down(256, 512)
 
         # ボトルネック部分のGNN
-        self.gnn = GCN(512, hidden_dim, 512) # GNNの入力はU-Netボトルネックのチャネル数
+        self.gnn = GCN(512, hidden_dim, 512)  # GNNの入力はU-Netボトルネックのチャネル数
 
         # デコーダー部分
         self.up1 = Up(512, 256)
         self.up2 = Up(256, 128)
         self.up3 = Up(128, 64)
-        self.outc = nn.Conv2d(64, n_classes, kernel_size=1, stride=1, padding=0) # マスク生成
+        self.outc = nn.Conv2d(64, n_classes, kernel_size=1, stride=1, padding=0)  # マスク生成
 
     def create_graph(self, num_nodes):
         """
@@ -153,7 +152,7 @@ class UGCNNet(nn.Module):
             return torch.empty((2, 0), dtype=torch.long, device=device)
 
         # 実際に選択する隣接ノードの数 (num_nodes - 1 を超えることはない)
-        if num_nodes == 1: # ノードが1つの場合、隣接ノードは存在しない
+        if num_nodes == 1:  # ノードが1つの場合、隣接ノードは存在しない
             k_to_select = 0
         else:
             k_to_select = min(self.num_node, num_nodes - 1)
@@ -185,7 +184,7 @@ class UGCNNet(nn.Module):
     def forward(self, x, edge_index=None):
         # エンコーダ
         # x: [B, C_in, L_in]
-        x_encoded = self.encoder(x) # [B, encoder_dim, L_encoded]
+        x_encoded = self.encoder(x)  # [B, encoder_dim, L_encoded]
 
         # U-Net入力形式へ変換
         # [B, encoder_dim, L_encoded] -> [B, 1, encoder_dim, L_encoded] (H=encoder_dim, W=L_encodedと解釈)
@@ -195,7 +194,7 @@ class UGCNNet(nn.Module):
         x1 = self.inc(x_unet_input)
         x2 = self.down1(x1)
         x3 = self.down2(x2)
-        x4 = self.down3(x3) # [B, 512, H_bottleneck, W_bottleneck]
+        x4 = self.down3(x3)  # [B, 512, H_bottleneck, W_bottleneck]
 
         # ボトルネック（GCN）
         batch_size, channels_bottleneck, height_bottleneck, width_bottleneck = x4.size()
@@ -210,20 +209,24 @@ class UGCNNet(nn.Module):
             num_nodes = x4_reshaped.size(0)
             edge_index = self.create_graph(num_nodes)
 
-        x4_processed_flat = self.gnn(x4_reshaped, edge_index) # [B*H*W, C_out_gnn]
+        x4_processed_flat = self.gnn(x4_reshaped, edge_index)  # [B*H*W, C_out_gnn]
 
         # U-Net形式へ戻す: [B*H*W, C_out_gcn] -> [B, H, W, C_out_gcn] -> [B, C_out_gcn, H, W]
-        x4_processed = x4_processed_flat.view(batch_size, height_bottleneck, width_bottleneck, channels_bottleneck).permute(0, 3, 1, 2)
+        x4_processed = x4_processed_flat.view(batch_size, height_bottleneck, width_bottleneck, channels_bottleneck).permute(
+            0, 3, 1, 2
+        )
 
         # U-Net デコーダ
         d3 = self.up1(x4_processed, x3)
         d2 = self.up2(d3, x2)
         d1 = self.up3(d2, x1)
-        mask_pred = torch.sigmoid(self.outc(d1)) # [B, n_classes, H_mask, W_mask] (通常 H_mask=encoder_dim, W_mask=L_encoded)
+        mask_pred = torch.sigmoid(self.outc(d1))  # [B, n_classes, H_mask, W_mask] (通常 H_mask=encoder_dim, W_mask=L_encoded)
 
         # マスクをx_encodedの次元に合わせる (n_classes=1を想定)
         if mask_pred.size(2) != x_encoded.size(1) or mask_pred.size(3) != x_encoded.size(2):
-            mask_pred_resized = F.interpolate(mask_pred, size=(x_encoded.size(1), x_encoded.size(2)), mode='bilinear', align_corners=False)
+            mask_pred_resized = F.interpolate(
+                mask_pred, size=(x_encoded.size(1), x_encoded.size(2)), mode="bilinear", align_corners=False
+            )
         else:
             mask_pred_resized = mask_pred
 
@@ -241,15 +244,15 @@ class UGCNNet(nn.Module):
         else:
             # n_classes > 1 の場合の処理 (例: 各クラスが特定の周波数帯のマスクなど)
             # ここでは単純な要素積を仮定
-            masked_x_encoded = x_encoded * mask_pred_resized # 要確認: n_classesとencoder_dimの関係
+            masked_x_encoded = x_encoded * mask_pred_resized  # 要確認: n_classesとencoder_dimの関係
 
         # デコーダ
-        out_waveform = self.decoder(masked_x_encoded) # [B, C_out, L_out]
+        out_waveform = self.decoder(masked_x_encoded)  # [B, C_out, L_out]
         return out_waveform
 
 
-class UGATNet(UGCNNet): # UGCNNetを継承
-    def __init__(self, n_channels, n_classes, hidden_dim=32, num_node=8, gat_heads=8, gat_dropout=0.5):
+class UGATNet(UGCNNet):  # UGCNNetを継承
+    def __init__(self, n_channels, n_classes=1, hidden_dim=32, num_node=8, gat_heads=8, gat_dropout=0.5):
         super(UGATNet, self).__init__(n_channels, n_classes, hidden_dim, num_node)
 
         # ボトルネック部分をGATに置き換える
@@ -267,10 +270,10 @@ class UGCNNet2(UGCNNet):
     def create_graph(self, x_nodes_batched, k, batch_size, num_nodes_per_sample):
         # x: [batch_size * num_nodes_per_sample, num_features]
         batch_indices = torch.arange(batch_size, device=x_nodes_batched.device).repeat_interleave(num_nodes_per_sample)
-        edge_index = knn_graph(x=x_nodes_batched, k=k, batch=batch_indices, loop=False) # 自己ループなし
+        edge_index = knn_graph(x=x_nodes_batched, k=k, batch=batch_indices, loop=False)  # 自己ループなし
         return edge_index
 
-    def forward(self, x): # edge_indexは内部で生成するため引数から削除
+    def forward(self, x):  # edge_indexは内部で生成するため引数から削除
         # エンコーダ (波形 -> 潜在特徴量)
         # x: [batch_size, n_channels, length]
         x_encoded = self.encoder(x)  # [batch_size, encoder_dim, L_encoded]
@@ -285,7 +288,7 @@ class UGCNNet2(UGCNNet):
         x1 = self.inc(x_unet_input)  # [B, 64, H1, W1]
         x2 = self.down1(x1)  # [B, 128, H2, W2]
         x3 = self.down2(x2)  # [B, 256, H3, W3]
-        x4 = self.down3(x3) # [B, 512, H_bottleneck, W_bottleneck]
+        x4 = self.down3(x3)  # [B, 512, H_bottleneck, W_bottleneck]
 
         # ボトルネック（GCN or GAT）
         batch_size, channels_bottleneck, height_bottleneck, width_bottleneck = x4.size()
@@ -293,15 +296,16 @@ class UGCNNet2(UGCNNet):
 
         # k-NNグラフを動的に構築
         num_nodes_per_sample = height_bottleneck * width_bottleneck
-        if num_nodes_per_sample > 0 :
+        if num_nodes_per_sample > 0:
             edge_index = self.create_graph(x4_reshaped, self.num_node, batch_size, num_nodes_per_sample)
         else:
-            edge_index = torch.empty((2,0), dtype=torch.long, device=x4_reshaped.device)
+            edge_index = torch.empty((2, 0), dtype=torch.long, device=x4_reshaped.device)
 
+        x4_processed_flat = self.gnn(x4_reshaped, edge_index)  # GNN (GCN or GAT)
 
-        x4_processed_flat = self.gnn(x4_reshaped, edge_index) # GNN (GCN or GAT)
-
-        x4_processed = x4_processed_flat.view(batch_size, height_bottleneck, width_bottleneck, channels_bottleneck).permute(0, 3, 1, 2)
+        x4_processed = x4_processed_flat.view(batch_size, height_bottleneck, width_bottleneck, channels_bottleneck).permute(
+            0, 3, 1, 2
+        )
 
         # U-Net デコーダー
         d3 = self.up1(x4_processed, x3)
@@ -321,21 +325,23 @@ class UGCNNet2(UGCNNet):
         # --- ここまでデバッグコード ---
 
         if mask_pred.size(2) != x_encoded.size(1) or mask_pred.size(3) != x_encoded.size(2):
-            mask_pred_resized = F.interpolate(mask_pred, size=(x_encoded.size(1), x_encoded.size(2)), mode='bilinear', align_corners=False)
+            mask_pred_resized = F.interpolate(
+                mask_pred, size=(x_encoded.size(1), x_encoded.size(2)), mode="bilinear", align_corners=False
+            )
         else:
             mask_pred_resized = mask_pred
-        
+
         if self.n_classes == 1:
             masked_x_encoded = x_encoded * mask_pred_resized.squeeze(1)
         else:
             masked_x_encoded = x_encoded * mask_pred_resized
-            
+
         output_waveform = self.decoder(masked_x_encoded)
         return output_waveform
 
 
-class UGATNet2(UGCNNet2): # UGCNNet2 を継承
-    def __init__(self, n_channels, n_classes, hidden_dim=32, num_node=8, gat_heads=8, gat_dropout=0.5):
+class UGATNet2(UGCNNet2):  # UGCNNet2 を継承
+    def __init__(self, n_channels, n_classes=1, hidden_dim=32, num_node=8, gat_heads=8, gat_dropout=0.5):
         # UGCNNet2 (親クラス) の __init__ を呼び出す
         # UGCNNet2 は UGCNNet を継承しており、UGCNNet で self.gnn が GCN で初期化される
         super(UGATNet2, self).__init__(n_channels, n_classes, hidden_dim, num_node)
@@ -344,6 +350,7 @@ class UGATNet2(UGCNNet2): # UGCNNet2 を継承
         # GATの入力次元はU-Netエンコーダのボトルネック部分のチャネル数(512)
         # GATの出力次元も同様に512とする
         self.gnn = GAT(512, hidden_dim, 512, heads=gat_heads, dropout_rate=gat_dropout)
+
     # forwardメソッドとcreate_knn_graph_for_batchメソッドはUGCNNet2のものをそのまま利用
 
 
@@ -401,7 +408,7 @@ def main():
     ugat_model = UGATNet(n_channels=num_mic, n_classes=1, num_node=8, gat_heads=4, gat_dropout=0.6).to(device)
     print_model_summary(ugat_model, batch, num_mic, length)
     x_ugat = torch.randn(batch, num_mic, length).to(device)
-    output_ugat = ugat_model(x_ugat) # forwardはUGCNNetのものを継承
+    output_ugat = ugat_model(x_ugat)  # forwardはUGCNNetのものを継承
     print(f"UGATNet Input shape: {x_ugat.shape}, Output shape: {output_ugat.shape}")
 
     print("\n--- UGCNNet2 (k-NN Graph, GCN in bottleneck) ---")
@@ -418,7 +425,6 @@ def main():
     # output_ugat2 = ugat2_model(x_ugat2) # forwardはUGCNNet2のものを継承
     # print(f"UGATNet2 Input shape: {x_ugat2.shape}, Output shape: {output_ugat2.shape}")
 
-
     # モデルのサマリーを表示
     # print_model_summary(model, batch, num_mic, length)
 
@@ -434,5 +440,5 @@ def main():
         print(f"Cached: {torch.cuda.memory_reserved(device) / 1024 ** 2:.2f} MB")
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()
