@@ -1,18 +1,20 @@
-import os
-import sys
+import torch
 import torch
 import torchaudio
-import torchmetrics  # torchmetricsをインポート
+from torchmetrics.audio.pesq import (
+    PerceptualEvaluationSpeechQuality as PESQ,
+)  # torchmetricsをインポート
+from tqdm import tqdm
 
 # mymoduleのパスを適切に設定してください（必要に応じてコメントを解除し、パスを修正してください）
 # sys.path.append('C:\\Users\\kataoka-lab\\Desktop\\hikitugi_conv\\ConvTasNet\\mymodule\\')
 from mymodule import my_func
 from mymodule.confirmation_GPU import get_device
 
-from tqdm import tqdm
 
-
-def pesq_evaluation(target_data: torch.Tensor, estimation_data: torch.Tensor, device=get_device()):
+def pesq_evaluation(
+    target_data: torch.Tensor, estimation_data: torch.Tensor, device=get_device()
+):
     """pesq値の算出 (torchmetricsを使用)
 
     :param target_data: 正解データのPyTorchテンソル
@@ -22,7 +24,7 @@ def pesq_evaluation(target_data: torch.Tensor, estimation_data: torch.Tensor, de
     # torchmetricsのPESQメトリックをインスタンス化
     # fs=16000, mode='wb' (Wideband) を仮定。必要に応じて調整してください。
     # PESQは通常、CPUで計算されるため、デバイスはCPUに限定します。
-    metric = torchmetrics.audio.pesq.PerceptualEvaluationSpeechQuality(fs=16000, mode="wb").to(device)
+    metric = PESQ(fs=16000, mode="wb").to(device)
 
     # 入力テンソルが正しい型とデバイスにあることを確認
     target_data = target_data.to(torch.float32).to(device)
@@ -100,4 +102,8 @@ if __name__ == "__main__":
     estimation_dir = "../../sound_data/UNet/result/JA_hoth_10db_05sec"  # モデルデータ
     out_name = "JA_hoth_10db_05sec"
 
-    pesq_main(target_dir=target_dir, estimation_dir=estimation_dir, out_path=f"pesq1/{out_name}.csv")
+    pesq_main(
+        target_dir=target_dir,
+        estimation_dir=estimation_dir,
+        out_path=f"pesq1/{out_name}.csv",
+    )

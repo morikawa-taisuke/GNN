@@ -1,16 +1,20 @@
 # coding:utf-8
 
-import mymodule.const
-from tqdm import tqdm
-from mymodule import my_func, const
 import torch  # torchをインポート
 import torchaudio  # torchaudioをインポート
-import torchmetrics  # torchmetricsをインポート
+from torchmetrics.audio import (
+    ShortTimeObjectiveIntelligibility as STOI,
+)  # torchmetricsのSTOIをインポート
+from tqdm import tqdm
 
+import mymodule.const
+from mymodule import my_func
 from mymodule.confirmation_GPU import get_device  # デバイス確認のための関数をインポート
 
 
-def stoi_evaluation(target_data: torch.Tensor, estimation_data: torch.Tensor, device=get_device()):
+def stoi_evaluation(
+    target_data: torch.Tensor, estimation_data: torch.Tensor, device=get_device()
+):
     """stoi値の算出 (torchmetricsを使用)
 
     :param target_data: 正解データのPyTorchテンソル
@@ -22,7 +26,7 @@ def stoi_evaluation(target_data: torch.Tensor, estimation_data: torch.Tensor, de
 
     # torchmetricsのSTOIメトリックをインスタンス化
     # STOIも通常、CPUで計算されるため、デバイスはCPUに限定します。
-    metric = torchmetrics.audio.STOI(fs=fs, extended=False).to(device)
+    metric = STOI(fs=fs, extended=False).to(device)
 
     # 入力テンソルが正しい型とデバイスにあることを確認
     target_data = target_data.to(torch.float32).to(device)
@@ -62,7 +66,9 @@ def stoi_main(target_dir, estimation_dir, out_path):
     for target_file, estimation_file in tqdm(zip(target_list, estimation_list)):
         """ファイル名の取得"""
         target_name, _ = my_func.get_file_name(target_file)
-        estimation_name, _ = my_func.get_file_name(estimation_file)  # get_file_listをget_file_nameに修正
+        estimation_name, _ = my_func.get_file_name(
+            estimation_file
+        )  # get_file_listをget_file_nameに修正
 
         """ データの読み込み (torchaudioを使用) """
         target_data, fs_target = torchaudio.load(target_file)

@@ -1,9 +1,9 @@
 import torch
-from tqdm import tqdm
-from mymodule import my_func
 import torchaudio  # torchaudioをインポート
-import torchmetrics  # torchmetricsをインポート
+from torchmetrics.audio import ScaleInvariantSignalDistortionRatio as SISDR
+from tqdm import tqdm
 
+from mymodule import my_func
 from mymodule.confirmation_GPU import get_device
 
 
@@ -17,7 +17,7 @@ def sisdr_evaluation(target_data: torch.Tensor, estimation_data: torch.Tensor, e
     """
     # torchmetricsのSI-SDRメトリックをインスタンス化
     # SI-SDRは通常、CPUで計算されるため、デバイスはCPUに限定します。
-    metric = torchmetrics.audio.SI_SDR().to(device)
+    metric = SISDR().to(device)
 
     # 入力テンソルが正しい型とデバイスにあることを確認
     target_data = target_data.to(torch.float32).to(device)
