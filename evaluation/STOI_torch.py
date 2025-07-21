@@ -10,7 +10,7 @@ import torchmetrics  # torchmetricsをインポート
 from mymodule.confirmation_GPU import get_device  # デバイス確認のための関数をインポート
 
 
-def stoi_evaluation(target_data: torch.Tensor, estimation_data: torch.Tensor):
+def stoi_evaluation(target_data: torch.Tensor, estimation_data: torch.Tensor, device=get_device()):
     """stoi値の算出 (torchmetricsを使用)
 
     :param target_data: 正解データのPyTorchテンソル
@@ -18,7 +18,6 @@ def stoi_evaluation(target_data: torch.Tensor, estimation_data: torch.Tensor):
     :return stoi_score: stoi値
     """
 
-    device = get_device()  # 使用可能なデバイスを取得
     fs = mymodule.const.SR  # サンプリングレートを取得
 
     # torchmetricsのSTOIメトリックをインスタンス化

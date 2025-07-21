@@ -7,7 +7,7 @@ import torchmetrics  # torchmetricsをインポート
 from mymodule.confirmation_GPU import get_device
 
 
-def sisdr_evaluation(target_data: torch.Tensor, estimation_data: torch.Tensor, eps: float = 1e-8):
+def sisdr_evaluation(target_data: torch.Tensor, estimation_data: torch.Tensor, eps: float = 1e-8, device=get_device()):
     """SI-SDRを算出 (torchmetricsを使用)
 
     :param target_data: 正解データのPyTorchテンソル
@@ -15,7 +15,6 @@ def sisdr_evaluation(target_data: torch.Tensor, estimation_data: torch.Tensor, e
     :param eps: ゼロ除算を避けるための小さな値
     :return sisdr_score: sisdr値
     """
-    device = get_device()  # 使用可能なデバイスを取得
     # torchmetricsのSI-SDRメトリックをインスタンス化
     # SI-SDRは通常、CPUで計算されるため、デバイスはCPUに限定します。
     metric = torchmetrics.audio.SI_SDR().to(device)

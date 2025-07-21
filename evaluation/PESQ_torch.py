@@ -12,14 +12,13 @@ from mymodule.confirmation_GPU import get_device
 from tqdm import tqdm
 
 
-def pesq_evaluation(target_data: torch.Tensor, estimation_data: torch.Tensor):
+def pesq_evaluation(target_data: torch.Tensor, estimation_data: torch.Tensor, device=get_device()):
     """pesq値の算出 (torchmetricsを使用)
 
     :param target_data: 正解データのPyTorchテンソル
     :param estimation_data: モデル適用後データのPyTorchテンソル
     :return pesq_score: pesq値
     """
-    device = get_device()  # 使用可能なデバイスを取得
     # torchmetricsのPESQメトリックをインスタンス化
     # fs=16000, mode='wb' (Wideband) を仮定。必要に応じて調整してください。
     # PESQは通常、CPUで計算されるため、デバイスはCPUに限定します。
