@@ -18,17 +18,20 @@ from torchmetrics.regression import MeanSquaredError as MSE
 from torchmetrics.audio import ScaleInvariantSignalDistortionRatio as SISDR
 
 import UGNNNet_DatasetClass
-from All_evaluation import main as evaluation
+
+# from All_evaluation import main as evaluation
+from All_evaluation_torch import main as evaluation
 from models.ConvTasNet_models import enhance_ConvTasNet
 from models.GCN import UGCNNet, UGATNet, UGCNNet2, UGATNet2
 from models.wave_unet import U_Net
 from mymodule import my_func, const
+from mymodule.confirmation_GPU import get_device
 
 # CUDAのメモリ管理設定
 # os.environ['PYTORCH_CUDA_ALLOC_CONF'] = 'expandable_segments:True'
 
 # CUDAの可用性をチェック
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+device = get_device()  # 使用可能なデバイスを取得
 # device = "mps"
 print(f"Using device: {device}")
 
@@ -329,7 +332,7 @@ def test(model: nn.Module, mix_dir: str, out_dir: str, model_path: str, prm: int
                     mode="constant",
                     value=0,
                 )
-            flame_windowed = flame * window  # ハニング窓を適用
+            flame_windowed = (flame * window).to(device)  # ハニング窓を適用
             """ モデルに通す(予測値の計算) """
             # print("model_input", mix_data.shape)
             estimate_flame = model(flame_windowed)  # モデルに通す
@@ -360,18 +363,17 @@ def test(model: nn.Module, mix_dir: str, out_dir: str, model_path: str, prm: int
 if __name__ == "__main__":
     """モデルの設定"""
     num_mic = 1  # マイクの数
-    num_node = 8  # ノードの数
+    num_node = 16  # ノードの数
     model_list = [
         "UGCN",
         "UGCN2",
-        "UGAT",
-        "UGAT2",
     ]  # モデルの種類  "UGCN", "UGCN2", "UGAT", "UGAT2", "ConvTasNet", "UNet"
     wave_types = [
         "noise_only",
         "reverbe_only",
         "noise_reverbe",
     ]  # 入力信号の種類 (noise_only, reverbe_only, noise_reverbe)
+
     for model_type in model_list:
         if model_type == "UGCN":
             model = UGCNNet(n_channels=num_mic, num_node=num_node).to(device)
@@ -399,29 +401,29 @@ if __name__ == "__main__":
             raise ValueError(f"Unknown model type: {model_type}")
 
         for wave_type in wave_types:
-            out_name = f"{model_type}_{wave_type}_{num_node}node_overlap"  # 出力ファイル名
-            # C:\Users\kataoka-lab\Desktop\sound_data\sample_data\speech\DEMAND\clean\train
-            train(
-                model=model,
-                mix_dir=f"{const.MIX_DATA_DIR}/GNN/subset_DEMAND_hoth_5dB_500msec/train/{wave_type}",
-                clean_dir=f"{const.MIX_DATA_DIR}/GNN/subset_DEMAND_hoth_5dB_500msec/train/clean",
-                out_path=f"{const.PTH_DIR}/{model_type}/subset_DEMAND_hoth_5dB_500msec/{out_name}.pth",
-                batchsize=1,
-                loss_func="SISDR",
-                checkpoint_path=None,
-                train_count=const.EPOCH,
-                earlystopping_threshold=5,
-            )
+            out_name = f"{model_type}_{wave_type}_{num_node}node"  # 出力ファイル名
+            # train(
+            #     model=model,
+            #     mix_dir=f"{const.MIX_DATA_DIR}/GNN/subset_DEMAND_hoth_5dB_500msec/train/{wave_type}",
+            #     clean_dir=f"{const.MIX_DATA_DIR}/GNN/subset_DEMAND_hoth_5dB_500msec/train/clean",
+            #     out_path=f"{const.PTH_DIR}/{model_type}/subset_DEMAND_hoth_5dB_500msec/{out_name}.pth",
+            #     batchsize=1,
+            #     loss_func="SISDR",
+            #     checkpoint_path=None,
+            #     train_count=const.EPOCH,
+            #     earlystopping_threshold=5,
+            # )
 
             test(
                 model=model,
                 mix_dir=f"{const.MIX_DATA_DIR}/GNN/subset_DEMAND_hoth_5dB_500msec/test/{wave_type}",
-                out_dir=f"{const.OUTPUT_WAV_DIR}/{model_type}/subset_DEMAND_hoth_5dB_500msec/{out_name}",
+                out_dir=f"{const.OUTPUT_WAV_DIR}/{model_type}/subset_DEMAND_hoth_5dB_500msec/{out_name}_overlap",
                 model_path=f"{const.PTH_DIR}/{model_type}/subset_DEMAND_hoth_5dB_500msec/{out_name}.pth",
             )
 
-            # evaluation(
-            #     target_dir=f"{const.MIX_DATA_DIR}/GNN/subset_DEMAND_hoth_5dB_500msec/test/clean",
-            #     estimation_dir=f"{const.OUTPUT_WAV_DIR}/{model_type}/subset_DEMAND_hoth_5dB_500msec/{out_name}",
-            #     out_path=f"{const.EVALUATION_DIR}/{out_name}.csv",
-            # )
+            evaluation(
+                target_dir=f"{const.MIX_DATA_DIR}/GNN/subset_DEMAND_hoth_5dB_500msec/test/clean",
+                estimation_dir=f"{const.OUTPUT_WAV_DIR}/{model_type}/subset_DEMAND_hoth_5dB_500msec/{out_name}_overlap",
+                out_path=f"{const.EVALUATION_DIR}/{out_name}_overlap.csv",
+                device=torch.device("cpu"),
+            )
