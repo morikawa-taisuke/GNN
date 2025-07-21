@@ -10,15 +10,13 @@ import torch.nn.functional as F
 import torch.optim as optim
 from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
+from torchmetrics.audio import ScaleInvariantSignalDistortionRatio as SISDR
+# Import torchmetrics for loss functions
+from torchmetrics.regression import MeanSquaredError as MSE
 from tqdm import tqdm
 from tqdm.contrib import tenumerate
 
-# Import torchmetrics for loss functions
-from torchmetrics.regression import MeanSquaredError as MSE
-from torchmetrics.audio import ScaleInvariantSignalDistortionRatio as SISDR
-
 import UGNNNet_DatasetClass
-
 # from All_evaluation import main as evaluation
 from All_evaluation_torch import main as evaluation
 from models.ConvTasNet_models import enhance_ConvTasNet
@@ -369,9 +367,9 @@ if __name__ == "__main__":
         "UGCN2",
     ]  # モデルの種類  "UGCN", "UGCN2", "UGAT", "UGAT2", "ConvTasNet", "UNet"
     wave_types = [
-        "noise_only",
-        "reverbe_only",
         "noise_reverbe",
+        "reverbe_only",
+        "noise_only",
     ]  # 入力信号の種類 (noise_only, reverbe_only, noise_reverbe)
 
     for model_type in model_list:
