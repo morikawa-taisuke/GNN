@@ -16,9 +16,9 @@ from torchmetrics.regression import MeanSquaredError as MSE
 from tqdm import tqdm
 from tqdm.contrib import tenumerate
 
-import UGNNNet_DatasetClass
 # from All_evaluation import main as evaluation
 from All_evaluation_torch import main as evaluation
+from UGNNNet_DatasetClass import AudioDataset, AudioDataset_test
 from models.ConvTasNet_models import enhance_ConvTasNet
 from models.GCN import UGCNNet, UGATNet, UGCNNet2, UGATNet2
 from models.wave_unet import U_Net
@@ -86,7 +86,7 @@ def train(
     earlystopping_count = 0
 
     """ Load dataset データセットの読み込み """
-    dataset = UGNNNet_DatasetClass.AudioDataset(clean_audio_dir=clean_dir, noisy_audio_dir=mix_dir)  # データセットの読み込み
+    dataset = AudioDataset(clean_audio_dir=clean_dir, noisy_audio_dir=mix_dir)  # データセットの読み込み
     dataset_loader = DataLoader(dataset, batch_size=batchsize, shuffle=True, pin_memory=True)
 
     # print(f"\nmodel:{model}\n")                           # モデルのアーキテクチャの出力
@@ -288,7 +288,7 @@ def test(model: nn.Module, mix_dir: str, out_dir: str, model_path: str, prm: int
     model.load_state_dict(torch.load(os.path.join(model_dir, f"BEST_{model_name}.pth"), map_location=device))
     model.eval()
 
-    dataset = UGNNNet_DatasetClass.AudioDataset_test(mix_dir)  # データセットの読み込み
+    dataset = AudioDataset_test(mix_dir)  # データセットの読み込み
     dataset_loader = DataLoader(dataset, batch_size=1, shuffle=True, pin_memory=True)
 
     for mix_data, mix_name in tqdm(dataset_loader):
