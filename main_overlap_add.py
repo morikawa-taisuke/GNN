@@ -20,7 +20,7 @@ from tqdm.contrib import tenumerate
 from All_evaluation_torch import main as evaluation
 from UGNNNet_DatasetClass import AudioDataset, AudioDataset_test
 from models.ConvTasNet_models import enhance_ConvTasNet
-from models.GCN import UGCNNet, UGATNet, UGCNNet2, UGATNet2
+from models.GNN import UGCN, UGAT, UGCN2, UGAT2
 from models.GNN_encoder import GNNEncoder
 from models.wave_unet import U_Net
 from mymodule import my_func, const
@@ -423,18 +423,18 @@ if __name__ == "__main__":
 
     for model_type in model_list:
         if model_type == "UGCN":
-            model = UGCNNet(n_channels=num_mic, num_node=num_node).to(device)
+            model = UGCN(n_channels=num_mic, num_node=num_node).to(device)
         elif model_type == "UGAT":
-            model = UGATNet(
+            model = UGAT(
                 n_channels=num_mic,
                 num_node=num_node,
                 gat_heads=4,
                 gat_dropout=0.6,
             ).to(device)
         elif model_type == "UGCN2":
-            model = UGCNNet2(n_channels=num_mic, num_node=num_node).to(device)
+            model = UGCN2(n_channels=num_mic, num_node=num_node).to(device)
         elif model_type == "UGAT2":
-            model = UGATNet2(
+            model = UGAT2(
                 n_channels=num_mic,
                 num_node=num_node,
                 gat_heads=4,

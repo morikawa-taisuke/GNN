@@ -159,21 +159,17 @@ def train(
     # print(f"\nmodel:{model}\n")                           # モデルのアーキテクチャの出力
     """ 最適化関数の設定 """
     optimizer = optim.Adam(model.parameters(), lr=0.001)  # optimizerを選択(Adam)
-    if loss_func != "SISDR":
-        loss_function = nn.MSELoss().to(
-            device
-        )  # 損失関数に使用する式の指定(最小二乗誤差)
+    if loss_func != "SISDR":  # 損失関数に使用する式の指定(最小二乗誤差)
+        loss_function = nn.MSELoss().to(device)
 
     """ チェックポイントの設定 """
     if checkpoint_path != None:
         print("restart_training")
         checkpoint = torch.load(checkpoint_path)  # checkpointの読み込み
-        model.load_state_dict(
-            checkpoint["model_state_dict"]
-        )  # 学習途中のモデルの読み込み
-        optimizer.load_state_dict(
-            checkpoint["optimizer_state_dict"]
-        )  # オプティマイザの読み込み
+        # 学習途中のモデルの読み込み
+        model.load_state_dict(checkpoint["model_state_dict"])
+        # オプティマイザの読み込み
+        optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
         # optimizerのstateを現在のdeviceに移す。これをしないと、保存前後でdeviceの不整合が起こる可能性がある。
         for state in optimizer.state.values():
             for k, v in state.items():
@@ -515,9 +511,6 @@ if __name__ == "__main__":
             "noise_reverbe",
         ]  # 入寮信号の種類 (noise_only, reverbe_only, noise_reverbe)
         for wave_type in wave_types:
-            # if wave_type == "noise_only" and model_type in ["SpeqGAT"]:
-            #     print(f"Skipping {model_type} with {wave_type} due to model limitations.")
-            #     continue
             out_name = (
                 f"{model_type}_{wave_type}_{num_node}node_{n_fft}fft"  # 出力ファイル名
             )
