@@ -128,7 +128,7 @@ class GAT(nn.Module):
         return x
 
 
-class GNNEncoderUNet(nn.Module):
+class GNNEncoder(nn.Module):
     """
     GNNをエンコーダとして、その後にU-Netを実装した音声強調/分離モデル。
     """
@@ -136,9 +136,9 @@ class GNNEncoderUNet(nn.Module):
     def __init__(
         self,
         n_channels,
-        n_classes,
+        n_classes=1,
         hidden_dim_gnn=32,
-        num_node_gnn=8,
+        num_node=8,
         gnn_type="GCN",
         gnn_heads=4,
         gnn_dropout=0.6,
@@ -148,15 +148,15 @@ class GNNEncoderUNet(nn.Module):
             n_channels (int): 入力音声波形のチャネル数 (例: モノラルなら1)。
             n_classes (int): 出力マスクのチャネル数 (通常は1)。
             hidden_dim_gnn (int): GNNの隠れ層の次元数。
-            num_node_gnn (int): k-NNグラフを作成する際の近傍ノード数。
+            num_node (int): k-NNグラフを作成する際の近傍ノード数。
             gnn_type (str): 使用するGNNの種類 ('GCN' または 'GAT')。
             gnn_heads (int): GATの場合のマルチヘッドアテンションのヘッド数。
             gnn_dropout (float): GATの場合のドロップアウト率。
         """
-        super(GNNEncoderUNet, self).__init__()
+        super(GNNEncoder, self).__init__()
         self.n_channels = n_channels
         self.n_classes = n_classes
-        self.num_node_gnn = num_node_gnn
+        self.num_node_gnn = num_node
         self.gnn_type = gnn_type
 
         # 1D Conv Encoder (Waveform -> Latent Feature)
@@ -234,8 +234,12 @@ class GNNEncoderUNet(nn.Module):
         Returns:
             torch.Tensor: エッジインデックス [2, num_edges]
         """
-        batch_indices = torch.arange(batch_size, device=x_nodes_batched.device).repeat_interleave(num_nodes_per_sample)
-        edge_index = knn_graph(x=x_nodes_batched, k=k, batch=batch_indices, loop=False)  # 自己ループなし
+        batch_indices = torch.arange(
+            batch_size, device=x_nodes_batched.device
+        ).repeat_interleave(num_nodes_per_sample)
+        edge_index = knn_graph(
+            x=x_nodes_batched, k=k, batch=batch_indices, loop=False
+        )  # 自己ループなし
         return edge_index
 
     def forward(self, x_waveform):
@@ -326,7 +330,7 @@ class GNNEncoderUNet(nn.Module):
             # If multiple classes are intended, this needs more specific logic.
             # For typical audio enhancement, n_classes=1 (single mask).
             print(
-                f"Warning: GNNEncoderUNet - n_classes > 1 ({self.n_classes}). Using first mask channel."
+                f"Warning: GNNEncoder - n_classes > 1 ({self.n_classes}). Using first mask channel."
             )
             masked_features = x_gnn_out_reshaped * mask_resized[:, 0, :, :]
 
@@ -356,23 +360,19 @@ if __name__ == "__main__":
     length = 16000 * 3  # 音声の長さ (サンプル数): 3秒
 
     # GNNEncoderUNetモデルのインスタンス化 (GCNタイプ)
-    print("\n--- GNNEncoderUNet (GCN as Encoder) ---")
-    gnn_encoder_unet_gcn = GNNEncoderUNet(
-        n_channels=num_mic,
-        n_classes=1,  # 音声強調の場合、通常は1 (マスクのチャンネル数)
-        hidden_dim_gnn=32,
-        num_node_gnn=8,  # k-NNのk
-        gnn_type="GCN",
+    print("\n--- GNNEncoder (GCN as Encoder) ---")
+    gnn_encoder_unet_gcn = GNNEncoder(
+        n_channels=num_mic, n_classes=1, hidden_dim_gnn=32, num_node=8, gnn_type="GCN"
     ).to(device)
     print_model_summary(gnn_encoder_unet_gcn, batch, num_mic, length)
 
     # GNNEncoderUNetモデルのインスタンス化 (GATタイプ)
-    print("\n--- GNNEncoderUNet (GAT as Encoder) ---")
-    gnn_encoder_unet_gat = GNNEncoderUNet(
+    print("\n--- GNNEncoder (GAT as Encoder) ---")
+    gnn_encoder_unet_gat = GNNEncoder(
         n_channels=num_mic,
         n_classes=1,
         hidden_dim_gnn=32,
-        num_node_gnn=8,
+        num_node=8,
         gnn_type="GAT",
         gnn_heads=4,
         gnn_dropout=0.6,
