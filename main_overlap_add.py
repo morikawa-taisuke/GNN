@@ -21,6 +21,7 @@ from All_evaluation_torch import main as evaluation
 from UGNNNet_DatasetClass import AudioDataset, AudioDataset_test
 from models.ConvTasNet_models import enhance_ConvTasNet
 from models.GCN import UGCNNet, UGATNet, UGCNNet2, UGATNet2
+from models.GNN_encoder import GNNEncoder
 from models.wave_unet import U_Net
 from mymodule import my_func, const
 from mymodule.confirmation_GPU import get_device
@@ -74,9 +75,13 @@ def train(
     """ その他の設定 """
     out_path = Path(out_path)  # path型に変換
     out_name, out_dir = out_path.stem, out_path.parent  # ファイル名とディレクトリを分離
-    writer = SummaryWriter(log_dir=f"{const.LOG_DIR}\\{out_name}")  # logの保存先の指定("tensorboard --logdir ./logs"で確認できる)
+    writer = SummaryWriter(
+        log_dir=f"{const.LOG_DIR}\\{out_name}"
+    )  # logの保存先の指定("tensorboard --logdir ./logs"で確認できる)
     now = my_func.get_now_time()
-    csv_path = os.path.join(const.LOG_DIR, out_name, f"{out_name}_{now}.csv")  # CSVファイルのパス
+    csv_path = os.path.join(
+        const.LOG_DIR, out_name, f"{out_name}_{now}.csv"
+    )  # CSVファイルのパス
     my_func.make_dir(csv_path)
     with open(csv_path, "w") as csv_file:  # ファイルオープン
         csv_file.write(f"dataset,out_name,loss_func\n{mix_dir},{out_path},{loss_func}")
@@ -86,8 +91,12 @@ def train(
     earlystopping_count = 0
 
     """ Load dataset データセットの読み込み """
-    dataset = AudioDataset(clean_audio_dir=clean_dir, noisy_audio_dir=mix_dir)  # データセットの読み込み
-    dataset_loader = DataLoader(dataset, batch_size=batchsize, shuffle=True, pin_memory=True)
+    dataset = AudioDataset(
+        clean_audio_dir=clean_dir, noisy_audio_dir=mix_dir
+    )  # データセットの読み込み
+    dataset_loader = DataLoader(
+        dataset, batch_size=batchsize, shuffle=True, pin_memory=True
+    )
 
     # print(f"\nmodel:{model}\n")                           # モデルのアーキテクチャの出力
     """ 最適化関数の設定 """
@@ -103,8 +112,12 @@ def train(
     if checkpoint_path != None:
         print("restart_training")
         checkpoint = torch.load(checkpoint_path)  # checkpointの読み込み
-        model.load_state_dict(checkpoint["model_state_dict"])  # 学習途中のモデルの読み込み
-        optimizer.load_state_dict(checkpoint["optimizer_state_dict"])  # オプティマイザの読み込み
+        model.load_state_dict(
+            checkpoint["model_state_dict"]
+        )  # 学習途中のモデルの読み込み
+        optimizer.load_state_dict(
+            checkpoint["optimizer_state_dict"]
+        )  # オプティマイザの読み込み
         # optimizerのstateを現在のdeviceに移す。これをしないと、保存前後でdeviceの不整合が起こる可能性がある。
         for state in optimizer.state.values():
             for k, v in state.items():
@@ -132,37 +145,38 @@ def train(
         print("Train Epoch:", epoch)  # 学習回数の表示
         model_loss_sum = 0  # 総損失の初期化
         for _, (mix_data, target_data) in tenumerate(dataset_loader):
-            mix_data, target_data = mix_data.to(device), target_data.to(device)  # データをGPUに移動
+            # データをGPUに移動
+            mix_data, target_data = mix_data.to(device), target_data.to(device)
 
             """ 勾配のリセット """
             optimizer.zero_grad()  # optimizerの初期化
 
             """ データの整形 """
-            mix_data = mix_data.to(torch.float32)  # target_dataのタイプを変換 int16→float32
-            target_data = target_data.to(torch.float32)  # target_dataのタイプを変換 int16→float32
+            # タイプを変換 int16→float32
+            mix_data = mix_data.to(torch.float32)
+            target_data = target_data.to(torch.float32)
 
             """ ↓↓↓ オーバーラップアドの導入 ↓↓↓ """
-            batchsize, num_channels, signal_length = mix_data.shape  # データの形状を取得
+            batchsize, num_channels, signal_length = (
+                mix_data.shape
+            )  # データの形状を取得
             flame_size = int(const.SR * 0.1)  # フレームサイズ（100ms）
             hop_size = flame_size // 2  # ホップサイズはフィルタ長の半分
+            # ゼロパディング
             mix_padded = torch.cat(
                 (
                     torch.zeros(batchsize, num_channels, hop_size, device=device),
                     mix_data,
                 ),
                 dim=2,
-            ).requires_grad_(
-                True
-            )  # 入力信号の前に0を追加
+            ).requires_grad_(True)
             target_padded = torch.cat(
                 (
                     torch.zeros(batchsize, num_channels, hop_size, device=device),
                     target_data,
                 ),
                 dim=2,
-            ).requires_grad_(
-                True
-            )  # 入力信号の前に0を追加
+            ).requires_grad_(True)
             estimation = torch.zeros(mix_padded.shape, device=device)  # 出力用の配列
             num_flame = mix_padded.shape[-1] // hop_size  # フレーム数の計算
 
@@ -174,7 +188,9 @@ def train(
                 flame = mix_padded[:, :, start:end]
 
                 # 窓かけ
-                window = torch.hann_window(flame_size, requires_grad=True, device=device)
+                window = torch.hann_window(
+                    flame_size, requires_grad=True, device=device
+                )
                 if flame.shape[-1] != flame_size:
                     # フレームサイズが異なる場合は、フレームサイズに合わせて切り詰める
                     flame = F.pad(
@@ -189,8 +205,13 @@ def train(
                 estimate_flame = model(flame_windowed)  # モデルに通す
 
                 # 出力に結果を加算
-                end_index = min(estimation.shape[-1], end)  # 配列の長さを超えないように調整
-                estimation[:, :, start:end_index] = estimation[:, :, start:end_index] + estimate_flame[:, :, : end_index - start]
+                end_index = min(
+                    estimation.shape[-1], end
+                )  # 配列の長さを超えないように調整
+                estimation[:, :, start:end_index] = (
+                    estimation[:, :, start:end_index]
+                    + estimate_flame[:, :, : end_index - start]
+                )
             """ ↑↑↑ オーバーラップアドの導入 ↑↑↑ """
 
             """ データの整形 """
@@ -204,12 +225,20 @@ def train(
                 case "SISDR":
                     model_loss = -1 * loss_metric(estimation, target_data)
                 case "wave_MSE":
-                    model_loss = loss_metric(estimation, target_padded)  # 時間波形上でMSEによる損失関数の計算
+                    model_loss = loss_metric(
+                        estimation, target_padded
+                    )  # 時間波形上でMSEによる損失関数の計算
                 case "stft_MSE":
                     """周波数軸に変換"""
-                    stft_estimate_data = torch.stft(estimation[0], n_fft=1024, return_complex=False)
-                    stft_target_data = torch.stft(target_padded[0], n_fft=1024, return_complex=False)
-                    model_loss = loss_metric(stft_estimate_data, stft_target_data)  # 時間周波数上MSEによる損失の計算
+                    stft_estimate_data = torch.stft(
+                        estimation[0], n_fft=1024, return_complex=False
+                    )
+                    stft_target_data = torch.stft(
+                        target_padded[0], n_fft=1024, return_complex=False
+                    )
+                    model_loss = loss_metric(
+                        stft_estimate_data, stft_target_data
+                    )  # 時間周波数上MSEによる損失の計算
 
             # print(f"model_loss: {model_loss.item()}")  # 損失の出力
             model_loss_sum += model_loss  # 損失の加算
@@ -248,7 +277,9 @@ def train(
         # best_lossとmodel_loss_sumを比較
         if model_loss_sum < best_loss:  # model_lossのほうが小さい場合
             print(f"{epoch:3} [epoch] | {model_loss_sum:.6} <- {best_loss:.6}")
-            torch.save(model.to(device).state_dict(), f"{out_dir}/BEST_{out_name}.pth")  # 出力ファイルの保存
+            torch.save(
+                model.to(device).state_dict(), f"{out_dir}/BEST_{out_name}.pth"
+            )  # 出力ファイルの保存
             best_loss = model_loss_sum  # best_lossの変更
             earlystopping_count = 0
             estimation = estimation.cpu()
@@ -261,11 +292,15 @@ def train(
             if (epoch > 100) and (earlystopping_count > earlystopping_threshold):
                 break
         if epoch == 100:
-            torch.save(model.to(device).state_dict(), f"{out_dir}/{out_name}_{epoch}.pth")  # 出力ファイルの保存
+            torch.save(
+                model.to(device).state_dict(), f"{out_dir}/{out_name}_{epoch}.pth"
+            )  # 出力ファイルの保存
 
     """ 学習モデル(pthファイル)の出力 """
     print("model save")
-    torch.save(model.to(device).state_dict(), f"{out_dir}/{out_name}_{epoch}.pth")  # 出力ファイルの保存
+    torch.save(
+        model.to(device).state_dict(), f"{out_dir}/{out_name}_{epoch}.pth"
+    )  # 出力ファイルの保存
 
     writer.close()
 
@@ -276,16 +311,25 @@ def train(
     print(f"time：{str(time_h)}h")  # 出力
 
 
-def test(model: nn.Module, mix_dir: str, out_dir: str, model_path: str, prm: int = const.SR):
+def test(
+    model: nn.Module, mix_dir: str, out_dir: str, model_path: str, prm: int = const.SR
+):
     # filelist_mixdown = my_func.get_file_list(mix_dir)
     # print('number of mixdown file', len(filelist_mixdown))
 
     # ディレクトリを作成
     my_func.make_dir(out_dir)
     model_path = Path(model_path)  # path型に変換
-    model_dir, model_name = (model_path.parent, model_path.stem)  # ファイル名とディレクトリを分離
+    model_dir, model_name = (
+        model_path.parent,
+        model_path.stem,
+    )  # ファイル名とディレクトリを分離
 
-    model.load_state_dict(torch.load(os.path.join(model_dir, f"BEST_{model_name}.pth"), map_location=device))
+    model.load_state_dict(
+        torch.load(
+            os.path.join(model_dir, f"BEST_{model_name}.pth"), map_location=device
+        )
+    )
     model.eval()
 
     dataset = AudioDataset_test(mix_dir)  # データセットの読み込み
@@ -337,7 +381,10 @@ def test(model: nn.Module, mix_dir: str, out_dir: str, model_path: str, prm: int
 
             # 出力に結果を加算
             end_index = min(estimation.shape[-1], end)  # 配列の長さを超えないように調整
-            estimation[:, :, start:end_index] = estimation[:, :, start:end_index] + estimate_flame[:, :, : end_index - start]
+            estimation[:, :, start:end_index] = (
+                estimation[:, :, start:end_index]
+                + estimate_flame[:, :, : end_index - start]
+            )
         """ ↑↑↑ オーバーラップアドの導入 ↑↑↑ """
 
         estimation = estimation.cpu()
@@ -348,7 +395,9 @@ def test(model: nn.Module, mix_dir: str, out_dir: str, model_path: str, prm: int
 
         # 正規化
         mix_max = torch.max(mix_data)  # mix_waveの最大値を取得
-        data_to_write = data_to_write / np.max(data_to_write) * mix_max.cpu().detach().numpy()
+        data_to_write = (
+            data_to_write / np.max(data_to_write) * mix_max.cpu().detach().numpy()
+        )
 
         # 保存
         # ファイル名とフォルダ名を結合してパス文字列を作成
@@ -363,9 +412,9 @@ if __name__ == "__main__":
     num_mic = 1  # マイクの数
     num_node = 16  # ノードの数
     model_list = [
-        "UGCN",
-        "UGCN2",
-    ]  # モデルの種類  "UGCN", "UGCN2", "UGAT", "UGAT2", "ConvTasNet", "UNet"
+        "GCNEncoder",
+        "GATEncoder",
+    ]  # モデルの種類  "UGCN", "UGCN2", "UGAT", "UGAT2", "ConvTasNet", "UNet", "GCNEncoder", "GATEncoder"
     wave_types = [
         "noise_reverbe",
         "reverbe_only",
@@ -395,22 +444,30 @@ if __name__ == "__main__":
             model = enhance_ConvTasNet().to(device)
         elif model_type == "UNet":
             model = U_Net().to(device)
+        elif model_type == "GCNEncoder":
+            model = GNNEncoder(
+                n_channels=num_mic, gnn_type="GCN", num_node=num_node
+            ).to(device)
+        elif model_type == "GATEncoder":
+            model = GNNEncoder(
+                n_channels=num_mic, gnn_type="GAT", num_node=num_node
+            ).to(device)
         else:
             raise ValueError(f"Unknown model type: {model_type}")
 
         for wave_type in wave_types:
             out_name = f"{model_type}_{wave_type}_{num_node}node"  # 出力ファイル名
-            # train(
-            #     model=model,
-            #     mix_dir=f"{const.MIX_DATA_DIR}/GNN/subset_DEMAND_hoth_5dB_500msec/train/{wave_type}",
-            #     clean_dir=f"{const.MIX_DATA_DIR}/GNN/subset_DEMAND_hoth_5dB_500msec/train/clean",
-            #     out_path=f"{const.PTH_DIR}/{model_type}/subset_DEMAND_hoth_5dB_500msec/{out_name}.pth",
-            #     batchsize=1,
-            #     loss_func="SISDR",
-            #     checkpoint_path=None,
-            #     train_count=const.EPOCH,
-            #     earlystopping_threshold=5,
-            # )
+            train(
+                model=model,
+                mix_dir=f"{const.MIX_DATA_DIR}/GNN/subset_DEMAND_hoth_5dB_500msec/train/{wave_type}",
+                clean_dir=f"{const.MIX_DATA_DIR}/GNN/subset_DEMAND_hoth_5dB_500msec/train/clean",
+                out_path=f"{const.PTH_DIR}/{model_type}/subset_DEMAND_hoth_5dB_500msec/{out_name}.pth",
+                batchsize=1,
+                loss_func="SISDR",
+                checkpoint_path=None,
+                train_count=const.EPOCH,
+                earlystopping_threshold=5,
+            )
 
             test(
                 model=model,
