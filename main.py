@@ -17,7 +17,6 @@ from tqdm import tqdm
 from tqdm.contrib import tenumerate
 
 import UGNNNet_DatasetClass
-from All_evaluation import main as evaluation
 from models.ConvTasNet_models import enhance_ConvTasNet
 from models.GNN import UGCN, UGAT, UGCN2, UGAT2
 from models.GNN_encoder import GNNEncoder
@@ -394,8 +393,8 @@ if __name__ == "__main__":
                 model_path=f"{const.PTH_DIR}/{model_type}/subset_DEMAND_hoth_5dB_500msec/{out_name}.pth",
             )
 
-            evaluation(
-                target_dir=f"{const.MIX_DATA_DIR}/GNN/subset_DEMAND_hoth_5dB_500msec/test/clean",
-                estimation_dir=f"{const.OUTPUT_WAV_DIR}/{model_type}/subset_DEMAND_hoth_5dB_500msec/{out_name}",
-                out_path=f"{const.EVALUATION_DIR}/{out_name}.csv",
-            )
+            # evaluation(
+            #     target_dir=f"{const.MIX_DATA_DIR}/GNN/subset_DEMAND_hoth_5dB_500msec/test/clean",
+            #     estimation_dir=f"{const.OUTPUT_WAV_DIR}/{model_type}/subset_DEMAND_hoth_5dB_500msec/{out_name}",
+            #     out_path=f"{const.EVALUATION_DIR}/{out_name}.csv",
+            # )
