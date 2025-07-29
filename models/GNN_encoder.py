@@ -19,54 +19,105 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 print(f"GNN_encoder.py using device: {device}")
 
 
-def visualize_graph_connections(x_nodes, edge_index, max_nodes=50):
+def visualize_spectral_graph(
+    x_nodes, edge_index, freq_bins, time_frames, max_time_frames=30
+):
     """
-    GNNのグラフ構造を可視化します。
+    スペクトログラムの格子構造を保持したGNNのグラフ構造を可視化します。
 
     Args:
         x_nodes: ノードの特徴量 [N, C]
         edge_index: エッジの接続関係 [2, E]
-        max_nodes: 表示する最大ノード数
+        freq_bins: 周波数ビンの数
+        time_frames: 時間フレームの数
+        max_time_frames: 表示する最大時間フレーム数
     """
-    # エッジの情報を表示
-    print(f"Total nodes: {x_nodes.size(0)}")
-    print(f"Total edges: {edge_index.size(1)}")
+    # 表示する時間フレームを制限
+    time_frames = min(time_frames, max_time_frames)
 
-    # 最初のmax_nodes個のノードとそれらに関連するエッジだけを表示
-    mask = (edge_index[0] < max_nodes) & (edge_index[1] < max_nodes)
-    edge_index_subset = edge_index[:, mask]
-
-    # NetworkXグラフの作成
+    # グラフの作成
     G = nx.Graph()
 
-    # ノードの追加
-    for i in range(min(max_nodes, x_nodes.size(0))):
-        G.add_node(i)
+    # ノードの位置を格子状に配置
+    pos = {}
+    node_labels = {}
 
-    # エッジの追加
+    # ノードの追加と位置の設定
+    for t in range(time_frames):
+        for f in range(freq_bins):
+            node_idx = t * freq_bins + f
+            G.add_node(node_idx)
+            # 位置を設定（x座標が時間、y座標が周波数）
+            pos[node_idx] = (t, f)
+            node_labels[node_idx] = f"{node_idx}"
+
+    # エッジの追加（表示範囲内のエッジのみ）
+    max_node_idx = time_frames * freq_bins
+    mask = (edge_index[0] < max_node_idx) & (edge_index[1] < max_node_idx)
+    edge_index_subset = edge_index[:, mask]
     edges = edge_index_subset.t().cpu().numpy()
     G.add_edges_from(edges)
 
     # グラフの描画
-    plt.figure(figsize=(10, 10))
-    pos = nx.spring_layout(G)
-    nx.draw(
-        G,
-        pos,
-        with_labels=True,
-        node_color="lightblue",
-        node_size=500,
-        font_size=10,
-        font_weight="bold",
-    )
-    plt.title(f"Graph visualization (showing first {max_nodes} nodes)")
+    plt.figure(figsize=(15, 10))
+
+    # ノードの描画
+    nx.draw_networkx_nodes(G, pos, node_color="lightblue", node_size=100)
+
+    # エッジの描画
+    nx.draw_networkx_edges(
+        G, pos, alpha=0.2, width=0.5  # エッジの透明度
+    )  # エッジの太さ
+
+    # ラベルの描画（オプション）
+    # nx.draw_networkx_labels(G, pos, node_labels, font_size=8)
+
+    plt.title(f"Spectral Graph Visualization\n(Showing {freq_bins}x{time_frames} grid)")
+    plt.xlabel("Time Frames")
+    plt.ylabel("Frequency Bins")
+
+    # グリッドの表示
+    plt.grid(True, linestyle="--", alpha=0.3)
+
+    # 軸の範囲を設定
+    plt.xlim(-1, time_frames)
+    plt.ylim(-1, freq_bins)
+
     plt.show()
 
     # 接続統計の表示
     degrees = [G.degree(n) for n in G.nodes()]
-    print(f"\nAverage degree: {np.mean(degrees):.2f}")
+    print(f"\nGraph Statistics:")
+    print(f"Total nodes: {len(G.nodes())}")
+    print(f"Total edges: {len(G.edges())}")
+    print(f"Average degree: {np.mean(degrees):.2f}")
     print(f"Min degree: {np.min(degrees)}")
     print(f"Max degree: {np.max(degrees)}")
+
+
+# 使用例
+def forward(self, x_magnitude, complex_spec_input, original_length=None):
+    # ... 既存のコード ...
+
+    batch_size, num_channels_input, height_input, width_input = x_magnitude.size()
+    x_nodes_for_gnn = (
+        x_magnitude.reshape(batch_size, num_channels_input, -1)
+        .permute(0, 2, 1)
+        .reshape(-1, num_channels_input)
+    )
+
+    # k-NNグラフの作成
+    num_nodes_per_sample = height_input * width_input
+    edge_index = self.create_knn_graph(
+        x_nodes_for_gnn, self.num_node_gnn, batch_size, num_nodes_per_sample
+    )
+
+    # グラフの可視化（デバッグ時のみ実行）
+    visualize_spectral_graph(
+        x_nodes_for_gnn, edge_index, freq_bins=height_input, time_frames=width_input
+    )
+
+    # ... 残りのコード ...
 
 
 class DoubleConv(nn.Module):
@@ -329,7 +380,12 @@ class GNNEncoder(nn.Module):
             edge_index = torch.empty((2, 0), dtype=torch.long, device=x_nodes.device)
 
         # グラフの可視化（デバッグ時のみ実行）
-        visualize_graph_connections(x_nodes, edge_index)
+        visualize_spectral_graph(
+            x_nodes,
+            edge_index,
+            freq_bins=feature_dim_encoded,
+            time_frames=length_encoded,
+        )
 
         # 2. GNN Encoder (Process nodes using GNN)
         x_gnn_out_flat = self.gnn_encoder(
