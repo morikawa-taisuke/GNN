@@ -375,17 +375,17 @@ if __name__ == "__main__":
         for wave_type in wave_types:
             out_name = f"{model_type}_{wave_type}_{num_node}node"  # 出力ファイル名
             # C:\Users\kataoka-lab\Desktop\sound_data\sample_data\speech\DEMAND\clean\train
-            train(
-                model=model,
-                mix_dir=f"{const.MIX_DATA_DIR}/GNN/subset_DEMAND_hoth_5dB_500msec/train/{wave_type}",
-                clean_dir=f"{const.MIX_DATA_DIR}/GNN/subset_DEMAND_hoth_5dB_500msec/train/clean",
-                out_path=f"{const.PTH_DIR}/{model_type}/subset_DEMAND_hoth_5dB_500msec/{out_name}.pth",
-                batchsize=1,
-                loss_func="SISDR",
-                checkpoint_path=None,
-                train_count=const.EPOCH,
-                earlystopping_threshold=5,
-            )
+            # train(
+            #     model=model,
+            #     mix_dir=f"{const.MIX_DATA_DIR}/GNN/subset_DEMAND_hoth_5dB_500msec/train/{wave_type}",
+            #     clean_dir=f"{const.MIX_DATA_DIR}/GNN/subset_DEMAND_hoth_5dB_500msec/train/clean",
+            #     out_path=f"{const.PTH_DIR}/{model_type}/subset_DEMAND_hoth_5dB_500msec/{out_name}.pth",
+            #     batchsize=1,
+            #     loss_func="SISDR",
+            #     checkpoint_path=None,
+            #     train_count=const.EPOCH,
+            #     earlystopping_threshold=5,
+            # )
 
             test(
                 model=model,
