@@ -1,5 +1,9 @@
 import os
 
+import matplotlib.pyplot as plt
+import networkx as nx
+# 追加のインポート
+import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -13,6 +17,56 @@ os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "expandable_segments:True"
 # CUDAが利用可能かチェックし、利用可能ならGPUを、そうでなければCPUを使用するデバイスとして設定します。
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 print(f"GNN_encoder.py using device: {device}")
+
+
+def visualize_graph_connections(x_nodes, edge_index, max_nodes=50):
+    """
+    GNNのグラフ構造を可視化します。
+
+    Args:
+        x_nodes: ノードの特徴量 [N, C]
+        edge_index: エッジの接続関係 [2, E]
+        max_nodes: 表示する最大ノード数
+    """
+    # エッジの情報を表示
+    print(f"Total nodes: {x_nodes.size(0)}")
+    print(f"Total edges: {edge_index.size(1)}")
+
+    # 最初のmax_nodes個のノードとそれらに関連するエッジだけを表示
+    mask = (edge_index[0] < max_nodes) & (edge_index[1] < max_nodes)
+    edge_index_subset = edge_index[:, mask]
+
+    # NetworkXグラフの作成
+    G = nx.Graph()
+
+    # ノードの追加
+    for i in range(min(max_nodes, x_nodes.size(0))):
+        G.add_node(i)
+
+    # エッジの追加
+    edges = edge_index_subset.t().cpu().numpy()
+    G.add_edges_from(edges)
+
+    # グラフの描画
+    plt.figure(figsize=(10, 10))
+    pos = nx.spring_layout(G)
+    nx.draw(
+        G,
+        pos,
+        with_labels=True,
+        node_color="lightblue",
+        node_size=500,
+        font_size=10,
+        font_weight="bold",
+    )
+    plt.title(f"Graph visualization (showing first {max_nodes} nodes)")
+    plt.show()
+
+    # 接続統計の表示
+    degrees = [G.degree(n) for n in G.nodes()]
+    print(f"\nAverage degree: {np.mean(degrees):.2f}")
+    print(f"Min degree: {np.min(degrees)}")
+    print(f"Max degree: {np.max(degrees)}")
 
 
 class DoubleConv(nn.Module):
@@ -273,6 +327,9 @@ class GNNEncoder(nn.Module):
             )
         else:
             edge_index = torch.empty((2, 0), dtype=torch.long, device=x_nodes.device)
+
+        # グラフの可視化（デバッグ時のみ実行）
+        visualize_graph_connections(x_nodes, edge_index)
 
         # 2. GNN Encoder (Process nodes using GNN)
         x_gnn_out_flat = self.gnn_encoder(
