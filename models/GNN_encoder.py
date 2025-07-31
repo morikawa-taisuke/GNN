@@ -91,25 +91,6 @@ def visualize_spectral_graph(x_nodes, edge_index, freq_bins, time_frames, max_ti
     print(f"最大次数: {np.max(degrees)}")
 
 
-# 使用例
-def forward(self, x_magnitude, complex_spec_input, original_length=None):
-    # ... 既存のコード ...
-
-    batch_size, num_channels_input, height_input, width_input = x_magnitude.size()
-    x_nodes_for_gnn = (
-        x_magnitude.reshape(batch_size, num_channels_input, -1).permute(0, 2, 1).reshape(-1, num_channels_input)
-    )
-
-    # k-NNグラフの作成
-    num_nodes_per_sample = height_input * width_input
-    edge_index = self.create_knn_graph(x_nodes_for_gnn, self.num_node_gnn, batch_size, num_nodes_per_sample)
-
-    # グラフの可視化（デバッグ時のみ実行）
-    visualize_spectral_graph(x_nodes_for_gnn, edge_index, freq_bins=height_input, time_frames=width_input)
-
-    # ... 残りのコード ...
-
-
 class DoubleConv(nn.Module):
     """(畳み込み => バッチ正規化 => ReLU) を2回繰り返すブロック"""
 
@@ -265,7 +246,7 @@ class GNNEncoder(nn.Module):
         # U-Netエンコーダパス
         # GNNの出力は [B, C_feat, L_encoded] となり、これをunsqueezeしてU-Netの2DConvの入力とする
         # したがって、incのin_channelsは1となる
-        self.inc = DoubleConv(1, 64)
+        self.inc = DoubleConv(512, 64)
         self.down1 = Down(64, 128)
         self.down2 = Down(128, 256)
         self.down3 = Down(256, 512)
@@ -333,12 +314,12 @@ class GNNEncoder(nn.Module):
             edge_index = torch.empty((2, 0), dtype=torch.long, device=x_nodes.device)
 
         # グラフの可視化（デバッグ時のみ実行）
-        visualize_spectral_graph(
-            x_nodes,
-            edge_index,
-            freq_bins=feature_dim_encoded,
-            time_frames=length_encoded,
-        )
+        # visualize_spectral_graph(
+        #     x_nodes,
+        #     edge_index,
+        #     freq_bins=feature_dim_encoded,
+        #     time_frames=length_encoded,
+        # )
 
         # 2. GNNエンコーダ (GNNを使用してノードを処理)
         x_gnn_out_flat = self.gnn_encoder(x_nodes, edge_index)  # [B * L_encoded, feature_dim_encoded]
@@ -368,13 +349,14 @@ class GNNEncoder(nn.Module):
         mask_target_H = feature_dim_encoded
         mask_target_W = length_encoded
 
-        if mask_pred_raw.size(2) != mask_target_H or mask_pred_raw.size(3) != mask_target_W:
+        if mask_pred_raw.size(2) != length_encoded:
             mask_resized = F.interpolate(
                 mask_pred_raw,
-                size=(mask_target_H, mask_target_W),
-                mode="bilinear",
+                size=length_encoded,
+                mode="linear",  # 1次元データには'linear'を使用
                 align_corners=False,
             )
+
         else:
             mask_resized = mask_pred_raw
 

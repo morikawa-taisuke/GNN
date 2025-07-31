@@ -17,6 +17,7 @@ from tqdm import tqdm
 from tqdm.contrib import tenumerate
 
 import UGNNNet_DatasetClass
+from All_evaluation import main as evaluation
 from models.ConvTasNet_models import enhance_ConvTasNet
 from models.GNN import UGCN, UGAT, UGCN2, UGAT2
 from models.GNN_encoder import GNNEncoder
@@ -372,19 +373,19 @@ if __name__ == "__main__":
             raise ValueError(f"Unknown model type: {model_type}")
 
         for wave_type in wave_types:
-            out_name = f"{model_type}_{wave_type}_{num_node}node"  # 出力ファイル名
+            out_name = f"1D_{model_type}_{wave_type}_{num_node}node"  # 出力ファイル名
             # C:\Users\kataoka-lab\Desktop\sound_data\sample_data\speech\DEMAND\clean\train
-            # train(
-            #     model=model,
-            #     mix_dir=f"{const.MIX_DATA_DIR}/GNN/subset_DEMAND_hoth_5dB_500msec/train/{wave_type}",
-            #     clean_dir=f"{const.MIX_DATA_DIR}/GNN/subset_DEMAND_hoth_5dB_500msec/train/clean",
-            #     out_path=f"{const.PTH_DIR}/{model_type}/subset_DEMAND_hoth_5dB_500msec/{out_name}.pth",
-            #     batchsize=1,
-            #     loss_func="SISDR",
-            #     checkpoint_path=None,
-            #     train_count=const.EPOCH,
-            #     earlystopping_threshold=5,
-            # )
+            train(
+                model=model,
+                mix_dir=f"{const.MIX_DATA_DIR}/GNN/subset_DEMAND_hoth_5dB_500msec/train/{wave_type}",
+                clean_dir=f"{const.MIX_DATA_DIR}/GNN/subset_DEMAND_hoth_5dB_500msec/train/clean",
+                out_path=f"{const.PTH_DIR}/{model_type}/subset_DEMAND_hoth_5dB_500msec/{out_name}.pth",
+                batchsize=1,
+                loss_func="SISDR",
+                checkpoint_path=None,
+                train_count=const.EPOCH,
+                earlystopping_threshold=5,
+            )
 
             test(
                 model=model,
@@ -393,8 +394,8 @@ if __name__ == "__main__":
                 model_path=f"{const.PTH_DIR}/{model_type}/subset_DEMAND_hoth_5dB_500msec/{out_name}.pth",
             )
 
-            # evaluation(
-            #     target_dir=f"{const.MIX_DATA_DIR}/GNN/subset_DEMAND_hoth_5dB_500msec/test/clean",
-            #     estimation_dir=f"{const.OUTPUT_WAV_DIR}/{model_type}/subset_DEMAND_hoth_5dB_500msec/{out_name}",
-            #     out_path=f"{const.EVALUATION_DIR}/{out_name}.csv",
-            # )
+            evaluation(
+                target_dir=f"{const.MIX_DATA_DIR}/GNN/subset_DEMAND_hoth_5dB_500msec/test/clean",
+                estimation_dir=f"{const.OUTPUT_WAV_DIR}/{model_type}/subset_DEMAND_hoth_5dB_500msec/{out_name}",
+                out_path=f"{const.EVALUATION_DIR}/{out_name}.csv",
+            )
