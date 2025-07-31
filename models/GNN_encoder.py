@@ -16,7 +16,7 @@ os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "expandable_segments:True"
 
 # CUDAが利用可能かチェックし、利用可能ならGPUを、そうでなければCPUを使用するデバイスとして設定します。
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-print(f"GNN_encoder.py using device: {device}")
+print(f"GNN_encoder.py 使用デバイス: {device}")
 
 
 def visualize_spectral_graph(x_nodes, edge_index, freq_bins, time_frames, max_time_frames=30):
@@ -24,11 +24,11 @@ def visualize_spectral_graph(x_nodes, edge_index, freq_bins, time_frames, max_ti
     スペクトログラムの格子構造を保持したGNNのグラフ構造を可視化します。
 
     Args:
-        x_nodes: ノードの特徴量 [N, C]
-        edge_index: エッジの接続関係 [2, E]
-        freq_bins: 周波数ビンの数
-        time_frames: 時間フレームの数
-        max_time_frames: 表示する最大時間フレーム数
+        x_nodes (torch.Tensor): ノードの特徴量 [N, C]
+        edge_index (torch.Tensor): エッジの接続関係 [2, E]
+        freq_bins (int): 周波数ビンの数
+        time_frames (int): 時間フレームの数
+        max_time_frames (int): 表示する最大時間フレーム数
     """
     # 表示する時間フレームを制限
     time_frames = min(time_frames, max_time_frames)
@@ -68,9 +68,9 @@ def visualize_spectral_graph(x_nodes, edge_index, freq_bins, time_frames, max_ti
     # ラベルの描画（オプション）
     # nx.draw_networkx_labels(G, pos, node_labels, font_size=8)
 
-    plt.title(f"Spectral Graph Visualization\n(Showing {freq_bins}x{time_frames} grid)")
-    plt.xlabel("Time Frames")
-    plt.ylabel("Frequency Bins")
+    plt.title(f"スペクトルグラフの可視化\n({freq_bins}x{time_frames} グリッドを表示)")
+    plt.xlabel("時間フレーム")
+    plt.ylabel("周波数ビン")
 
     # グリッドの表示
     plt.grid(True, linestyle="--", alpha=0.3)
@@ -83,12 +83,12 @@ def visualize_spectral_graph(x_nodes, edge_index, freq_bins, time_frames, max_ti
 
     # 接続統計の表示
     degrees = [G.degree(n) for n in G.nodes()]
-    print(f"\nGraph Statistics:")
-    print(f"Total nodes: {len(G.nodes())}")
-    print(f"Total edges: {len(G.edges())}")
-    print(f"Average degree: {np.mean(degrees):.2f}")
-    print(f"Min degree: {np.min(degrees)}")
-    print(f"Max degree: {np.max(degrees)}")
+    print(f"\nグラフ統計:")
+    print(f"総ノード数: {len(G.nodes())}")
+    print(f"総エッジ数: {len(G.edges())}")
+    print(f"平均次数: {np.mean(degrees):.2f}")
+    print(f"最小次数: {np.min(degrees)}")
+    print(f"最大次数: {np.max(degrees)}")
 
 
 # 使用例
@@ -232,10 +232,10 @@ class GNNEncoder(nn.Module):
         self.num_node_gnn = num_node
         self.gnn_type = gnn_type
 
-        # 1D Conv Encoder (Waveform -> Latent Feature)
+        # 1D畳み込みエンコーダ (波形 -> 潜在特徴量)
         self.encoder_dim_1d_conv = 512
         self.sampling_rate = 16000
-        self.win = 4  # ms (window length)
+        self.win = 4  # ms (ウィンドウ長)
         self.win_samples = int(self.sampling_rate * self.win / 1000)
         self.stride_samples = self.win_samples // 2
 
@@ -247,7 +247,7 @@ class GNNEncoder(nn.Module):
             stride=self.stride_samples,
         )
 
-        # GNN Encoder (Operating on the latent features)
+        # GNNエンコーダ (潜在特徴量に対して動作)
         # GNNの入出力次元は、initial_encoderの出力次元とU-Netの入力次元に合わせる
         if gnn_type == "GCN":
             self.gnn_encoder = GCN(self.encoder_dim_1d_conv, hidden_dim_gnn, self.encoder_dim_1d_conv)
@@ -260,9 +260,9 @@ class GNNEncoder(nn.Module):
                 dropout_rate=gnn_dropout,
             )
         else:
-            raise ValueError(f"Unsupported GNN type: {gnn_type}. Choose 'GCN' or 'GAT'.")
+            raise ValueError(f"サポートされていないGNNタイプです: {gnn_type}。'GCN' または 'GAT' を選択してください。")
 
-        # U-Net Encoder path
+        # U-Netエンコーダパス
         # GNNの出力は [B, C_feat, L_encoded] となり、これをunsqueezeしてU-Netの2DConvの入力とする
         # したがって、incのin_channelsは1となる
         self.inc = DoubleConv(1, 64)
@@ -270,15 +270,15 @@ class GNNEncoder(nn.Module):
         self.down2 = Down(128, 256)
         self.down3 = Down(256, 512)
 
-        # U-Net Decoder path
+        # U-Netデコーダパス
         self.up1 = Up(512, 256)
         self.up2 = Up(256, 128)
         self.up3 = Up(128, 64)
 
-        # Output convolution for the mask
+        # マスク用の出力畳み込み
         self.outc = nn.Sequential(nn.Conv1d(64, n_classes, kernel_size=1), nn.Sigmoid())
 
-        # Final 1D ConvTranspose Decoder (Masked latent feature -> Waveform)
+        # 最終的な1D転置畳み込みデコーダ (マスクされた潜在特徴量 -> 波形)
         self.final_decoder = nn.ConvTranspose1d(
             in_channels=self.encoder_dim_1d_conv,
             out_channels=self.n_channels,
@@ -310,22 +310,22 @@ class GNNEncoder(nn.Module):
         """
         # 入力波形が3Dであることを確認する: [B, C, L]
         if x_waveform.dim() == 2:
-            x_waveform = x_waveform.unsqueeze(1)  # Add channel dimension if missing
+            x_waveform = x_waveform.unsqueeze(1)  # チャンネル次元がない場合は追加
 
-        # Store original waveform length for trimming the final output
+        # 最終的な出力をトリミングするために、元の波形の長さを保存
         original_waveform_length = x_waveform.size(-1)
 
-        # 1. Initial 1D Convolutional Encoder (Waveform -> Latent Feature)
+        # 1. 初期1D畳み込みエンコーダ (波形 -> 潜在特徴量)
         # x_encoded: [B, encoder_dim_1d_conv, L_encoded]
         x_encoded = self.initial_encoder(x_waveform)
 
         batch_size, feature_dim_encoded, length_encoded = x_encoded.size()
 
-        # Reshape for GNN: [B, C, L_encoded] -> [B * L_encoded, C]
+        # GNN用にリシェイプ: [B, C, L_encoded] -> [B * L_encoded, C]
         # 各時間フレームがノードとなり、その特徴量はencoder_dim_1d_conv次元
         x_nodes = x_encoded.permute(0, 2, 1).reshape(-1, feature_dim_encoded)
 
-        # Create graph for GNN
+        # GNN用のグラフを作成
         num_nodes_per_sample = length_encoded
         if num_nodes_per_sample > 0:
             edge_index = self.create_knn_graph(x_nodes, self.num_node_gnn, batch_size, num_nodes_per_sample)
@@ -340,31 +340,31 @@ class GNNEncoder(nn.Module):
             time_frames=length_encoded,
         )
 
-        # 2. GNN Encoder (Process nodes using GNN)
+        # 2. GNNエンコーダ (GNNを使用してノードを処理)
         x_gnn_out_flat = self.gnn_encoder(x_nodes, edge_index)  # [B * L_encoded, feature_dim_encoded]
 
-        # Reshape GNN output back to feature map format for U-Net
+        # GNNの出力をU-Net用の特徴マップ形式にリシェイプ
         # [B * L_encoded, C] -> [B, L_encoded, C] -> [B, C, L_encoded]
         x_gnn_out_reshaped = x_gnn_out_flat.view(batch_size, length_encoded, feature_dim_encoded).permute(0, 2, 1)
 
-        # Input to U-Net: [B, 1, C, L_encoded] (C is feature_dim_encoded)
+        # U-Netへの入力: [B, 1, C, L_encoded] (Cはfeature_dim_encoded)
         # x_unet_input = x_gnn_out_reshaped.unsqueeze(1)
 
-        # 3. U-Net Encoder path
+        # 3. U-Netエンコーダパス
         x1 = self.inc(x_gnn_out_reshaped)
         x2 = self.down1(x1)
         x3 = self.down2(x2)
-        x4 = self.down3(x3)  # Bottleneck feature map
+        x4 = self.down3(x3)  # ボトルネック特徴マップ
 
-        # 4. U-Net Decoder path
+        # 4. U-Netデコーダパス
         d3 = self.up1(x4, x3)
         d2 = self.up2(d3, x2)
         d1 = self.up3(d2, x1)
 
-        # 5. Generate Mask
+        # 5. マスクの生成
         mask_pred_raw = self.outc(d1)  # [B, n_classes, H_mask, W_mask]
 
-        # Resize mask to match the dimensions of x_gnn_out_reshaped (feature_dim_encoded, length_encoded)
+        # マスクをx_gnn_out_reshapedの次元(feature_dim_encoded, length_encoded)に合うようにリサイズ
         mask_target_H = feature_dim_encoded
         mask_target_W = length_encoded
 
@@ -378,22 +378,22 @@ class GNNEncoder(nn.Module):
         else:
             mask_resized = mask_pred_raw
 
-        # Apply mask to the output of the GNN encoder (x_gnn_out_reshaped)
+        # GNNエンコーダの出力(x_gnn_out_reshaped)にマスクを適用
         # x_gnn_out_reshaped: [B, C, L_encoded]
         # mask_resized: [B, n_classes, C, L_encoded]
         if self.n_classes == 1:
-            masked_features = x_gnn_out_reshaped * mask_resized.squeeze(1)  # Broadcast mask across features
+            masked_features = x_gnn_out_reshaped * mask_resized.squeeze(1)  # 特徴量全体にマスクをブロードキャスト
         else:
-            # If multiple classes are intended, this needs more specific logic.
-            # For typical audio enhancement, n_classes=1 (single mask).
-            print(f"Warning: GNNEncoder - n_classes > 1 ({self.n_classes}). Using first mask channel.")
+            # 複数クラスを意図する場合、より具体的なロジックが必要です。
+            # 一般的な音声強調では、n_classes=1 (単一マスク)です。
+            print(f"警告: GNNEncoder - n_classes > 1 ({self.n_classes})。最初のマスクチャネルを使用します。")
             masked_features = x_gnn_out_reshaped * mask_resized[:, 0, :, :]
 
-        # 6. Final 1D Convolutional Decoder (Masked latent feature -> Waveform)
+        # 6. 最終的な1D畳み込みデコーダ (マスクされた潜在特徴量 -> 波形)
         output_waveform = self.final_decoder(masked_features)
 
-        # Trim output waveform to match original input length
-        # This handles potential padding introduced by the initial encoder/decoder stride.
+        # 出力波形を元の入力長に合わせるためにトリミング
+        # これにより、初期エンコーダ/デコーダのストライドによって導入される可能性のあるパディングを処理します。
         output_waveform = output_waveform[:, :, :original_waveform_length]
 
         return output_waveform
@@ -402,12 +402,12 @@ class GNNEncoder(nn.Module):
 def print_model_summary(model, batch_size, channels, length):
     """モデルのサマリーを表示するヘルパー関数"""
     x = torch.randn(batch_size, channels, length).to(device)
-    print(f"\n{model.__class__.__name__} Model Summary:")
+    print(f"\n{model.__class__.__name__} モデルサマリー:")
     summary(model, input_data=x)
 
 
 if __name__ == "__main__":
-    print("GNN_encoder.py main execution for model testing")
+    print("GNN_encoder.py のメイン実行（モデルテスト用）")
 
     # モデルのパラメータ設定
     batch = 1  # バッチサイズ
@@ -415,14 +415,14 @@ if __name__ == "__main__":
     length = 16000 * 3  # 音声の長さ (サンプル数): 3秒
 
     # GNNEncoderUNetモデルのインスタンス化 (GCNタイプ)
-    print("\n--- GNNEncoder (GCN as Encoder) ---")
+    print("\n--- GNNEncoder (GCNをエンコーダとして使用) ---")
     gnn_encoder_unet_gcn = GNNEncoder(
         n_channels=num_mic, n_classes=1, hidden_dim_gnn=32, num_node=8, gnn_type="GCN"
     ).to(device)
     print_model_summary(gnn_encoder_unet_gcn, batch, num_mic, length)
 
     # GNNEncoderUNetモデルのインスタンス化 (GATタイプ)
-    print("\n--- GNNEncoder (GAT as Encoder) ---")
+    print("\n--- GNNEncoder (GATをエンコーダとして使用) ---")
     gnn_encoder_unet_gat = GNNEncoder(
         n_channels=num_mic,
         n_classes=1,
@@ -437,20 +437,20 @@ if __name__ == "__main__":
     # サンプル入力データを作成
     dummy_input = torch.randn(batch, num_mic, length).to(device)
 
-    print("\n--- Forward pass example (GCNEncoderUNet) ---")
+    print("\n--- 順伝播の例 (GCNEncoderUNet) ---")
     with torch.no_grad():
         output_gcn = gnn_encoder_unet_gcn(dummy_input)
-    print(f"Input shape: {dummy_input.shape}")
-    print(f"Output shape: {output_gcn.shape}")
+    print(f"入力形状: {dummy_input.shape}")
+    print(f"出力形状: {output_gcn.shape}")
 
-    print("\n--- Forward pass example (GATEncoderUNet) ---")
+    print("\n--- 順伝播の例 (GATEncoderUNet) ---")
     with torch.no_grad():
         output_gat = gnn_encoder_unet_gat(dummy_input)
-    print(f"Input shape: {dummy_input.shape}")
-    print(f"Output shape: {output_gat.shape}")
+    print(f"入力形状: {dummy_input.shape}")
+    print(f"出力形状: {output_gat.shape}")
 
     # メモリ使用量の表示
     if torch.cuda.is_available():
-        print(f"\nGPU Memory Usage (after initializations and forward passes):")
-        print(f"Allocated: {torch.cuda.memory_allocated(device) / 1024**2:.2f} MB")
-        print(f"Cached: {torch.cuda.memory_reserved(device) / 1024**2:.2f} MB")
+        print(f"\nGPUメモリ使用量 (初期化および順伝播後):")
+        print(f"確保済み: {torch.cuda.memory_allocated(device) / 1024**2:.2f} MB")
+        print(f"キャッシュ: {torch.cuda.memory_reserved(device) / 1024**2:.2f} MB")
