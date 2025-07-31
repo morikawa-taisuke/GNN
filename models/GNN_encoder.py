@@ -68,9 +68,9 @@ def visualize_spectral_graph(x_nodes, edge_index, freq_bins, time_frames, max_ti
     # ラベルの描画（オプション）
     # nx.draw_networkx_labels(G, pos, node_labels, font_size=8)
 
-    plt.title(f"スペクトルグラフの可視化\n({freq_bins}x{time_frames} グリッドを表示)")
-    plt.xlabel("時間フレーム")
-    plt.ylabel("周波数ビン")
+    plt.title(f"{freq_bins}x{time_frames}")
+    plt.xlabel("time")
+    plt.ylabel("Frequency")
 
     # グリッドの表示
     plt.grid(True, linestyle="--", alpha=0.3)
