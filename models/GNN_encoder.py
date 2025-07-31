@@ -65,9 +65,7 @@ def visualize_spectral_graph(
     nx.draw_networkx_nodes(G, pos, node_color="lightblue", node_size=100)
 
     # エッジの描画
-    nx.draw_networkx_edges(
-        G, pos, alpha=0.2, width=0.5  # エッジの透明度
-    )  # エッジの太さ
+    nx.draw_networkx_edges(G, pos, alpha=0.2, width=0.5)
 
     # ラベルの描画（オプション）
     # nx.draw_networkx_labels(G, pos, node_labels, font_size=8)
