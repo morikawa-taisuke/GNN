@@ -19,7 +19,7 @@ from tqdm.contrib import tenumerate
 import UGNNNet_DatasetClass
 from All_evaluation import main as evaluation
 from models.ConvTasNet_models import enhance_ConvTasNet
-from models.GNN import UGCN, UGAT, UGCN2, UGAT2
+from models.GNN import UGNN  # UGCN, UGAT, UGCN2, UGAT2
 from models.GNN_encoder import GNNEncoder
 from models.wave_unet import U_Net
 from mymodule import my_func, const
@@ -80,9 +80,7 @@ def train(
         log_dir=f"{const.LOG_DIR}\\{out_name}"
     )  # logの保存先の指定("tensorboard --logdir ./logs"で確認できる)
     now = my_func.get_now_time()
-    csv_path = os.path.join(
-        const.LOG_DIR, out_name, f"{out_name}_{now}.csv"
-    )  # CSVファイルのパス
+    csv_path = os.path.join(const.LOG_DIR, out_name, f"{out_name}_{now}.csv")  # CSVファイルのパス
     my_func.make_dir(csv_path)
     with open(csv_path, "w") as csv_file:  # ファイルオープン
         csv_file.write(f"dataset,out_name,loss_func\n{mix_dir},{out_path},{loss_func}")
@@ -95,9 +93,7 @@ def train(
     dataset = UGNNNet_DatasetClass.AudioDataset(
         clean_audio_dir=clean_dir, noisy_audio_dir=mix_dir
     )  # データセットの読み込み
-    dataset_loader = DataLoader(
-        dataset, batch_size=batchsize, shuffle=True, pin_memory=True
-    )
+    dataset_loader = DataLoader(dataset, batch_size=batchsize, shuffle=True, pin_memory=True)
 
     # print(f"\nmodel:{model}\n")                           # モデルのアーキテクチャの出力
     """ 最適化関数の設定 """
@@ -115,12 +111,8 @@ def train(
     if checkpoint_path != None:
         print("restart_training")
         checkpoint = torch.load(checkpoint_path)  # checkpointの読み込み
-        model.load_state_dict(
-            checkpoint["model_state_dict"]
-        )  # 学習途中のモデルの読み込み
-        optimizer.load_state_dict(
-            checkpoint["optimizer_state_dict"]
-        )  # オプティマイザの読み込み
+        model.load_state_dict(checkpoint["model_state_dict"])  # 学習途中のモデルの読み込み
+        optimizer.load_state_dict(checkpoint["optimizer_state_dict"])  # オプティマイザの読み込み
         # optimizerのstateを現在のdeviceに移す。これをしないと、保存前後でdeviceの不整合が起こる可能性がある。
         for state in optimizer.state.values():
             for k, v in state.items():
@@ -148,20 +140,14 @@ def train(
         print("Train Epoch:", epoch)  # 学習回数の表示
         model_loss_sum = 0  # 総損失の初期化
         for _, (mix_data, target_data) in tenumerate(dataset_loader):
-            mix_data, target_data = mix_data.to(device), target_data.to(
-                device
-            )  # データをGPUに移動
+            mix_data, target_data = mix_data.to(device), target_data.to(device)  # データをGPUに移動
 
             """ 勾配のリセット """
             optimizer.zero_grad()  # optimizerの初期化
 
             """ データの整形 """
-            mix_data = mix_data.to(
-                torch.float32
-            )  # target_dataのタイプを変換 int16→float32
-            target_data = target_data.to(
-                torch.float32
-            )  # target_dataのタイプを変換 int16→float32
+            mix_data = mix_data.to(torch.float32)  # target_dataのタイプを変換 int16→float32
+            target_data = target_data.to(torch.float32)  # target_dataのタイプを変換 int16→float32
 
             """ モデルに通す(予測値の計算) """
             # print("model_input", mix_data.shape)
@@ -180,20 +166,12 @@ def train(
                     # 損失として最小化するためには、負の値をとる。
                     model_loss = -1 * loss_metric(estimate_data, target_data)
                 case "wave_MSE":
-                    model_loss = loss_metric(
-                        estimate_data, target_data
-                    )  # 時間波形上でMSEによる損失関数の計算
+                    model_loss = loss_metric(estimate_data, target_data)  # 時間波形上でMSEによる損失関数の計算
                 case "stft_MSE":
                     """周波数軸に変換"""
-                    stft_estimate_data = torch.stft(
-                        estimate_data[0], n_fft=1024, return_complex=False
-                    )
-                    stft_target_data = torch.stft(
-                        target_data[0], n_fft=1024, return_complex=False
-                    )
-                    model_loss = loss_metric(
-                        stft_estimate_data, stft_target_data
-                    )  # 時間周波数上MSEによる損失の計算
+                    stft_estimate_data = torch.stft(estimate_data[0], n_fft=1024, return_complex=False)
+                    stft_target_data = torch.stft(target_data[0], n_fft=1024, return_complex=False)
+                    model_loss = loss_metric(stft_estimate_data, stft_target_data)  # 時間周波数上MSEによる損失の計算
 
             model_loss_sum += model_loss  # 損失の加算
 
@@ -230,9 +208,7 @@ def train(
         # best_lossとmodel_loss_sumを比較
         if model_loss_sum < best_loss:  # model_lossのほうが小さい場合
             print(f"{epoch:3} [epoch] | {model_loss_sum:.6} <- {best_loss:.6}")
-            torch.save(
-                model.to(device).state_dict(), f"{out_dir}/BEST_{out_name}.pth"
-            )  # 出力ファイルの保存
+            torch.save(model.to(device).state_dict(), f"{out_dir}/BEST_{out_name}.pth")  # 出力ファイルの保存
             best_loss = model_loss_sum  # best_lossの変更
             earlystopping_count = 0
             estimate_data = estimate_data.cpu()
@@ -245,15 +221,11 @@ def train(
             if (epoch > 100) and (earlystopping_count > earlystopping_threshold):
                 break
         if epoch == 100:
-            torch.save(
-                model.to(device).state_dict(), f"{out_dir}/{out_name}_{epoch}.pth"
-            )  # 出力ファイルの保存
+            torch.save(model.to(device).state_dict(), f"{out_dir}/{out_name}_{epoch}.pth")  # 出力ファイルの保存
 
     """ 学習モデル(pthファイル)の出力 """
     print("model save")
-    torch.save(
-        model.to(device).state_dict(), f"{out_dir}/{out_name}_{epoch}.pth"
-    )  # 出力ファイルの保存
+    torch.save(model.to(device).state_dict(), f"{out_dir}/{out_name}_{epoch}.pth")  # 出力ファイルの保存
 
     writer.close()
 
@@ -264,9 +236,7 @@ def train(
     print(f"time：{str(time_h)}h")  # 出力
 
 
-def test(
-    model: nn.Module, mix_dir: str, out_dir: str, model_path: str, prm: int = const.SR
-):
+def test(model: nn.Module, mix_dir: str, out_dir: str, model_path: str, prm: int = const.SR):
     # filelist_mixdown = my_func.get_file_list(mix_dir)
     # print('number of mixdown file', len(filelist_mixdown))
 
@@ -278,11 +248,7 @@ def test(
         model_path.stem,
     )  # ファイル名とディレクトリを分離
 
-    model.load_state_dict(
-        torch.load(
-            os.path.join(model_dir, f"BEST_{model_name}.pth"), map_location=device
-        )
-    )
+    model.load_state_dict(torch.load(os.path.join(model_dir, f"BEST_{model_name}.pth"), map_location=device))
     model.eval()
 
     dataset = UGNNNet_DatasetClass.AudioDataset_test(mix_dir)  # データセットの読み込み
@@ -310,9 +276,7 @@ def test(
 
         # 正規化
         mix_max = torch.max(mix_data)  # mix_waveの最大値を取得
-        data_to_write = (
-            data_to_write / np.max(data_to_write) * mix_max.cpu().detach().numpy()
-        )
+        data_to_write = data_to_write / np.max(data_to_write) * mix_max.cpu().detach().numpy()
 
         # 分離した speechを出力ファイルとして保存する。
         # ファイル名とフォルダ名を結合してパス文字列を作成
@@ -329,8 +293,8 @@ if __name__ == "__main__":
     num_mic = 1  # マイクの数
     num_node = 16  # ノードの数
     model_list = [
-        "GCNEncoder",
-        "GATEncoder",
+        "UGCN",
+        "UGAT",
     ]  # モデルの種類  "UGCN", "UGCN2", "UGAT", "UGAT2", "ConvTasNet", "UNet"
     wave_types = [
         "noise_only",
@@ -340,31 +304,28 @@ if __name__ == "__main__":
 
     for model_type in model_list:
         if model_type == "UGCN":
-            model = UGCN(n_channels=num_mic, num_node=num_node).to(device)
+            model = UGNN(n_channels=num_mic, num_node=num_node, gnn_type="GCN").to(device)
         elif model_type == "UGAT":
-            model = UGAT(
+            model = UGNN(
                 n_channels=num_mic,
                 num_node=num_node,
-                gat_heads=4,
-                gat_dropout=0.6,
+                gnn_type="GAT",
+                gnn_heads=4,
+                gnn_dropout=0.6,
             ).to(device)
-        elif model_type == "UGCN2":
-            model = UGCN2(n_channels=num_mic, num_node=num_node).to(device)
-        elif model_type == "UGAT2":
-            model = UGAT2(
-                n_channels=num_mic,
-                num_node=num_node,
-                gat_heads=4,
-                gat_dropout=0.6,
-            ).to(device)
+        # elif model_type == "UGCN2":
+        #     model = UGCN2(n_channels=num_mic, num_node=num_node).to(device)
+        # elif model_type == "UGAT2":
+        #     model = UGAT2(
+        #         n_channels=num_mic,
+        #         num_node=num_node,
+        #         gat_heads=4,
+        #         gat_dropout=0.6,
+        #     ).to(device)
         elif model_type == "GCNEncoder":
-            model = GNNEncoder(
-                n_channels=num_mic, gnn_type="GCN", num_node=num_node
-            ).to(device)
+            model = GNNEncoder(n_channels=num_mic, gnn_type="GCN", num_node=num_node).to(device)
         elif model_type == "GATEncoder":
-            model = GNNEncoder(
-                n_channels=num_mic, gnn_type="GAT", num_node=num_node
-            ).to(device)
+            model = GNNEncoder(n_channels=num_mic, gnn_type="GAT", num_node=num_node).to(device)
         elif model_type == "ConvTasNet":
             model = enhance_ConvTasNet().to(device)
         elif model_type == "UNet":
