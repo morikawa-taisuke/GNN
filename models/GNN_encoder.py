@@ -11,6 +11,8 @@ from torch_geometric.nn import GCNConv, GATConv
 from torch_geometric.nn import knn_graph
 from torchinfo import summary
 
+from models.graph_utils import GraphBuilder, GraphConfig
+
 # PyTorchのCUDAメモリ管理設定。セグメントを拡張可能にすることで、断片化によるメモリ不足エラーを緩和します。
 os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "expandable_segments:True"
 
@@ -268,6 +270,10 @@ class GNNEncoder(nn.Module):
             stride=self.stride_samples,
         )
 
+        self.graph_builder = GraphBuilder(
+            GraphConfig(num_node=num_node, use_self_loops=False, edge_weight_type="binary")
+        )
+
     def create_knn_graph(self, x_nodes_batched, k, batch_size, num_nodes_per_sample):
         """
         バッチ内の各サンプルに対してk-NNグラフを作成します。
@@ -309,7 +315,8 @@ class GNNEncoder(nn.Module):
         # GNN用のグラフを作成
         num_nodes_per_sample = length_encoded
         if num_nodes_per_sample > 0:
-            edge_index = self.create_knn_graph(x_nodes, self.num_node_gnn, batch_size, num_nodes_per_sample)
+            edge_index = self.graph_builder.create_batch_graph(x_nodes, batch_size, length_encoded)
+
         else:
             edge_index = torch.empty((2, 0), dtype=torch.long, device=x_nodes.device)
 
