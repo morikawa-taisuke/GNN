@@ -23,7 +23,7 @@ class GraphConfig:
     num_edges: int  # 各ノードから張るエッジの数
     node_selection: NodeSelectionType  # ノード選択の方法
     edge_selection: EdgeSelectionType  # エッジ選択の方法
-    temporal_window: Optional[int] = None  # 時間窓のサイズ（TEMPORALの場合）
+    temporal_window: Optional[int] = 4000  # 時間窓のサイズ（TEMPORALの場合）
     use_self_loops: bool = False
     bidirectional: bool = True  # 双方向エッジを張るかどうか
 

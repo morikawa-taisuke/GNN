@@ -8,10 +8,9 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch_geometric.nn import GCNConv, GATConv
-from torch_geometric.nn import knn_graph
 from torchinfo import summary
 
-from models.graph_utils import GraphBuilder, GraphConfig
+from models.graph_utils import GraphBuilder, GraphConfig, NodeSelectionType, EdgeSelectionType
 
 # PyTorchのCUDAメモリ管理設定。セグメントを拡張可能にすることで、断片化によるメモリ不足エラーを緩和します。
 os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "expandable_segments:True"
@@ -198,6 +197,7 @@ class GNNEncoder(nn.Module):
         gnn_type="GCN",
         gnn_heads=4,
         gnn_dropout=0.6,
+        graph_config=None,
     ):
         """
         Args:
@@ -269,25 +269,16 @@ class GNNEncoder(nn.Module):
             bias=False,
             stride=self.stride_samples,
         )
+        # デフォルトのグラフ設定
+        if graph_config is None:
+            graph_config = GraphConfig(
+                num_edges=num_node,
+                node_selection=NodeSelectionType.ALL,
+                edge_selection=EdgeSelectionType.KNN,
+                bidirectional=True,
+            )
 
-        self.graph_builder = GraphBuilder(
-            GraphConfig(num_node=num_node, use_self_loops=False, edge_weight_type="binary")
-        )
-
-    def create_knn_graph(self, x_nodes_batched, k, batch_size, num_nodes_per_sample):
-        """
-        バッチ内の各サンプルに対してk-NNグラフを作成します。
-        Args:
-            x_nodes_batched (torch.Tensor): ノード特徴量 [batch_size * num_nodes_per_sample, num_features]
-            k (int): 接続する最近傍ノードの数
-            batch_size (int): バッチサイズ
-            num_nodes_per_sample (int): 1サンプルあたりのノード数
-        Returns:
-            torch.Tensor: エッジインデックス [2, num_edges]
-        """
-        batch_indices = torch.arange(batch_size, device=x_nodes_batched.device).repeat_interleave(num_nodes_per_sample)
-        edge_index = knn_graph(x=x_nodes_batched, k=k, batch=batch_indices, loop=False)  # 自己ループなし
-        return edge_index
+        self.graph_builder = GraphBuilder(graph_config)
 
     def forward(self, x_waveform):
         """

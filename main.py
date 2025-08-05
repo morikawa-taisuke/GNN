@@ -21,6 +21,7 @@ from All_evaluation import main as evaluation
 from models.ConvTasNet_models import enhance_ConvTasNet
 from models.GNN import UGNN  # UGCN, UGAT, UGCN2, UGAT2
 from models.GNN_encoder import GNNEncoder
+from models.graph_utils import GraphConfig, NodeSelectionType, EdgeSelectionType
 from models.wave_unet import U_Net
 from mymodule import my_func, const
 
@@ -302,17 +303,19 @@ if __name__ == "__main__":
         "noise_reverbe",
     ]  # 入力信号の種類 (noise_only, reverbe_only, noise_reverbe)
 
+    graph_config = GraphConfig(
+        num_edges=num_node,
+        node_selection=NodeSelectionType.TEMPORAL,
+        edge_selection=EdgeSelectionType.KNN,
+        bidirectional=True,
+        temporal_window=4000,  # 時間窓のサイズ
+    )
+
     for model_type in model_list:
         if model_type == "UGCN":
-            model = UGNN(n_channels=num_mic, num_node=num_node, gnn_type="GCN").to(device)
+            model = UGNN(n_channels=num_mic, num_node=num_node, gnn_type="GCN", graph_config=graph_config).to(device)
         elif model_type == "UGAT":
-            model = UGNN(
-                n_channels=num_mic,
-                num_node=num_node,
-                gnn_type="GAT",
-                gnn_heads=4,
-                gnn_dropout=0.6,
-            ).to(device)
+            model = UGNN(n_channels=num_mic, num_node=num_node, gnn_type="GAT", graph_config=graph_config).to(device)
         # elif model_type == "UGCN2":
         #     model = UGCN2(n_channels=num_mic, num_node=num_node).to(device)
         # elif model_type == "UGAT2":
@@ -323,9 +326,13 @@ if __name__ == "__main__":
         #         gat_dropout=0.6,
         #     ).to(device)
         elif model_type == "GCNEncoder":
-            model = GNNEncoder(n_channels=num_mic, gnn_type="GCN", num_node=num_node).to(device)
+            model = GNNEncoder(n_channels=num_mic, gnn_type="GCN", num_node=num_node, graph_config=graph_config).to(
+                device
+            )
         elif model_type == "GATEncoder":
-            model = GNNEncoder(n_channels=num_mic, gnn_type="GAT", num_node=num_node).to(device)
+            model = GNNEncoder(n_channels=num_mic, gnn_type="GAT", num_node=num_node, graph_config=graph_config).to(
+                device
+            )
         elif model_type == "ConvTasNet":
             model = enhance_ConvTasNet().to(device)
         elif model_type == "UNet":
@@ -334,7 +341,7 @@ if __name__ == "__main__":
             raise ValueError(f"Unknown model type: {model_type}")
 
         for wave_type in wave_types:
-            out_name = f"1D_{model_type}_{wave_type}_{num_node}node"  # 出力ファイル名
+            out_name = f"{model_type}_{wave_type}_{num_node}node_win"  # 出力ファイル名
             # C:\Users\kataoka-lab\Desktop\sound_data\sample_data\speech\DEMAND\clean\train
             train(
                 model=model,

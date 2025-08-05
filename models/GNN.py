@@ -5,6 +5,8 @@ from torch_geometric.nn import GCNConv, GATConv
 from torch_geometric.nn import knn_graph
 from torchinfo import summary
 
+from models.graph_utils import GraphBuilder, GraphConfig, NodeSelectionType, EdgeSelectionType
+
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
@@ -85,7 +87,15 @@ class GAT(nn.Module):
 
 class UGNN(nn.Module):
     def __init__(
-        self, n_channels=1, n_classes=1, hidden_dim_gnn=32, num_node=8, gnn_type="GCN", gnn_heads=4, gnn_dropout=0.6
+        self,
+        n_channels=1,
+        n_classes=1,
+        hidden_dim_gnn=32,
+        num_node=8,
+        gnn_type="GCN",
+        gnn_heads=4,
+        gnn_dropout=0.6,
+        graph_config=None,
     ):
         super(UGNN, self).__init__()
         self.n_channels = n_channels
@@ -135,6 +145,17 @@ class UGNN(nn.Module):
             stride=self.stride_samples,
         )
 
+        # デフォルトのグラフ設定
+        if graph_config is None:
+            graph_config = GraphConfig(
+                num_edges=num_node,
+                node_selection=NodeSelectionType.ALL,
+                edge_selection=EdgeSelectionType.KNN,
+                bidirectional=True,
+            )
+
+        self.graph_builder = GraphBuilder(graph_config)
+
     def create_knn_graph(self, x_nodes_batched, k, batch_size, num_nodes_per_sample):
         batch_indices = torch.arange(batch_size, device=x_nodes_batched.device).repeat_interleave(num_nodes_per_sample)
         edge_index = knn_graph(x=x_nodes_batched, k=k, batch=batch_indices, loop=False)
@@ -151,15 +172,15 @@ class UGNN(nn.Module):
         x4 = self.down3(x3)
 
         # ボトルネックのGNN処理
-        batch_size, channels, seq_length = x4.size()
+        batch_size, channels, length = x4.size()
         x4_nodes = x4.permute(0, 2, 1).reshape(-1, channels)
 
         # k-NNグラフの作成
-        edge_index = self.create_knn_graph(x4_nodes, self.num_node_gnn, batch_size, seq_length)
+        edge_index = self.graph_builder.create_batch_graph(x4_nodes, batch_size, length)
 
         # GNN処理
         x4_processed = self.gnn(x4_nodes, edge_index)
-        x4_processed = x4_processed.view(batch_size, seq_length, channels).permute(0, 2, 1)
+        x4_processed = x4_processed.view(batch_size, length, channels).permute(0, 2, 1)
 
         # U-Net デコーダパス
         x = self.up1(x4_processed, x3)
