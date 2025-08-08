@@ -11,6 +11,7 @@ import torch.optim as optim
 from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
 from torchmetrics.audio import ScaleInvariantSignalDistortionRatio as SISDR
+
 # Import torchmetrics for loss functions
 from torchmetrics.regression import MeanSquaredError as MSE
 from tqdm import tqdm
@@ -215,11 +216,12 @@ def train(
         # 勾配計算を無効化してメモリ効率を上げる
         with torch.no_grad():
             progress_bar_val = tqdm(val_loader, desc="Validation")
-            for _, (mix_data, target_data) in progress_bar_val:
+            for mix_data, target_data in progress_bar_val:
                 mix_data = mix_data.to(device)
                 target_data = target_data.to(device)
 
                 estimate_data = model(mix_data)
+                estimate_data, target_data = padding_tensor(estimate_data, target_data)
                 model_loss = 0
                 match loss_func:
                     case "SISDR":
