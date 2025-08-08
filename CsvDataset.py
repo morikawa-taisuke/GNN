@@ -81,6 +81,7 @@ class CsvDataset(Dataset):
             padding_amount = self.max_length_samples - noisy_waveform.shape[1]
             noisy_waveform = F.pad(noisy_waveform, (0, padding_amount))
             clean_waveform = F.pad(clean_waveform, (0, padding_amount))
+
         return noisy_waveform, clean_waveform
 
     def __len__(self):
