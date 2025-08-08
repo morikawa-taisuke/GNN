@@ -11,7 +11,6 @@ import torch.optim as optim
 from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
 from torchmetrics.audio import ScaleInvariantSignalDistortionRatio as SISDR
-
 # Import torchmetrics for loss functions
 from torchmetrics.regression import MeanSquaredError as MSE
 from tqdm import tqdm
@@ -240,9 +239,9 @@ def train(
                 val_loss += model_loss
                 progress_bar_val.set_postfix({"loss": model_loss})
             avg_val_loss = val_loss / len(val_loader)
-        if avg_val_loss < best_val_loss:
-            print(f"Validation loss improved ({best_val_loss:.6f} --> {avg_val_loss:.6f}). Saving model...")
-            best_val_loss = avg_val_loss
+        if avg_val_loss < best_loss:
+            print(f"Validation loss improved ({best_loss:.6f} --> {avg_val_loss:.6f}). Saving model...")
+            best_loss = avg_val_loss
             # 最良モデルを保存
             torch.save(model.state_dict(), f"{out_dir}/BEST_{out_name}.pth")
             earlystopping_count = 0  # カウンターをリセット
