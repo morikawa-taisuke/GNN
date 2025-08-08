@@ -21,7 +21,7 @@ class RelNet(nn.Module):
         return F.log_softmax(x, dim=1)
 
 def train(model, data, optimizer, criterion):
-    model.train()
+    model.train(,,
     optimizer.zero_grad()
     out = model(data.x, data.edge_index)
     loss = criterion(out[data.train_mask], data.y[data.train_mask])

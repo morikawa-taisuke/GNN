@@ -1,17 +1,17 @@
 # coding:utf-8
 
+import glob
 import os
+import shutil
+import wave
 
 # from tensorflow.python.tools.inspect_checkpoint import print_tensors_in_checkpoint_file
 from tqdm import tqdm
+
 import my_func
-import shutil
-import wave
-import random
-import glob
 
 
-def move_files(source_dir:str, destination_dir:str, search_str:str, is_remove:bool=False)->None:
+def move_files(source_dir: str, destination_dir: str, search_str: str, is_remove: bool = False) -> None:
     """
     ディレクトリから任意の文字列を含むファイル名を別のディレクトリにコピーする
 
@@ -36,15 +36,16 @@ def move_files(source_dir:str, destination_dir:str, search_str:str, is_remove:bo
     """ 条件に合致するファイルを移動 """
     for file in tqdm(file_list):
         if search_str in file:
-            """ パスの作成 """
-            source_file_path = os.path.join(source_dir, file)   # 移動元
-            destination_file_path = os.path.join(destination_dir, file) # 移動先
+            """パスの作成"""
+            source_file_path = os.path.join(source_dir, file)  # 移動元
+            destination_file_path = os.path.join(destination_dir, file)  # 移動先
             """ ファイルのコピー """
             shutil.copy(source_file_path, destination_file_path)
-            if is_remove:   # 移動元から削除する場合
-                os.remove(source_file_path) # 削除
+            if is_remove:  # 移動元から削除する場合
+                os.remove(source_file_path)  # 削除
 
-def split_wav_file(source_dir:str, destination_dir:str, num_splits:int=1)->None:
+
+def split_wav_file(source_dir: str, destination_dir: str, num_splits: int = 1) -> None:
     """
     1つ音源ファイルを任意のファイルに分割する(pyroomacousticsで1chで録音した音源を分割するのに使用)
 
@@ -69,11 +70,11 @@ def split_wav_file(source_dir:str, destination_dir:str, num_splits:int=1)->None:
         """読み込み"""
         with wave.open(source_file_path, "rb") as original_wav:
             """分割後のサンプル数を算出"""
-            num_samples = original_wav.getnframes() # 分割前のサンプル数
-            samples_per_split = num_samples // num_splits   # 分割後のサンプル数
+            num_samples = original_wav.getnframes()  # 分割前のサンプル数
+            samples_per_split = num_samples // num_splits  # 分割後のサンプル数
 
             for i in range(num_splits):
-                """ 分割後のファイル名を生成 """
+                """分割後のファイル名を生成"""
                 split_file_name = f"{os.path.splitext(wav_file)[0]}_split_{i + 1}.wav"
                 destination_file_path = os.path.join(destination_dir, split_file_name)
                 """ 保存 """
@@ -83,6 +84,7 @@ def split_wav_file(source_dir:str, destination_dir:str, num_splits:int=1)->None:
                     end_sample = (i + 1) * samples_per_split
                     original_wav.setpos(start_sample)
                     split_wav.writeframes(original_wav.readframes(end_sample - start_sample))
+
 
 def rename_files_in_directory(directory, search_string, new_string):
     # ディレクトリ内のすべてのファイルを検索
@@ -107,7 +109,6 @@ def rename_files_in_directory(directory, search_string, new_string):
             tqdm.write(f"Renamed: {file} -> {new_file}")
 
 
-
 """
 if __name__ == "__main__":
     # 移動元ディレクトリと移動先ディレクトリを指定
@@ -123,18 +124,20 @@ if __name__ == "__main__":
     # 移動元ディレクトリと移動先ディレクトリを指定
     clean_mix_list = ["noise_reverbe", "target", "noisy"]
     """ 条件に合致するファイルの検索文字列を指定 """
-    search_string = f"_Right" #"検索文字列"
+    search_string = "p232"  # "検索文字列"
     remove = True
     """ ディレクトリ名の作成 """
-    source_directory = f"C:\\Users\\kataoka-lab\\Desktop\\sound_data\\mix_data\\subset_DEMAND_hoth_1010dB_2ch\\subset_DEMAND_hoth_1010dB_05sec_2ch_3cm\\"    # "移動元ディレクトリのパス"
-    angle_list = ["00dig", "30dig", "45dig", "60dig", "90dig"]  # "Right", "FrontRight", "Front", "FrontLeft", "Left"
-    wave_type_list = ["clean"] # "noise_only", "noise_reverbe", "reverbe_only"
-    for angle in angle_list:
-        for wave_type in wave_type_list:
-            destination_directory = f"{source_directory}/{angle}/test/{wave_type}"  # "移動先ディレクトリのパス"
-            """ ファイルを移動 """
-            move_files(os.path.join(source_directory, "test", wave_type), destination_directory, angle, is_remove=remove)
-
+    source_directory = f"C:/Users/kataoka-lab/Desktop/sound_data/mix_data/DEMAND_hoth_0505dB_05sec_1ch/test/"  # "移動元ディレクトリのパス"
+    wave_type_list = [
+        "clean",
+        "noise_only",
+        "noise_reverbe",
+        "reverbe_only",
+    ]  # "noise_only", "noise_reverbe", "reverbe_only"
+    for wave_type in wave_type_list:
+        destination_directory = f"{source_directory}/{wave_type}/{search_string}"  # "移動先ディレクトリのパス"
+        """ ファイルを移動 """
+        move_files(os.path.join(source_directory, wave_type), destination_directory, search_string, is_remove=remove)
 
     # sub_dir_list = my_func.get_subdir_list(source_directory)
     # # print(sub_dir_list)
