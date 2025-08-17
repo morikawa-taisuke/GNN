@@ -1,5 +1,5 @@
 import sys
-
+import os
 import numpy as np
 import pandas as pd
 import torch.nn.functional as F
@@ -90,6 +90,73 @@ class CsvDataset(Dataset):
         """
         return len(self.data_df)
 
+# ===================================================================
+# ▼▼▼ [改良版] 推論用データローダ ▼▼▼
+# ===================================================================
+class CsvInferenceDataset(Dataset):
+    """
+    推論用に、CSVファイルから入力音声のファイルパスを読み込むDatasetクラス。
+
+    Args:
+        csv_path (str): データセットのパス情報が記載されたCSVファイルのパス。
+        input_column_header (str): 入力データとして使用するCSVの列名。
+        sample_rate (int): 音声データのサンプリングレート（Hz）。
+    """
+
+    def __init__(self, csv_path, input_column_header, sample_rate=16000):
+        super(CsvInferenceDataset, self).__init__()
+
+        self.input_column = input_column_header
+        self.sample_rate = sample_rate
+
+        # --- CSVファイルの読み込み ---
+        try:
+            self.data_df = pd.read_csv(csv_path)
+        except FileNotFoundError:
+            print(f"❌ エラー: CSVファイルが見つかりません: {csv_path}", file=sys.stderr)
+            sys.exit(1)
+
+        # --- 列の存在確認 ---
+        if self.input_column not in self.data_df.columns:
+            print(f"❌ エラー: CSVに入力データ用の列 '{self.input_column}' が見つかりません。", file=sys.stderr)
+            sys.exit(1)
+
+        # --- 欠損値（空のパス）を持つ行を削除 ---
+        original_len = len(self.data_df)
+        self.data_df.dropna(subset=[self.input_column], inplace=True)
+        self.data_df = self.data_df[self.data_df[self.input_column] != ""]
+        if len(self.data_df) < original_len:
+            print(f"⚠️  注意: {original_len - len(self.data_df)}行のデータパスに欠損があったため、除外されました。")
+
+        print(f"✅ {csv_path} から {len(self.data_df)} 件の音声ファイルを読み込みました。")
+        print(f"  - 入力データ: '{self.input_column}' 列を使用")
+
+    def __getitem__(self, index):
+        """
+        指定されたインデックスのデータをロードし、波形とファイル名を返す。
+        """
+        # --- 1. ファイルパスの取得 ---
+        row = self.data_df.iloc[index]
+        noisy_path = row[self.input_column]
+
+        # --- 2. 音声の読み込み ---
+        noisy_waveform, current_sample_rate = torchaudio.load(noisy_path)
+
+        # --- 3. リサンプリング（必要に応じて） ---
+        if current_sample_rate != self.sample_rate:
+            resampler = torchaudio.transforms.Resample(current_sample_rate, self.sample_rate)
+            noisy_waveform = resampler(noisy_waveform)
+
+        # --- 4. ファイル名の取得（拡張子なし） ---
+        file_name = os.path.splitext(os.path.basename(noisy_path))[0]
+
+        return noisy_waveform, file_name
+
+    def __len__(self):
+        """
+        データセットの総数を返す。
+        """
+        return len(self.data_df)
 
 # ===================================================================
 # ▼▼▼ 使い方（サンプルコード） ▼▼▼
