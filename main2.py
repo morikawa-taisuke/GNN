@@ -18,7 +18,7 @@ from tqdm.contrib import tenumerate
 
 import UGNNNet_DatasetClass
 from All_evaluation import main as evaluation
-from CsvDataset import CsvDataset
+from CsvDataset import CsvDataset, CsvInferenceDataset
 from models.ConvTasNet_models import enhance_ConvTasNet
 from models.GNN import UGNN  # UGCN, UGAT, UGCN2, UGAT2
 from models.GNN_encoder import GNNEncoder
@@ -105,7 +105,7 @@ def train(
 
     # torchmetricsを用いた損失関数の初期化
     if loss_func == "SISDR":
-        loss_metric = SISDR().to(device)
+        loss_metric = -1 * SISDR().to(device)
     elif loss_func == "wave_MSE" or loss_func == "stft_MSE":
         loss_metric = MSE().to(device)
     else:
@@ -168,7 +168,7 @@ def train(
                 case "SISDR":
                     # ScaleInvariantSignalDistortionRatioはSI-SDR値を返す（高いほど良い）。
                     # 損失として最小化するためには、負の値をとる。
-                    model_loss = -1 * loss_metric(estimate_data, target_data)
+                    model_loss = loss_metric(estimate_data, target_data)
                 case "wave_MSE":
                     model_loss = loss_metric(estimate_data, target_data)  # 時間波形上でMSEによる損失関数の計算
                 case "stft_MSE":
@@ -268,7 +268,7 @@ def train(
     print(f"time：{str(time_h)}h")  # 出力
 
 
-def test(model: nn.Module, mix_dir: str, out_dir: str, model_path: str, prm: int = const.SR):
+def test(model: nn.Module, test_csv: str, wave_type: str, out_dir: str, model_path: str, prm: int = const.SR):
     # filelist_mixdown = my_func.get_file_list(mix_dir)
     # print('number of mixdown file', len(filelist_mixdown))
 
@@ -283,19 +283,16 @@ def test(model: nn.Module, mix_dir: str, out_dir: str, model_path: str, prm: int
     model.load_state_dict(torch.load(os.path.join(model_dir, f"BEST_{model_name}.pth"), map_location=device))
     model.eval()
 
-    dataset = UGNNNet_DatasetClass.AudioDataset_test(mix_dir)  # データセットの読み込み
+    dataset = CsvInferenceDataset(csv_path=test_csv, input_column_header=wave_type)
     dataset_loader = DataLoader(dataset, batch_size=1, shuffle=True, pin_memory=True)
 
     for mix_data, mix_name in tqdm(dataset_loader):
         mix_data = mix_data.to(device)  # データをGPUに移動
         mix_data = mix_data.to(torch.float32)  # データの型を変換 int16→float32
 
-        mix_max = torch.max(mix_data)  # 最大値の取得
-
         separate = model(mix_data)  # モデルの適用
         # print(f"Initial separate shape: {separate.shape}") # デバッグ用
 
-        # separate = separate * (mix_max / torch.max(separate))     # 最大値を揃える
         separate = separate.cpu()
         separate = separate.detach().numpy()
         # print(f"separate: {separate.shape}")
@@ -389,7 +386,8 @@ if __name__ == "__main__":
 
             test(
                 model=model,
-                mix_dir=f"{const.MIX_DATA_DIR}/GNN/subset_DEMAND_hoth_5dB_500msec/test/{wave_type}",
+                test_csv=f"./test.csv",
+				wave_type=wave_type,
                 out_dir=f"{const.OUTPUT_WAV_DIR}/{model_type}/subset_DEMAND_hoth_5dB_500msec/{out_name}",
                 model_path=f"{const.PTH_DIR}/{model_type}/subset_DEMAND_hoth_5dB_500msec/{out_name}.pth",
             )
