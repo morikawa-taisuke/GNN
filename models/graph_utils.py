@@ -24,7 +24,7 @@ class GraphConfig:
     node_selection: NodeSelectionType  # ノード選択の方法
     edge_selection: EdgeSelectionType  # エッジ選択の方法
     temporal_window: Optional[int] = 4000  # 時間窓のサイズ（TEMPORALの場合）
-    use_self_loops: bool = False
+    use_self_loops: bool = False  # 自分自身へのループを張るかどうか
     bidirectional: bool = True  # 双方向エッジを張るかどうか
 
 
@@ -68,9 +68,7 @@ class GraphBuilder:
 
         return [candidates[idx] for idx in top_indices.tolist()]
 
-    def create_graph(
-        self, num_nodes: int, device: torch.device, features: Optional[torch.Tensor] = None
-    ) -> torch.Tensor:
+    def create_graph(self, num_nodes: int, device: torch.device, features: Optional[torch.Tensor] = None) -> torch.Tensor:
         """グラフを作成"""
         if num_nodes <= 1:
             return torch.empty((2, 0), dtype=torch.long, device=device)
@@ -121,9 +119,7 @@ class GraphBuilder:
                 batch_features = x[i * nodes_per_sample : (i + 1) * nodes_per_sample]
 
                 # バッチごとのグラフを生成
-                batch_edge_index = self.create_graph(
-                    num_nodes=nodes_per_sample, device=x.device, features=batch_features
-                )
+                batch_edge_index = self.create_graph(num_nodes=nodes_per_sample, device=x.device, features=batch_features)
 
                 # ノードインデックスをオフセット
                 batch_edge_index = batch_edge_index + offset
