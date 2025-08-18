@@ -332,7 +332,7 @@ if __name__ == "__main__":
         "noise_only",
         "reverbe_only",
         "noise_reverbe",
-    ]  # 入力信号の種類 (noise_only, reverbe_only, noise_reverbe)
+    ]  # 入力信号の種類 ("noise_only", "reverbe_only", "noise_reverbe")
 
     graph_config = GraphConfig(
         num_edges=num_node,
