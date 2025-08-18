@@ -325,19 +325,18 @@ if __name__ == "__main__":
     num_mic = 1  # マイクの数
     num_node = 16  # ノードの数
     model_list = [
-        "UGCN",
-        "UGAT",
-    ]  # モデルの種類  "UGCN", "UGCN2", "UGAT", "UGAT2", "ConvTasNet", "UNet"
+        "GCNEncoder",
+        "GATEncoder",
+    ]  # モデルの種類  "GCN", "GCNEncoder", "GAT", "GATEncoder", "ConvTasNet", "UNet"
     wave_types = [
-        "noise_only",
-        "reverbe_only",
+        "noise_only","reverbe_only",
         "noise_reverbe",
     ]  # 入力信号の種類 (noise_only, reverbe_only, noise_reverbe)
 
     graph_config = GraphConfig(
         num_edges=num_node,
         node_selection=NodeSelectionType.TEMPORAL,
-        edge_selection=EdgeSelectionType.KNN,
+        edge_selection=EdgeSelectionType.RANDOM,
         bidirectional=True,
         temporal_window=4000,  # 時間窓のサイズ
     )
