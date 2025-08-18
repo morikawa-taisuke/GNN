@@ -24,7 +24,7 @@ from models.GNN import UGNN  # UGCN, UGAT, UGCN2, UGAT2
 from models.GNN_encoder import GNNEncoder
 from models.graph_utils import GraphConfig, NodeSelectionType, EdgeSelectionType
 from models.wave_unet import U_Net
-from mymodule import my_func, const
+from mymodule import my_func, const, LossFunction
 
 # CUDAのメモリ管理設定
 # os.environ['PYTORCH_CUDA_ALLOC_CONF'] = 'expandable_segments:True'
@@ -62,215 +62,179 @@ def padding_tensor(tensor1, tensor2):
 # sisdr および si_sdr_loss 関数はtorchmetricsに置き換えられるため削除
 
 
-def train(
-    model: nn.Module,
-    train_csv: str,
-    val_csv: str,
-    wave_type: str,
-    out_path: str = "./RESULT/pth/result.pth",
-    loss_func: str = "stft_MSE",
-    batchsize: int = const.BATCHSIZE,
-    checkpoint_path: str = None,
-    train_count: int = const.EPOCH,
-    earlystopping_threshold: int = 5,
-):
-    """GPUの設定"""
-    device = "cuda" if torch.cuda.is_available() else "cpu"  # GPUが使えれば使う
-    """ その他の設定 """
-    out_path = Path(out_path)  # path型に変換
-    out_name, out_dir = out_path.stem, out_path.parent  # ファイル名とディレクトリを分離
-    writer = SummaryWriter(
-        log_dir=f"{const.LOG_DIR}\\{out_name}"
-    )  # logの保存先の指定("tensorboard --logdir ./logs"で確認できる)
-    now = my_func.get_now_time()
-    csv_path = os.path.join(const.LOG_DIR, out_name, f"{out_name}_{now}.csv")  # CSVファイルのパス
-    my_func.make_dir(csv_path)
-    with open(csv_path, "w") as csv_file:  # ファイルオープン
-        csv_file.write(f"dataset,out_name,loss_func\n{train_csv},{out_path},{loss_func}")
+def train(model: nn.Module,
+		  train_csv: str,
+		  val_csv: str,
+		  wave_type: str,
+		  out_path: str = "./RESULT/pth/result.pth",
+		  loss_type: str = "stft_MSE",
+		  batchsize: int = const.BATCHSIZE,
+		  checkpoint_path: str = None,
+		  train_count: int = const.EPOCH,
+		  earlystopping_threshold: int = 5):
+	"""GPUの設定"""
+	device = torch.device("cuda" if torch.cuda.is_available() else "cpu")  # GPUが使えれば使う
+	""" その他の設定 """
+	out_path = Path(out_path)  # path型に変換
+	out_name, out_dir = out_path.stem, out_path.parent  # ファイル名とディレクトリを分離
+	# logの保存先の指定("tensorboard --logdir ./logs"で確認できる)
+	writer = SummaryWriter(log_dir=f"{const.LOG_DIR}\\{out_name}")
 
-    """ Early_Stoppingの設定 """
-    best_loss = np.inf  # 損失関数の最小化が目的の場合，初めのbest_lossを無限大にする
-    earlystopping_count = 0
+	now = my_func.get_now_time()
+	csv_path = os.path.join(const.LOG_DIR, out_name, f"{out_name}_{now}.csv")  # CSVファイルのパス
+	my_func.make_dir(csv_path)
+	with open(csv_path, "w") as csv_file:  # ファイルオープン
+		csv_file.write(f"dataset,out_name,loss_func\n{train_csv},{out_path},{loss_type}")
 
-    """ Load dataset データセットの読み込み """
-    train_dataset = CsvDataset(csv_path=train_csv, input_column_header=wave_type)
-    train_loader = DataLoader(dataset=train_dataset, batch_size=batchsize, shuffle=True, pin_memory=True)
+	""" Early_Stoppingの設定 """
+	best_loss = np.inf  # 損失関数の最小化が目的の場合，初めのbest_lossを無限大にする
+	earlystopping_count = 0
 
-    val_dataset = CsvDataset(csv_path=val_csv, input_column_header=wave_type)
-    val_loader = DataLoader(dataset=val_dataset, batch_size=batchsize, shuffle=True, pin_memory=True)
+	""" Load dataset データセットの読み込み """
+	train_dataset = CsvDataset(csv_path=train_csv, input_column_header=wave_type)
+	train_loader = DataLoader(dataset=train_dataset, batch_size=batchsize, shuffle=True, pin_memory=True)
 
-    # print(f"\nmodel:{model}\n")                           # モデルのアーキテクチャの出力
-    """ 最適化関数の設定 """
-    optimizer = optim.Adam(model.parameters(), lr=0.001)  # optimizerを選択(Adam)
+	val_dataset = CsvDataset(csv_path=val_csv, input_column_header=wave_type)
+	val_loader = DataLoader(dataset=val_dataset, batch_size=batchsize, shuffle=True, pin_memory=True)
 
-    # torchmetricsを用いた損失関数の初期化
-    if loss_func == "SISDR":
-        loss_metric = -1 * SISDR().to(device)
-    elif loss_func == "wave_MSE" or loss_func == "stft_MSE":
-        loss_metric = MSE().to(device)
-    else:
-        raise ValueError(f"Unknown loss function: {loss_func}")
+	# print(f"\nmodel:{model}\n")                           # モデルのアーキテクチャの出力
+	""" 最適化関数の設定 """
+	optimizer = optim.Adam(model.parameters(), lr=0.001)  # optimizerを選択(Adam)
 
-    """ チェックポイントの設定 """
-    if checkpoint_path != None:
-        print("restart_training")
-        checkpoint = torch.load(checkpoint_path)  # checkpointの読み込み
-        model.load_state_dict(checkpoint["model_state_dict"])  # 学習途中のモデルの読み込み
-        optimizer.load_state_dict(checkpoint["optimizer_state_dict"])  # オプティマイザの読み込み
-        # optimizerのstateを現在のdeviceに移す。これをしないと、保存前後でdeviceの不整合が起こる可能性がある。
-        for state in optimizer.state.values():
-            for k, v in state.items():
-                if isinstance(v, torch.Tensor):
-                    state[k] = v.to(device)
-        start_epoch = checkpoint["epoch"] + 1
-        loss = checkpoint["loss"]
-    else:
-        start_epoch = 1
+	# torchmetricsを用いた損失関数の初期化
+	loss_func = LossFunction.get_loss_computer(loss_type, device)
 
-    """ 学習の設定を出力 """
-    print("====================")
-    print("device: ", device)
-    print("out_path: ", out_path)
-    print("dataset: ", train_csv)
-    print("loss_func: ", loss_func)
-    print("====================")
+	""" チェックポイントの設定 """
+	if checkpoint_path != None:
+		print("restart_training")
+		checkpoint = torch.load(checkpoint_path)  # checkpointの読み込み
+		model.load_state_dict(checkpoint["model_state_dict"])  # 学習途中のモデルの読み込み
+		optimizer.load_state_dict(checkpoint["optimizer_state_dict"])  # オプティマイザの読み込み
+		# optimizerのstateを現在のdeviceに移す。これをしないと、保存前後でdeviceの不整合が起こる可能性がある。
+		for state in optimizer.state.values():
+			for k, v in state.items():
+				if isinstance(v, torch.Tensor):
+					state[k] = v.to(device)
+		start_epoch = checkpoint["epoch"] + 1
+		loss = checkpoint["loss"]
+	else:
+		start_epoch = 1
 
-    my_func.make_dir(out_dir)
-    model.train()  # 学習モードに設定
+	""" 学習の設定を出力 """
+	print("====================")
+	print("device: ", device)
+	print("out_path: ", out_path)
+	print("dataset: ", train_csv)
+	print("loss_func: ", loss_type)
+	print("====================")
 
-    start_time = time.time()  # 時間を測定
-    epoch = 0
-    for epoch in range(start_epoch, train_count + 1):  # 学習回数
-        print("Train Epoch:", epoch)  # 学習回数の表示
-        model_loss_sum = 0  # 総損失の初期化
-        for _, (mix_data, target_data) in tenumerate(train_loader):
-            mix_data, target_data = mix_data.to(device), target_data.to(device)  # データをGPUに移動
+	my_func.make_dir(out_dir)
+	model.train()  # 学習モードに設定
 
-            """ 勾配のリセット """
-            optimizer.zero_grad()  # optimizerの初期化
+	start_time = time.time()  # 時間を測定
+	epoch = 0
+	for epoch in range(start_epoch, train_count + 1):  # 学習回数
+		print("Train Epoch:", epoch)  # 学習回数の表示
+		model_loss_sum = 0  # 総損失の初期化
+		for _, (mix_data, target_data) in tenumerate(train_loader):
+			mix_data, target_data = mix_data.to(device), target_data.to(device)  # データをGPUに移動
 
-            """ データの整形 """
-            mix_data = mix_data.to(torch.float32)  # target_dataのタイプを変換 int16→float32
-            target_data = target_data.to(torch.float32)  # target_dataのタイプを変換 int16→float32
+			""" 勾配のリセット """
+			optimizer.zero_grad()  # optimizerの初期化
 
-            """ モデルに通す(予測値の計算) """
-            # print("model_input", mix_data.shape)
-            estimate_data = model(mix_data)  # モデルに通す
+			""" データの整形 """
+			mix_data = mix_data.to(torch.float32)  # target_dataのタイプを変換 int16→float32
+			target_data = target_data.to(torch.float32)  # target_dataのタイプを変換 int16→float32
 
-            """ データの整形 """
-            # print("estimation:", estimate_data.shape)
-            # print("target:", target_data.shape)
-            estimate_data, target_data = padding_tensor(estimate_data, target_data)
+			""" モデルに通す(予測値の計算) """
+			# print("model_input", mix_data.shape)
+			estimate_data = model(mix_data)  # モデルに通す
 
-            """ 損失の計算 """
-            model_loss = 0
-            match loss_func:
-                case "SISDR":
-                    # ScaleInvariantSignalDistortionRatioはSI-SDR値を返す（高いほど良い）。
-                    # 損失として最小化するためには、負の値をとる。
-                    model_loss = loss_metric(estimate_data, target_data)
-                case "wave_MSE":
-                    model_loss = loss_metric(estimate_data, target_data)  # 時間波形上でMSEによる損失関数の計算
-                case "stft_MSE":
-                    """周波数軸に変換"""
-                    stft_estimate_data = torch.stft(estimate_data[0], n_fft=1024, return_complex=False)
-                    stft_target_data = torch.stft(target_data[0], n_fft=1024, return_complex=False)
-                    model_loss = loss_metric(stft_estimate_data, stft_target_data)  # 時間周波数上MSEによる損失の計算
+			""" データの整形 """
+			# print("estimation:", estimate_data.shape)
+			# print("target:", target_data.shape)
+			estimate_data, target_data = padding_tensor(estimate_data, target_data)
 
-            model_loss_sum += model_loss  # 損失の加算
+			""" 損失の計算 """
+			model_loss = loss_func(estimate_data, target_data)
+			model_loss_sum += model_loss  # 損失の加算
 
-            """ 後処理 """
-            model_loss.backward()  # 誤差逆伝搬
-            optimizer.step()  # 勾配の更新
+			""" 後処理 """
+			model_loss.backward()  # 誤差逆伝搬
+			optimizer.step()  # 勾配の更新
 
-            del (
-                mix_data,
-                target_data,
-                model_loss,
-            )  # 使用していない変数の削除 estimate_data,
-            torch.cuda.empty_cache()  # メモリの解放 1iterationごとに解放
+			del (
+				mix_data,
+				target_data,
+				model_loss,
+			)  # 使用していない変数の削除 estimate_data,
+			torch.cuda.empty_cache()  # メモリの解放 1iterationごとに解放
 
-        """ チェックポイントの作成 """
-        torch.save(
-            {
-                "epoch": epoch,
-                "model_state_dict": model.state_dict(),
-                "optimizer_state_dict": optimizer.state_dict(),
-                "loss": model_loss_sum,
-            },
-            f"{out_dir}/{out_name}_ckp.pth",
-        )
+		""" チェックポイントの作成 """
+		torch.save(
+			{
+				"epoch": epoch,
+				"model_state_dict": model.state_dict(),
+				"optimizer_state_dict": optimizer.state_dict(),
+				"loss": model_loss_sum,
+			},
+			f"{out_dir}/{out_name}_ckp.pth",
+		)
 
-        writer.add_scalar(str(out_name[0]), model_loss_sum, epoch)
-        print(f"[{epoch}]model_loss_sum:{model_loss_sum}")  # 損失の出力
+		writer.add_scalar(str(out_name[0]), model_loss_sum, epoch)
+		print(f"[{epoch}]model_loss_sum:{model_loss_sum}")  # 損失の出力
 
-        torch.cuda.empty_cache()  # メモリの解放 1iterationごとに解放
-        with open(csv_path, "a") as out_file:  # ファイルオープン
-            out_file.write(f"{model_loss_sum}\n")  # 書き込み
+		torch.cuda.empty_cache()  # メモリの解放 1iterationごとに解放
+		with open(csv_path, "a") as out_file:  # ファイルオープン
+			out_file.write(f"{model_loss_sum}\n")  # 書き込み
 
-        """ Early_Stopping の判断 """
-        model.eval()
-        val_loss = 0.0
+		""" Early_Stopping の判断 """
+		model.eval()
+		val_loss = 0.0
 
-        # 勾配計算を無効化してメモリ効率を上げる
-        with torch.no_grad():
-            progress_bar_val = tqdm(val_loader, desc="Validation")
-            for mix_data, target_data in progress_bar_val:
-                mix_data = mix_data.to(device)
-                target_data = target_data.to(device)
+		# 勾配計算を無効化してメモリ効率を上げる
+		with torch.no_grad():
+			progress_bar_val = tqdm(val_loader, desc="Validation")
+			for mix_data, target_data in progress_bar_val:
+				mix_data = mix_data.to(device)
+				target_data = target_data.to(device)
 
-                estimate_data = model(mix_data)
-                estimate_data, target_data = padding_tensor(estimate_data, target_data)
-                model_loss = 0
-                match loss_func:
-                    case "SISDR":
-                        # ScaleInvariantSignalDistortionRatioはSI-SDR値を返す（高いほど良い）。
-                        # 損失として最小化するためには、負の値をとる。
-                        model_loss = -1 * loss_metric(estimate_data, target_data)
-                    case "wave_MSE":
-                        model_loss = loss_metric(estimate_data, target_data)  # 時間波形上でMSEによる損失関数の計算
-                    case "stft_MSE":
-                        """周波数軸に変換"""
-                        stft_estimate_data = torch.stft(estimate_data[0], n_fft=1024, return_complex=False)
-                        stft_target_data = torch.stft(target_data[0], n_fft=1024, return_complex=False)
-                        model_loss = loss_metric(
-                            stft_estimate_data, stft_target_data
-                        )  # 時間周波数上MSEによる損失の計算
-                val_loss += model_loss
-                progress_bar_val.set_postfix({"loss": model_loss})
-            avg_val_loss = val_loss / len(val_loader)
-        if avg_val_loss < best_loss:
-            print(f"Validation loss improved ({best_loss:.6f} --> {avg_val_loss:.6f}). Saving model...")
-            best_loss = avg_val_loss
-            # 最良モデルを保存
-            torch.save(model.state_dict(), f"{out_dir}/BEST_{out_name}.pth")
-            earlystopping_count = 0  # カウンターをリセット
-        else:
-            earlystopping_count += 1
-            print(f"Validation loss did not improve. Patience: {earlystopping_count}/{earlystopping_threshold}")
+				estimate_data = model(mix_data)
+				estimate_data, target_data = padding_tensor(estimate_data, target_data)
+				model_loss = loss_func(estimate_data, target_data)
+				val_loss += model_loss
+				progress_bar_val.set_postfix({"loss": model_loss})
+			avg_val_loss = val_loss / len(val_loader)
+		if avg_val_loss < best_loss:
+			print(f"Validation loss improved ({best_loss:.6f} --> {avg_val_loss:.6f}). Saving model...")
+			best_loss = avg_val_loss
+			# 最良モデルを保存
+			torch.save(model.state_dict(), f"{out_dir}/BEST_{out_name}.pth")
+			earlystopping_count = 0  # カウンターをリセット
+		else:
+			earlystopping_count += 1
+			print(f"Validation loss did not improve. Patience: {earlystopping_count}/{earlystopping_threshold}")
 
-        if earlystopping_count >= earlystopping_threshold:
-            print("Early stopping triggered. Training finished.")
-            break
+		if earlystopping_count >= earlystopping_threshold:
+			print("Early stopping triggered. Training finished.")
+			break
 
-    torch.save(model.to(device).state_dict(), f"{out_dir}/{out_name}_{epoch}.pth")  # 出力ファイルの保存
+	torch.save(model.to(device).state_dict(), f"{out_dir}/{out_name}_{epoch}.pth")  # 出力ファイルの保存
 
-    """ 学習モデル(pthファイル)の出力 """
-    print("model save")
-    torch.save(model.to(device).state_dict(), f"{out_dir}/{out_name}_{epoch}.pth")  # 出力ファイルの保存
+	""" 学習モデル(pthファイル)の出力 """
+	print("model save")
+	torch.save(model.to(device).state_dict(), f"{out_dir}/{out_name}_{epoch}.pth")  # 出力ファイルの保存
 
-    writer.close()
+	writer.close()
 
-    """ 学習時間の計算 """
-    time_end = time.time()  # 現在時間の取得
-    time_sec = time_end - start_time  # 経過時間の計算(sec)
-    time_h = float(time_sec) / 3600.0  # sec->hour
-    print(f"time：{str(time_h)}h")  # 出力
+	""" 学習時間の計算 """
+	time_end = time.time()  # 現在時間の取得
+	time_sec = time_end - start_time  # 経過時間の計算(sec)
+	time_h = float(time_sec) / 3600.0  # sec->hour
+	print(f"time：{str(time_h)}h")  # 出力
 
 
 def test(model: nn.Module, test_csv: str, wave_type: str, out_dir: str, model_path: str, prm: int = const.SR):
-    # filelist_mixdown = my_func.get_file_list(mix_dir)
-    # print('number of mixdown file', len(filelist_mixdown))
 
     # ディレクトリを作成
     my_func.make_dir(out_dir)
@@ -371,18 +335,9 @@ if __name__ == "__main__":
         for wave_type in wave_types:
             out_name = f"new_{model_type}_{wave_type}_{num_node}node_win"  # 出力ファイル名
             # C:\Users\kataoka-lab\Desktop\sound_data\sample_data\speech\DEMAND\clean\train
-            train(
-                model=model,
-                train_csv=f"./train.csv",
-                val_csv=f"./val.csv",
-                wave_type=wave_type,
-                out_path=f"{const.PTH_DIR}/{model_type}/subset_DEMAND_hoth_5dB_500msec/{out_name}.pth",
-                loss_func="SISDR",
-                batchsize=1,
-                checkpoint_path=None,
-                train_count=1000,
-                earlystopping_threshold=10,
-            )
+            train(model=model, train_csv=f"./train.csv", val_csv=f"./val.csv", wave_type=wave_type,
+                  out_path=f"{const.PTH_DIR}/{model_type}/subset_DEMAND_hoth_5dB_500msec/{out_name}.pth", loss_type="SISDR",
+                  batchsize=1, checkpoint_path=None, train_count=1000, earlystopping_threshold=10)
 
             test(
                 model=model,
