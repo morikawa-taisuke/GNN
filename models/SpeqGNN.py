@@ -7,12 +7,14 @@ from torch_geometric.nn import GCNConv, GATConv
 from torch_geometric.nn import knn_graph
 from torchinfo import summary
 
+from mymodule import confirmation_GPU
+
 # PyTorchのCUDAメモリ管理設定。セグメントを拡張可能にすることで、断片化によるメモリ不足エラーを緩和します。
 os.environ['PYTORCH_CUDA_ALLOC_CONF'] = 'expandable_segments:True'
 
 # CUDAが利用可能かチェックし、利用可能ならGPUを、そうでなければCPUを使用するデバイスとして設定します。
-device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-print(f"SpeqGNN.py using device: {device}")
+device = confirmation_GPU.get_device()
+print(f"SpeqGNN.py 使用デバイス: {device}")
 
 
 class DoubleConv(nn.Module):

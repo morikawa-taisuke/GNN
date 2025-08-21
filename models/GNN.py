@@ -7,8 +7,10 @@ from torchinfo import summary
 
 from models.graph_utils import GraphBuilder, GraphConfig, NodeSelectionType, EdgeSelectionType
 
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+from mymodule import confirmation_GPU
 
+device = confirmation_GPU.get_device()
+print(f"GNN.py 使用デバイス: {device}")
 
 class DoubleConv1D(nn.Module):
     def __init__(self, in_channels, out_channels):
