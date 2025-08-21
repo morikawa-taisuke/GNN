@@ -73,33 +73,78 @@ class GraphBuilder:
         if num_nodes <= 1:
             return torch.empty((2, 0), dtype=torch.long, device=device)
 
-        source_nodes = []
-        target_nodes = []
-
-        for i in range(num_nodes):
-            # 候補ノードを取得
-            candidates = self._get_candidate_nodes(i, num_nodes)
-
-            # エッジの選択
-            if self.config.edge_selection == EdgeSelectionType.RANDOM:
+        # RANDOM は既存ロジック（ノード毎のサンプリング）を維持
+        if self.config.edge_selection == EdgeSelectionType.RANDOM:
+            source_nodes = []
+            target_nodes = []
+            for i in range(num_nodes):
+                candidates = self._get_candidate_nodes(i, num_nodes)
                 selected_nodes = self._select_edges_random(i, candidates, self.config.num_edges, features)
-            else:  # KNN
-                if features is None:
-                    raise ValueError("KNNにはノードの特徴量が必要です")
-                selected_nodes = self._select_edges_knn(i, candidates, self.config.num_edges, features)
+                source_nodes.extend([i] * len(selected_nodes))
+                target_nodes.extend(selected_nodes)
+                if self.config.bidirectional:
+                    source_nodes.extend(selected_nodes)
+                    target_nodes.extend([i] * len(selected_nodes))
+            edge_index = torch.tensor([source_nodes, target_nodes], dtype=torch.long, device=device)
+            return edge_index
 
-            # エッジの追加
-            source_nodes.extend([i] * len(selected_nodes))
-            target_nodes.extend(selected_nodes)
+        # ここから KNN の高速ベクトル化実装
+        if features is None:
+            raise ValueError("KNNにはノードの特徴量が必要です")
 
-            # 双方向エッジの追加
+        with torch.no_grad():
+            x = features.to(device)  # [N, D]
+            N = x.size(0)
+            # cos 類似度用に L2 正規化
+            x_norm = torch.nn.functional.normalize(x, p=2, dim=1)
+            sim = x_norm @ x_norm.T  # [N, N]
+
+            # 候補マスクを作成（True が有効候補）
+            if self.config.node_selection == NodeSelectionType.ALL:
+                valid = torch.ones((N, N), dtype=torch.bool, device=device)
+            else:
+                w = int(self.config.temporal_window or self.config.num_edges)
+                idx = torch.arange(N, device=device)
+                # |i - j| <= w を許可
+                ii = idx.view(-1, 1)
+                jj = idx.view(1, -1)
+                valid = (jj - ii).abs() <= w
+
+            # 自己ループの扱い
+            if not self.config.use_self_loops:
+                valid.fill_diagonal_(False)
+
+            # 無効候補を -inf にマスク
+            neg_inf = torch.finfo(sim.dtype).min
+            sim_masked = sim.masked_fill(~valid, neg_inf)
+
+            # topk の k は上限として「利用可能候補数」を超えない値に設定
+            # ALL なら N-1（自己ループ無効の場合）/ N（有効の場合）
+            # TEMPORAL は最小候補数に不足が出るが、後で -inf を除外して補正する
+            max_possible = valid.sum(dim=1).min().item()
+            k = min(self.config.num_edges, max(1, int(max_possible)))
+
+            # 近傍抽出
+            top_vals, top_idx = torch.topk(sim_masked, k=k, dim=1, largest=True, sorted=False)  # [N, k] each
+
+            # -inf（無効）を除外
+            valid_sel = torch.isfinite(top_vals)  # [N, k]
+            rows = torch.arange(N, device=device).unsqueeze(1).expand_as(top_idx)  # [N, k]
+            src = rows[valid_sel].reshape(-1)
+            dst = top_idx[valid_sel].reshape(-1)
+
+            if src.numel() == 0:
+                return torch.empty((2, 0), dtype=torch.long, device=device)
+
             if self.config.bidirectional:
-                source_nodes.extend(selected_nodes)
-                target_nodes.extend([i] * len(selected_nodes))
+                # 片方向KNNに対して双方向エッジを追加（重複は問題にならないが unique 化も可能）
+                src_bi = torch.cat([src, dst], dim=0)
+                dst_bi = torch.cat([dst, src], dim=0)
+                edge_index = torch.stack([src_bi, dst_bi], dim=0)
+            else:
+                edge_index = torch.stack([src, dst], dim=0)
 
-        edge_index = torch.tensor([source_nodes, target_nodes], dtype=torch.long, device=device)
-
-        return edge_index
+            return edge_index
 
     def create_batch_graph(
         self, x: torch.Tensor, batch_size: int, nodes_per_sample: int, return_batch_indices: bool = False
@@ -114,17 +159,19 @@ class GraphBuilder:
             edge_indices = []
             offset = 0
 
-            for i in range(batch_size):
-                # バッチ内の特徴量を抽出
-                batch_features = x[i * nodes_per_sample : (i + 1) * nodes_per_sample]
+            # 可能な限り autograd 無効化（グラフ構築は微分不要）
+            with torch.no_grad():
+                for i in range(batch_size):
+                    # バッチ内の特徴量を抽出
+                    batch_features = x[i * nodes_per_sample : (i + 1) * nodes_per_sample]
 
-                # バッチごとのグラフを生成
-                batch_edge_index = self.create_graph(num_nodes=nodes_per_sample, device=x.device, features=batch_features)
+                    # バッチごとのグラフを生成（KNNはベクトル化経路）
+                    batch_edge_index = self.create_graph(num_nodes=nodes_per_sample, device=x.device, features=batch_features)
 
-                # ノードインデックスをオフセット
-                batch_edge_index = batch_edge_index + offset
-                edge_indices.append(batch_edge_index)
-                offset += nodes_per_sample
+                    # ノードインデックスをオフセット
+                    batch_edge_index = batch_edge_index + offset
+                    edge_indices.append(batch_edge_index)
+                    offset += nodes_per_sample
 
             edge_index = torch.cat(edge_indices, dim=1)
 
