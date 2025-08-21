@@ -5,6 +5,7 @@ import pandas as pd
 import torch.nn.functional as F
 import torchaudio
 from torch.utils.data import Dataset
+from pathlib import Path
 
 
 # ===================================================================
@@ -68,8 +69,8 @@ class CsvDataset(Dataset):
         """
         # --- 1. ファイルパスの取得 ---
         row = self.data_df.iloc[index]
-        clean_path = row[self.teacher_column]
-        noisy_path = row[self.input_column]
+        clean_path = Path(row[self.teacher_column])
+        noisy_path = Path(row[self.input_column])
 
         clean_waveform, current_sample_rate = torchaudio.load(clean_path)
         noisy_waveform, _ = torchaudio.load(noisy_path)
@@ -168,9 +169,9 @@ if __name__ == "__main__":
     print("--- テスト用のCSVファイルを作成しています ---")
     dummy_csv_path = "test_data.csv"
     dummy_data = {
-        "clean_path": ["clean_a.wav", "clean_b.wav", "clean_c.wav"],
-        "noise_only_path": ["noise_a.wav", "noise_b.wav", ""],  # cは欠損
-        "noise_reverb_path": ["noise_reverb_a.wav", "noise_reverb_b.wav", "noise_reverb_c.wav"],
+        "clean": ["clean_a.wav", "clean_b.wav", "clean_c.wav"],
+        "noise_only": ["noise_a.wav", "noise_b.wav", ""],  # cは欠損
+        "noise_reverbe": ["noise_reverb_a.wav", "noise_reverb_b.wav", "noise_reverb_c.wav"],
     }
     pd.DataFrame(dummy_data).to_csv(dummy_csv_path, index=False)
 
@@ -193,7 +194,7 @@ if __name__ == "__main__":
     # 2. データセットのインスタンスを作成
     print("--- データセットのインスタンスを作成します ---")
     # 入力として「雑音＋残響」の列を指定
-    input_header = "noise_reverb_path"
+    input_header = "noise_reverbe"
     train_dataset = CsvDataset(csv_path=dummy_csv_path, input_column_header=input_header)
 
     # 3. DataLoaderを作成
@@ -204,12 +205,11 @@ if __name__ == "__main__":
     # 4. データを1バッチ取り出して形状を確認
     print("\n--- DataLoaderからデータを取り出します ---")
     # `iter`でイテレータを作成し、`next`で最初のバッチを取得
-    noisy_mag, noisy_phase, clean_mag = next(iter(train_loader))
+    noisy_signal, clean_signal = next(iter(train_loader))
 
     print(f"取得したデータの形状:")
-    print(f"  - 入力マグニチュード (Noisy Mag): {noisy_mag.shape}")
-    print(f"  - 入力フェーズ (Noisy Phase): {noisy_phase.shape}")
-    print(f"  - 教師マグニチュード (Clean Mag): {clean_mag.shape}")
+    print(f"  - 入力信号 (Noisy signal): {noisy_signal.shape}")
+    print(f"  - 教師信号 (Clean signal): {clean_signal.shape}")
 
     # 形状の解説: (バッチサイズ, 周波数ビン数, 時間フレーム数)
     # 周波数ビン数 = n_fft / 2 + 1 = 512 / 2 + 1 = 257
@@ -217,7 +217,7 @@ if __name__ == "__main__":
 
     # --- 入力列を変更してテスト ---
     print("\n--- 入力列を変更して再度テストします ---")
-    input_header_2 = "noise_only_path"
+    input_header_2 = "noise_only"
     train_dataset_2 = CsvDataset(csv_path=dummy_csv_path, input_column_header=input_header_2)
     # noise_c.wavが欠損しているため、データ数は2件になるはず
     assert len(train_dataset_2) == 2, "欠損データが正しく除外されていません"
