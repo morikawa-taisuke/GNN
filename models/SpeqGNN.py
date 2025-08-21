@@ -4,9 +4,9 @@ import torch
 import torch.nn.functional as F
 from torch import nn
 from torch_geometric.nn import GCNConv, GATConv
-from torch_geometric.nn import knn_graph
 from torchinfo import summary
 
+from models.graph_utils import GraphBuilder, GraphConfig, NodeSelectionType, EdgeSelectionType
 from mymodule import confirmation_GPU
 
 # PyTorchのCUDAメモリ管理設定。セグメントを拡張可能にすることで、断片化によるメモリ不足エラーを緩和します。
@@ -126,11 +126,10 @@ class SpeqUNetGNN(nn.Module):
     U-NetアーキテクチャのボトルネックにGNNを統合した音声強調/分離モデル。
     GNNの種類とグラフの作成方法をパラメータで指定できる。
     """
-    def __init__(self, n_channels, n_classes,
+    def __init__(self, n_channels, n_classes, *,
                  gnn_type="GCN",
-                 graph_creation="knn",  # "knn" または "random"
+                 graph_config: GraphConfig,
                  hidden_dim=32,
-                 num_node=8,
                  gat_heads=8,
                  gat_dropout=0.5,
                  n_fft=512,
@@ -140,10 +139,9 @@ class SpeqUNetGNN(nn.Module):
         Args:
             n_channels (int): 時間周波数領域の特徴マップの入力チャネル数 (例: マグニチュードスペクトログラムなら1)
             n_classes (int): 出力マスクのチャネル数 (通常は1)
-            gnn_type (str): 使用するGNNの種類 ("GCN" or "GAT")
-            graph_creation (str): グラフの作成方法 ("knn" or "random")
+            gnn_type (str): 使用するGNNの種類 ("GCN" or "GAT")。
+            graph_config (GraphConfig): グラフ作成の設定。
             hidden_dim (int): GNNの隠れ層の次元数
-            num_node (int): k-NNグラフを作成する際の近傍ノード数
             gat_heads (int): GATで使用するヘッド数
             gat_dropout (float): GATのドロップアウト率
             n_fft (int): STFT/ISTFTのFFTサイズ
@@ -153,8 +151,7 @@ class SpeqUNetGNN(nn.Module):
         super(SpeqUNetGNN, self).__init__()
         self.n_channels = n_channels
         self.n_classes = n_classes
-        self.num_node = num_node
-        self.graph_creation = graph_creation
+        self.graph_builder = GraphBuilder(graph_config)
 
         # ISTFT（逆短時間フーリエ変換）用のパラメータ
         self.n_fft = n_fft
@@ -182,39 +179,6 @@ class SpeqUNetGNN(nn.Module):
         self.up3 = Up(128, 64)
         self.outc = nn.Conv2d(64, n_classes, kernel_size=1, stride=1, padding=0)
 
-    def _create_random_graph(self, num_nodes, device):
-        """
-        ノードごとにランダムにk個の異なる隣接ノードを選択してスパースグラフを作成します。
-        """
-        if num_nodes <= 1 or self.num_node == 0:
-            return torch.empty((2, 0), dtype=torch.long, device=device)
-
-        k_to_select = min(self.num_node, num_nodes - 1)
-        if k_to_select == 0:
-            return torch.empty((2, 0), dtype=torch.long, device=device)
-
-        rand_values = torch.rand(num_nodes, num_nodes, device=device)
-        rand_values.fill_diagonal_(-1.0)
-        top_k_indices = torch.topk(rand_values, k_to_select, dim=1).indices
-        source_nodes = torch.arange(num_nodes, device=device).repeat_interleave(k_to_select)
-        target_nodes = top_k_indices.flatten()
-        return torch.stack([source_nodes, target_nodes], dim=0)
-
-    def _create_knn_graph(self, x_nodes_batched, k, batch_size, num_nodes_per_sample):
-        """
-        与えられたノード特徴量に対してk-NNグラフを作成します。
-        """
-        if k == 0 or num_nodes_per_sample == 0:
-            k_to_select = 0
-        else:
-            k_to_select = min(k, num_nodes_per_sample - 1) if num_nodes_per_sample > 1 else 0
-
-        if k_to_select == 0:
-            return torch.empty((2, 0), dtype=torch.long, device=x_nodes_batched.device)
-
-        batch_indices = torch.arange(batch_size, device=x_nodes_batched.device).repeat_interleave(num_nodes_per_sample)
-        return knn_graph(x=x_nodes_batched, k=k_to_select, batch=batch_indices, loop=False)
-
     def forward(self, x_magnitude, complex_spec_input, original_length=None):
         """
         順伝播
@@ -235,15 +199,11 @@ class SpeqUNetGNN(nn.Module):
         _, channels_bottleneck, height_bottleneck, width_bottleneck = x4.size()
         x4_reshaped = x4.view(batch_size, channels_bottleneck, -1).permute(0, 2, 1).reshape(-1, channels_bottleneck)
 
-        # グラフ作成
-        if self.graph_creation == "random":
-            num_nodes = x4_reshaped.size(0)
-            edge_index = self._create_random_graph(num_nodes, x4_reshaped.device)
-        elif self.graph_creation == "knn":
-            num_nodes_per_sample = height_bottleneck * width_bottleneck
-            edge_index = self._create_knn_graph(x4_reshaped, self.num_node, batch_size, num_nodes_per_sample)
-        else:
-            raise ValueError(f"Unknown graph creation method: {self.graph_creation}")
+        # GraphBuilderを使用してグラフを作成
+        num_nodes_per_sample = height_bottleneck * width_bottleneck
+        edge_index = self.graph_builder.create_batch_graph(x=x4_reshaped,
+                                                           batch_size=batch_size,
+                                                           nodes_per_sample=num_nodes_per_sample)
 
         # GNNによるノード特徴の更新
         x4_processed_flat = self.gnn(x4_reshaped, edge_index)
@@ -328,7 +288,7 @@ def main():
     length = 16000 * 8  # 8秒の音声データ (例)
 
     # --- STFTパラメータ ---
-    n_fft = 1024
+    n_fft = 512
     hop_length = n_fft // 2
     win_length = n_fft
     window = torch.hann_window(win_length, device=device)
@@ -342,11 +302,27 @@ def main():
     x_complex_spec = torch.stft(x_time.squeeze(1), n_fft=n_fft, hop_length=hop_length, win_length=win_length, window=window, return_complex=True)
     original_len = x_time.shape[-1]
 
-    # --- モデルのインスタンス化とテスト ---
+    # --- グラフ設定の定義 ---
+    num_node_edges = 16
+    graph_config_random = GraphConfig(
+        num_edges=num_node_edges,
+        node_selection=NodeSelectionType.ALL,
+        edge_selection=EdgeSelectionType.RANDOM,
+        bidirectional=True,
+        use_self_loops=False
+    )
+    graph_config_knn = GraphConfig(
+        num_edges=num_node_edges,
+        node_selection=NodeSelectionType.ALL,
+        edge_selection=EdgeSelectionType.KNN,
+        bidirectional=True,
+        use_self_loops=False
+    )
+
+    # --- モデル共通パラメータ ---
     common_params = {
         "n_channels": num_mic,
         "n_classes": 1,
-        "num_node": 8,
         "n_fft": n_fft,
         "hop_length": hop_length,
         "win_length": win_length
@@ -356,26 +332,26 @@ def main():
         "gat_dropout": 0.6
     }
 
-    print("\n--- SpeqGCNNet (Random Graph) ---")
-    speq_gcn_model = SpeqUNetGNN(**common_params, gnn_type="GCN", graph_creation="random").to(device)
+    print("\n--- SpeqUNetGNN (GCN, Random Graph) ---")
+    speq_gcn_model = SpeqUNetGNN(**common_params, gnn_type="GCN", graph_config=graph_config_random).to(device)
     print_model_summary(speq_gcn_model, batch, num_mic, length)
     output_gcn = speq_gcn_model(x_magnitude_spec, x_complex_spec, original_len)
     print(f"Output shape: {output_gcn.shape}")
 
-    print("\n--- SpeqGATNet (Random Graph, GAT in bottleneck) ---")
-    speq_gat_model = SpeqUNetGNN(**common_params, **gat_params, gnn_type="GAT", graph_creation="random").to(device)
+    print("\n--- SpeqUNetGNN (GAT, Random Graph) ---")
+    speq_gat_model = SpeqUNetGNN(**common_params, **gat_params, gnn_type="GAT", graph_config=graph_config_random).to(device)
     print_model_summary(speq_gat_model, batch, num_mic, length)
     output_gat = speq_gat_model(x_magnitude_spec, x_complex_spec, original_len)
     print(f"Output shape: {output_gat.shape}")
 
-    print("\n--- SpeqGCNNet2 (k-NN Graph, GCN in bottleneck) ---")
-    speq_gcn2_model = SpeqUNetGNN(**common_params, gnn_type="GCN", graph_creation="knn").to(device)
+    print("\n--- SpeqUNetGNN (GCN, k-NN Graph) ---")
+    speq_gcn2_model = SpeqUNetGNN(**common_params, gnn_type="GCN", graph_config=graph_config_knn).to(device)
     print_model_summary(speq_gcn2_model, batch, num_mic, length)
     output_gcn2 = speq_gcn2_model(x_magnitude_spec, x_complex_spec, original_len)
     print(f"Output shape: {output_gcn2.shape}")
 
-    print("\n--- SpeqGATNet2 (k-NN Graph, GAT in bottleneck) ---")
-    speq_gat2_model = SpeqUNetGNN(**common_params, **gat_params, gnn_type="GAT", graph_creation="knn").to(device)
+    print("\n--- SpeqUNetGNN (GAT, k-NN Graph) ---")
+    speq_gat2_model = SpeqUNetGNN(**common_params, **gat_params, gnn_type="GAT", graph_config=graph_config_knn).to(device)
     print_model_summary(speq_gat2_model, batch, num_mic, length)
     output_gat2 = speq_gat2_model(x_magnitude_spec, x_complex_spec, original_len)
     print(f"Output shape: {output_gat2.shape}")
