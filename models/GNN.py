@@ -158,11 +158,6 @@ class UGNN(nn.Module):
 
         self.graph_builder = GraphBuilder(graph_config)
 
-    def create_knn_graph(self, x_nodes_batched, k, batch_size, num_nodes_per_sample):
-        batch_indices = torch.arange(batch_size, device=x_nodes_batched.device).repeat_interleave(num_nodes_per_sample)
-        edge_index = knn_graph(x=x_nodes_batched, k=k, batch=batch_indices, loop=False)
-        return edge_index
-
     def forward(self, x):
         # エンコーダ
         x_encoded = self.encoder(x)
