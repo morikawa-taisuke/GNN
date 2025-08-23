@@ -126,7 +126,7 @@ class SpeqGNN(nn.Module):
     U-NetアーキテクチャのボトルネックにGNNを統合した音声強調/分離モデル。
     GNNの種類とグラフの作成方法をパラメータで指定できる。
     """
-    def __init__(self, n_channels, n_classes, *,
+    def __init__(self, n_channels=1, n_classes=1, *,
                  gnn_type="GCN",
                  graph_config: GraphConfig,
                  hidden_dim=32,
