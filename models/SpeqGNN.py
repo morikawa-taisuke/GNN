@@ -121,7 +121,7 @@ class GAT(nn.Module):
         return x
 
 
-class SpeqUNetGNN(nn.Module):
+class SpeqGNN(nn.Module):
     """
     U-NetアーキテクチャのボトルネックにGNNを統合した音声強調/分離モデル。
     GNNの種類とグラフの作成方法をパラメータで指定できる。
@@ -130,8 +130,8 @@ class SpeqUNetGNN(nn.Module):
                  gnn_type="GCN",
                  graph_config: GraphConfig,
                  hidden_dim=32,
-                 gat_heads=8,
-                 gat_dropout=0.5,
+                 gat_heads=4,
+                 gat_dropout=0.6,
                  n_fft=512,
                  hop_length=256,
                  win_length=None):
@@ -148,7 +148,7 @@ class SpeqUNetGNN(nn.Module):
             hop_length (int): STFT/ISTFTのホップ長
             win_length (int): STFT/ISTFTの窓長 (Noneの場合はn_fftと同じ)
         """
-        super(SpeqUNetGNN, self).__init__()
+        super(SpeqGNN, self).__init__()
         self.n_channels = n_channels
         self.n_classes = n_classes
         self.graph_builder = GraphBuilder(graph_config)
@@ -332,26 +332,26 @@ def main():
         "gat_dropout": 0.6
     }
 
-    print("\n--- SpeqUNetGNN (GCN, Random Graph) ---")
-    speq_gcn_model = SpeqUNetGNN(**common_params, gnn_type="GCN", graph_config=graph_config_random).to(device)
+    print("\n--- SpeqGNN (GCN, Random Graph) ---")
+    speq_gcn_model = SpeqGNN(**common_params, gnn_type="GCN", graph_config=graph_config_random).to(device)
     print_model_summary(speq_gcn_model, batch, num_mic, length)
     output_gcn = speq_gcn_model(x_magnitude_spec, x_complex_spec, original_len)
     print(f"Output shape: {output_gcn.shape}")
 
-    print("\n--- SpeqUNetGNN (GAT, Random Graph) ---")
-    speq_gat_model = SpeqUNetGNN(**common_params, **gat_params, gnn_type="GAT", graph_config=graph_config_random).to(device)
+    print("\n--- SpeqGNN (GAT, Random Graph) ---")
+    speq_gat_model = SpeqGNN(**common_params, **gat_params, gnn_type="GAT", graph_config=graph_config_random).to(device)
     print_model_summary(speq_gat_model, batch, num_mic, length)
     output_gat = speq_gat_model(x_magnitude_spec, x_complex_spec, original_len)
     print(f"Output shape: {output_gat.shape}")
 
-    print("\n--- SpeqUNetGNN (GCN, k-NN Graph) ---")
-    speq_gcn2_model = SpeqUNetGNN(**common_params, gnn_type="GCN", graph_config=graph_config_knn).to(device)
+    print("\n--- SpeqGNN (GCN, k-NN Graph) ---")
+    speq_gcn2_model = SpeqGNN(**common_params, gnn_type="GCN", graph_config=graph_config_knn).to(device)
     print_model_summary(speq_gcn2_model, batch, num_mic, length)
     output_gcn2 = speq_gcn2_model(x_magnitude_spec, x_complex_spec, original_len)
     print(f"Output shape: {output_gcn2.shape}")
 
-    print("\n--- SpeqUNetGNN (GAT, k-NN Graph) ---")
-    speq_gat2_model = SpeqUNetGNN(**common_params, **gat_params, gnn_type="GAT", graph_config=graph_config_knn).to(device)
+    print("\n--- SpeqGNN (GAT, k-NN Graph) ---")
+    speq_gat2_model = SpeqGNN(**common_params, **gat_params, gnn_type="GAT", graph_config=graph_config_knn).to(device)
     print_model_summary(speq_gat2_model, batch, num_mic, length)
     output_gat2 = speq_gat2_model(x_magnitude_spec, x_complex_spec, original_len)
     print(f"Output shape: {output_gat2.shape}")
