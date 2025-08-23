@@ -54,32 +54,6 @@ def padding_tensor(tensor1, tensor2):
 	return padded_tensor1, padded_tensor2
 
 
-def stft(x, n_fft=512, hop_length=256, win_length=512):
-	"""Perform STFT on input audio tensor.
-
-	Args:
-		x (torch.Tensor): Input audio tensor
-		n_fft (int): FFT size
-		hop_length (int): Number of samples between successive frames
-		win_length (int): Window size
-
-	Returns:
-		tuple: (magnitude spectrogram, complex spectrogram)
-	"""
-	# Apply STFT
-	complex_spec = torch.stft(
-		x,
-		n_fft=n_fft,
-		hop_length=hop_length,
-		win_length=win_length,
-		window=torch.hann_window(win_length).to(x.device),
-		return_complex=True
-	)
-	# Calculate magnitude
-	magnitude = torch.abs(complex_spec)
-	return magnitude, complex_spec
-
-
 def train(model: nn.Module,
 		  train_csv: str,
 		  val_csv: str,
@@ -165,14 +139,22 @@ def train(model: nn.Module,
 			target_data = target_data.to(torch.float32)  # target_dataのタイプを変換 int16→float32
 
 			""" モデルに通す(予測値の計算) """
-			print("model_input", mix_data.shape)
+			# --- STFT ---
+			original_length = mix_data.shape[-1]
+			# torchaudio.stftは (batch, time) または (time) を期待するため、チャンネル次元を削除
+			mix_data_squeezed = mix_data.squeeze(1)
 
-			# Get STFT representations
-			mix_data = mix_data.squeeze()
-			mix_magnitude, mix_complex = stft(mix_data)
-			print("stft_magnitude", mix_magnitude.shape)
-
-			estimate_data = model(mix_magnitude, mix_complex)  # モデルに通す
+			# 複素スペクトログラムを計算
+			mix_complex = torch.stft(
+				mix_data_squeezed,
+				n_fft=model.n_fft,
+				hop_length=model.hop_length,
+				win_length=model.win_length,
+				window=model.window.to(device),
+				return_complex=True
+			)
+			mix_magnitude = torch.abs(mix_complex).unsqueeze(1)  # (B, 1, F, T)
+			estimate_data = model(mix_magnitude, mix_complex, original_length)  # モデルに通す
 
 			""" データの整形 """
 			# print("estimation:", estimate_data.shape)
@@ -223,7 +205,22 @@ def train(model: nn.Module,
 				mix_data = mix_data.to(device)
 				target_data = target_data.to(device)
 
-				estimate_data = model(mix_data)
+				# --- STFT ---
+				original_length = mix_data.shape[-1]
+				mix_data_squeezed = mix_data.squeeze(1)
+
+				mix_complex = torch.stft(
+					mix_data_squeezed,
+					n_fft=model.n_fft,
+					hop_length=model.hop_length,
+					win_length=model.win_length,
+					window=model.window.to(device),
+					return_complex=True
+				)
+				mix_magnitude = torch.abs(mix_complex).unsqueeze(1)
+
+				estimate_data = model(mix_magnitude, mix_complex, original_length)
+
 				estimate_data, target_data = padding_tensor(estimate_data, target_data)
 				model_loss = loss_func(estimate_data, target_data)
 				val_loss += model_loss
@@ -277,7 +274,21 @@ def test(model: nn.Module, test_csv: str, wave_type: str, out_dir: str, model_pa
 		mix_data = mix_data.to(device)  # データをGPUに移動
 		mix_data = mix_data.to(torch.float32)  # データの型を変換 int16→float32
 
-		separate = model(mix_data)  # モデルの適用
+		# --- STFT ---
+		original_length = mix_data.shape[-1]
+		mix_data_squeezed = mix_data.squeeze(1)
+
+		mix_complex = torch.stft(
+			mix_data_squeezed,
+			n_fft=model.n_fft,
+			hop_length=model.hop_length,
+			win_length=model.win_length,
+			window=model.window.to(device),
+			return_complex=True
+		)
+		mix_magnitude = torch.abs(mix_complex).unsqueeze(1)
+
+		separate = model(mix_magnitude, mix_complex, original_length)  # モデルの適用
 		# print(f"Initial separate shape: {separate.shape}") # デバッグ用
 
 		separate = separate.cpu()
@@ -326,11 +337,17 @@ if __name__ == "__main__":
 		temporal_window=4000,  # 時間窓のサイズ
 	)
 
+	stft_params = {
+		"n_fft": 512,
+		"hop_length": 256,
+		"win_length": 512
+	}
+
 	for model_type in model_list:
 		if model_type == "GCN":
-			model = SpeqGNN(n_channels=num_mic, n_classes=num_mic, gnn_type="GCN", graph_config=graph_config).to(device)
+			model = SpeqGNN(n_channels=num_mic, n_classes=num_mic, gnn_type="GCN", graph_config=graph_config, **stft_params).to(device)
 		elif model_type == "GAT":
-			model = SpeqGNN(n_channels=num_mic, n_classes=num_mic, gnn_type="GAT", graph_config=graph_config).to(device)
+			model = SpeqGNN(n_channels=num_mic, n_classes=num_mic, gnn_type="GAT", graph_config=graph_config, **stft_params).to(device)
 		elif model_type == "GCNEncoder":
 			model = GNNEncoder(n_channels=num_mic, gnn_type="GCN", num_node=num_node, graph_config=graph_config).to(device)
 		elif model_type == "GATEncoder":
