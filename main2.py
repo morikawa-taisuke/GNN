@@ -10,28 +10,23 @@ import torch.nn.functional as F
 import torch.optim as optim
 from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
-from torchmetrics.audio import ScaleInvariantSignalDistortionRatio as SISDR
-# Import torchmetrics for loss functions
-from torchmetrics.regression import MeanSquaredError as MSE
 from tqdm import tqdm
 from tqdm.contrib import tenumerate
 
-import UGNNNet_DatasetClass
-from All_evaluation import main as evaluation
+# from All_evaluation import main as evaluation
 from CsvDataset import CsvDataset, CsvInferenceDataset
 from models.ConvTasNet_models import enhance_ConvTasNet
-from models.GNN import UGNN  # UGCN, UGAT, UGCN2, UGAT2
+from models.GNN import UGNN
 from models.GNN_encoder import GNNEncoder
 from models.graph_utils import GraphConfig, NodeSelectionType, EdgeSelectionType
 from models.wave_unet import U_Net
-from mymodule import my_func, const, LossFunction
+from mymodule import my_func, const, LossFunction, confirmation_GPU
 
 # CUDAのメモリ管理設定
 # os.environ['PYTORCH_CUDA_ALLOC_CONF'] = 'expandable_segments:True'
 
 # CUDAの可用性をチェック
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-# device = "mps"
+device = confirmation_GPU.get_device()
 print(f"Using device: {device}")
 
 
@@ -73,7 +68,7 @@ def train(model: nn.Module,
 		  train_count: int = const.EPOCH,
 		  earlystopping_threshold: int = 5):
 	"""GPUの設定"""
-	device = torch.device("cuda" if torch.cuda.is_available() else "cpu")  # GPUが使えれば使う
+	device = confirmation_GPU.get_device()
 	""" その他の設定 """
 	out_path = Path(out_path)  # path型に変換
 	out_name, out_dir = out_path.stem, out_path.parent  # ファイル名とディレクトリを分離
@@ -291,8 +286,8 @@ if __name__ == "__main__":
     ]  # モデルの種類  "UGCN", "UGCN2", "UGAT", "UGAT2", "ConvTasNet", "UNet"
     wave_types = [
         "noise_only",
-        "reverbe_only",
-        "noise_reverbe",
+        # "reverbe_only",
+        # "noise_reverbe",
     ]  # 入力信号の種類 (noise_only, reverbe_only, noise_reverbe)
 
     graph_config = GraphConfig(
@@ -335,20 +330,22 @@ if __name__ == "__main__":
         for wave_type in wave_types:
             out_name = f"new_{model_type}_{wave_type}_{num_node}node_win"  # 出力ファイル名
             # C:\Users\kataoka-lab\Desktop\sound_data\sample_data\speech\DEMAND\clean\train
-            train(model=model, train_csv=f"./train.csv", val_csv=f"./val.csv", wave_type=wave_type,
-                  out_path=f"{const.PTH_DIR}/{model_type}/subset_DEMAND_hoth_5dB_500msec/{out_name}.pth", loss_type="SISDR",
-                  batchsize=1, checkpoint_path=None, train_count=1000, earlystopping_threshold=10)
+            train(model=model,
+				  train_csv=f"/Users/a/Documents/sound_data/mix_data/DEMAND_hoth_0505dB_05sec_1ch/train.csv",
+				  val_csv=f"/Users/a/Documents/sound_data/mix_data/DEMAND_hoth_0505dB_05sec_1ch/val.csv",
+				  wave_type=wave_type,
+                  out_path=f"{const.PTH_DIR}/{model_type}/subset_DEMAND_hoth_5dB_500msec/{out_name}.pth",
+				  loss_type="SISDR",
+                  batchsize=1, checkpoint_path=None, train_count=1, earlystopping_threshold=10)
 
-            test(
-                model=model,
-                test_csv=f"./test.csv",
-				wave_type=wave_type,
-                out_dir=f"{const.OUTPUT_WAV_DIR}/{model_type}/subset_DEMAND_hoth_5dB_500msec/{out_name}",
-                model_path=f"{const.PTH_DIR}/{model_type}/subset_DEMAND_hoth_5dB_500msec/{out_name}.pth",
-            )
+            test(model=model,
+				 test_csv=f"/Users/a/Documents/sound_data/mix_data/DEMAND_hoth_0505dB_05sec_1ch/test.csv",
+				 wave_type=wave_type,
+				 out_dir=f"{const.OUTPUT_WAV_DIR}/{model_type}/subset_DEMAND_hoth_5dB_500msec/{out_name}",
+				 model_path=f"{const.PTH_DIR}/{model_type}/subset_DEMAND_hoth_5dB_500msec/{out_name}.pth")
 
-            evaluation(
-                target_dir=f"{const.MIX_DATA_DIR}/GNN/subset_DEMAND_hoth_5dB_500msec/test/clean",
-                estimation_dir=f"{const.OUTPUT_WAV_DIR}/{model_type}/subset_DEMAND_hoth_5dB_500msec/{out_name}",
-                out_path=f"{const.EVALUATION_DIR}/{out_name}.csv",
-            )
+            # evaluation(
+            #     target_dir=f"{const.MIX_DATA_DIR}/GNN/subset_DEMAND_hoth_5dB_500msec/test/clean",
+            #     estimation_dir=f"{const.OUTPUT_WAV_DIR}/{model_type}/subset_DEMAND_hoth_5dB_500msec/{out_name}",
+            #     out_path=f"{const.EVALUATION_DIR}/{out_name}.csv",
+            # )
