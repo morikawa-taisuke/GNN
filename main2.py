@@ -286,8 +286,8 @@ if __name__ == "__main__":
     num_mic = 1  # マイクの数
     num_node = 16  # ノードの数
     model_list = [
-        "UGCN",
-        "UGAT",
+        "GCNEncoder",
+        "GATEncoder",
     ]  # モデルの種類  "UGCN", "UGCN2", "UGAT", "UGAT2", "ConvTasNet", "UNet"
     wave_types = [
         "noise_only",
@@ -297,7 +297,7 @@ if __name__ == "__main__":
 
     graph_config = GraphConfig(
         num_edges=num_node,
-        node_selection=NodeSelectionType.TEMPORAL,
+        node_selection=NodeSelectionType.ALL,
         edge_selection=EdgeSelectionType.KNN,
         bidirectional=True,
         temporal_window=4000,  # 時間窓のサイズ
@@ -308,15 +308,6 @@ if __name__ == "__main__":
             model = UGNN(n_channels=num_mic, num_node=num_node, gnn_type="GCN", graph_config=graph_config).to(device)
         elif model_type == "UGAT":
             model = UGNN(n_channels=num_mic, num_node=num_node, gnn_type="GAT", graph_config=graph_config).to(device)
-        # elif model_type == "UGCN2":
-        #     model = UGCN2(n_channels=num_mic, num_node=num_node).to(device)
-        # elif model_type == "UGAT2":
-        #     model = UGAT2(
-        #         n_channels=num_mic,
-        #         num_node=num_node,
-        #         gat_heads=4,
-        #         gat_dropout=0.6,
-        #     ).to(device)
         elif model_type == "GCNEncoder":
             model = GNNEncoder(n_channels=num_mic, gnn_type="GCN", num_node=num_node, graph_config=graph_config).to(
                 device
