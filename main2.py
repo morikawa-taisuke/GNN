@@ -13,7 +13,7 @@ from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
 from tqdm.contrib import tenumerate
 
-# from All_evaluation import main as evaluation
+from All_evaluation import main as evaluation
 from CsvDataset import CsvDataset, CsvInferenceDataset
 from models.ConvTasNet_models import enhance_ConvTasNet
 from models.GNN import UGNN
@@ -31,30 +31,27 @@ print(f"Using device: {device}")
 
 
 def padding_tensor(tensor1, tensor2):
-    """
-    最後の次元（例: 時系列長）が異なる2つのテンソルに対して、
-    短い方を末尾にゼロパディングして長さをそろえる。
+	"""
+	最後の次元（例: 時系列長）が異なる2つのテンソルに対して、
+	短い方を末尾にゼロパディングして長さをそろえる。
 
-    Args:
-        tensor1, tensor2 (torch.Tensor): 任意の次元数のテンソル
+	Args:
+		tensor1, tensor2 (torch.Tensor): 任意の次元数のテンソル
 
-    Returns:
-        padded_tensor1, padded_tensor2 (torch.Tensor)
-    """
-    len1 = tensor1.size(-1)
-    len2 = tensor2.size(-1)
-    max_len = max(len1, len2)
+	Returns:
+		padded_tensor1, padded_tensor2 (torch.Tensor)
+	"""
+	len1 = tensor1.size(-1)
+	len2 = tensor2.size(-1)
+	max_len = max(len1, len2)
 
-    pad1 = [0, max_len - len1]  # 最後の次元だけパディング
-    pad2 = [0, max_len - len2]
+	pad1 = [0, max_len - len1]  # 最後の次元だけパディング
+	pad2 = [0, max_len - len2]
 
-    padded_tensor1 = F.pad(tensor1, pad1)
-    padded_tensor2 = F.pad(tensor2, pad2)
+	padded_tensor1 = F.pad(tensor1, pad1)
+	padded_tensor2 = F.pad(tensor2, pad2)
 
-    return padded_tensor1, padded_tensor2
-
-
-# sisdr および si_sdr_loss 関数はtorchmetricsに置き換えられるため削除
+	return padded_tensor1, padded_tensor2
 
 
 def train(model: nn.Module,
@@ -67,6 +64,19 @@ def train(model: nn.Module,
 		  checkpoint_path: str = None,
 		  train_count: int = const.EPOCH,
 		  earlystopping_threshold: int = 5):
+	"""学習関数
+	Args:
+		model (nn.Module): 学習させるモデル
+		train_csv (str): 学習用CSVファイルのパス
+		val_csv (str): 検証用CSVファイルのパス
+		wave_type (str): 入力信号の種類 (noise_only, reverbe_only, noise_reverbe)
+		out_path (str): 学習後のモデルの保存先パス
+		loss_type (str): 損失関数の種類 ("stft_MSE", "L1", "MSE", "SISDR")
+		batchsize (int): バッチサイズ
+		checkpoint_path (str): チェックポイントのパス（Noneの場合は新規学習）
+		train_count (int): 学習エポック数
+		earlystopping_threshold (int): Early Stoppingの閾値
+	"""
 	"""GPUの設定"""
 	device = confirmation_GPU.get_device()
 	""" その他の設定 """
@@ -230,113 +240,110 @@ def train(model: nn.Module,
 
 
 def test(model: nn.Module, test_csv: str, wave_type: str, out_dir: str, model_path: str, prm: int = const.SR):
+	# ディレクトリを作成
+	my_func.make_dir(out_dir)
+	model_path = Path(model_path)  # path型に変換
+	model_dir, model_name = (
+		model_path.parent,
+		model_path.stem,
+	)  # ファイル名とディレクトリを分離
 
-    # ディレクトリを作成
-    my_func.make_dir(out_dir)
-    model_path = Path(model_path)  # path型に変換
-    model_dir, model_name = (
-        model_path.parent,
-        model_path.stem,
-    )  # ファイル名とディレクトリを分離
+	model.load_state_dict(torch.load(os.path.join(model_dir, f"BEST_{model_name}.pth"), map_location=device))
+	model.eval()
 
-    model.load_state_dict(torch.load(os.path.join(model_dir, f"BEST_{model_name}.pth"), map_location=device))
-    model.eval()
+	dataset = CsvInferenceDataset(csv_path=test_csv, input_column_header=wave_type)
+	dataset_loader = DataLoader(dataset, batch_size=1, shuffle=True, pin_memory=True)
 
-    dataset = CsvInferenceDataset(csv_path=test_csv, input_column_header=wave_type)
-    dataset_loader = DataLoader(dataset, batch_size=1, shuffle=True, pin_memory=True)
+	for mix_data, mix_name in tqdm(dataset_loader):
+		mix_data = mix_data.to(device)  # データをGPUに移動
+		mix_data = mix_data.to(torch.float32)  # データの型を変換 int16→float32
 
-    for mix_data, mix_name in tqdm(dataset_loader):
-        mix_data = mix_data.to(device)  # データをGPUに移動
-        mix_data = mix_data.to(torch.float32)  # データの型を変換 int16→float32
+		separate = model(mix_data)  # モデルの適用
+		# print(f"Initial separate shape: {separate.shape}") # デバッグ用
 
-        separate = model(mix_data)  # モデルの適用
-        # print(f"Initial separate shape: {separate.shape}") # デバッグ用
+		separate = separate.cpu()
+		separate = separate.detach().numpy()
+		# print(f"separate: {separate.shape}")
+		# print(f"mix_name: {mix_name}")
+		# print(f"mix_name: {type(mix_name)}")
 
-        separate = separate.cpu()
-        separate = separate.detach().numpy()
-        # print(f"separate: {separate.shape}")
-        # print(f"mix_name: {mix_name}")
-        # print(f"mix_name: {type(mix_name)}")
+		# separate の形状を (length,) に整形する
+		# モデルの出力が (1, 1, length) と仮定
+		data_to_write = separate.squeeze()
 
-        # separate の形状を (length,) に整形する
-        # モデルの出力が (1, 1, length) と仮定
-        data_to_write = separate.squeeze()
+		# 正規化
+		mix_max = torch.max(mix_data)  # mix_waveの最大値を取得
+		data_to_write = data_to_write / np.max(data_to_write) * mix_max.cpu().detach().numpy()
 
-        # 正規化
-        mix_max = torch.max(mix_data)  # mix_waveの最大値を取得
-        data_to_write = data_to_write / np.max(data_to_write) * mix_max.cpu().detach().numpy()
-
-        # 分離した speechを出力ファイルとして保存する。
-        # ファイル名とフォルダ名を結合してパス文字列を作成
-        out_path = os.path.join(out_dir, (mix_name[0] + ".wav"))
-        # print('saving... ', fname)
-        # 混合データを保存
-        # my_func.save_wav(out_path, separate[0], prm)
-        sf.write(out_path, data_to_write, prm)
-        torch.cuda.empty_cache()  # メモリの解放 1音声ごとに解放
+		# 分離した speechを出力ファイルとして保存する。
+		# ファイル名とフォルダ名を結合してパス文字列を作成
+		out_path = os.path.join(out_dir, (mix_name[0] + ".wav"))
+		# print('saving... ', fname)
+		# 混合データを保存
+		# my_func.save_wav(out_path, separate[0], prm)
+		sf.write(out_path, data_to_write, prm)
+		torch.cuda.empty_cache()  # メモリの解放 1音声ごとに解放
 
 
 if __name__ == "__main__":
-    """モデルの設定"""
-    num_mic = 1  # マイクの数
-    num_node = 16  # ノードの数
-    model_list = [
-        "GCNEncoder",
-        "GATEncoder",
-    ]  # モデルの種類  "UGCN", "UGCN2", "UGAT", "UGAT2", "ConvTasNet", "UNet"
-    wave_types = [
-        "noise_only",
-        # "reverbe_only",
-        # "noise_reverbe",
-    ]  # 入力信号の種類 (noise_only, reverbe_only, noise_reverbe)
+	"""モデルの設定"""
+	num_mic = 1  # マイクの数
+	num_node = 16  # ノードの数
+	model_list = [
+		"UGCN",
+		"UGAT",
+	]  # モデルの種類  "UGCN", "UGCN2", "UGAT", "UGAT2", "ConvTasNet", "UNet"
+	wave_types = [
+		"noise_only",
+		"reverbe_only",
+		"noise_reverbe",
+	]  # 入力信号の種類 (noise_only, reverbe_only, noise_reverbe)
+	node_selection = NodeSelectionType.ALL  # ノード選択の方法 (ALL, TEMPORAL)
+	edge_selection = EdgeSelectionType.RANDOM  # エッジ選択の方法 (
 
-    graph_config = GraphConfig(
-        num_edges=num_node,
-        node_selection=NodeSelectionType.ALL,
-        edge_selection=EdgeSelectionType.KNN,
-        bidirectional=True,
-        temporal_window=4000,  # 時間窓のサイズ
-    )
+	graph_config = GraphConfig(
+		num_edges=num_node,
+		node_selection=node_selection,
+		edge_selection=edge_selection,
+		bidirectional=True,
+		temporal_window=4000,  # 時間窓のサイズ
+	)
 
-    for model_type in model_list:
-        if model_type == "UGCN":
-            model = UGNN(n_channels=num_mic, num_node=num_node, gnn_type="GCN", graph_config=graph_config).to(device)
-        elif model_type == "UGAT":
-            model = UGNN(n_channels=num_mic, num_node=num_node, gnn_type="GAT", graph_config=graph_config).to(device)
-        elif model_type == "GCNEncoder":
-            model = GNNEncoder(n_channels=num_mic, gnn_type="GCN", num_node=num_node, graph_config=graph_config).to(
-                device
-            )
-        elif model_type == "GATEncoder":
-            model = GNNEncoder(n_channels=num_mic, gnn_type="GAT", num_node=num_node, graph_config=graph_config).to(
-                device
-            )
-        elif model_type == "ConvTasNet":
-            model = enhance_ConvTasNet().to(device)
-        elif model_type == "UNet":
-            model = U_Net().to(device)
-        else:
-            raise ValueError(f"Unknown model type: {model_type}")
+	for model_type in model_list:
+		if model_type == "UGCN":
+			model = UGNN(n_channels=num_mic, num_node=num_node, gnn_type="GCN", graph_config=graph_config).to(device)
+		elif model_type == "UGAT":
+			model = UGNN(n_channels=num_mic, num_node=num_node, gnn_type="GAT", graph_config=graph_config).to(device)
+		elif model_type == "GCNEncoder":
+			model = GNNEncoder(n_channels=num_mic, gnn_type="GCN", num_node=num_node, graph_config=graph_config).to(device)
+		elif model_type == "GATEncoder":
+			model = GNNEncoder(n_channels=num_mic, gnn_type="GAT", num_node=num_node, graph_config=graph_config).to(device)
+		elif model_type == "ConvTasNet":
+			model = enhance_ConvTasNet().to(device)
+		elif model_type == "UNet":
+			model = U_Net().to(device)
+		else:
+			raise ValueError(f"Unknown model type: {model_type}")
 
-        for wave_type in wave_types:
-            out_name = f"new_{model_type}_{wave_type}_{num_node}node_win"  # 出力ファイル名
-            # C:\Users\kataoka-lab\Desktop\sound_data\sample_data\speech\DEMAND\clean\train
-            train(model=model,
-				  train_csv=f"/Users/a/Documents/sound_data/mix_data/DEMAND_hoth_0505dB_05sec_1ch/train.csv",
-				  val_csv=f"/Users/a/Documents/sound_data/mix_data/DEMAND_hoth_0505dB_05sec_1ch/val.csv",
+		for wave_type in wave_types:
+			out_name = f"new_{model_type}_{wave_type}_{num_node}node_{node_selection.value}_{edge_selection.value}"	# 出力名
+			# C:\Users\kataoka-lab\Desktop\sound_data\sample_data\speech\DEMAND\clean\train
+			train(model=model,
+				  train_csv=f"{const.MIX_DATA_DIR}/DEMAND_hoth_0505dB_05sec_1ch/train.csv",
+				  val_csv=f"{const.MIX_DATA_DIR}/DEMAND_hoth_0505dB_05sec_1ch/val.csv",
 				  wave_type=wave_type,
-                  out_path=f"{const.PTH_DIR}/{model_type}/subset_DEMAND_hoth_5dB_500msec/{out_name}.pth",
+				  out_path=f"{const.PTH_DIR}/{model_type}/DEMAND_hoth_0505dB_05sec_1ch/{out_name}.pth",
 				  loss_type="SISDR",
-                  batchsize=1, checkpoint_path=None, train_count=1, earlystopping_threshold=10)
+				  batchsize=8, checkpoint_path=None, train_count=1, earlystopping_threshold=10)
 
-            test(model=model,
-				 test_csv=f"/Users/a/Documents/sound_data/mix_data/DEMAND_hoth_0505dB_05sec_1ch/test.csv",
+			test(model=model,
+				 test_csv=f"{{const.MIX_DATA_DIR}}/DEMAND_hoth_0505dB_05sec_1ch/test.csv",
 				 wave_type=wave_type,
-				 out_dir=f"{const.OUTPUT_WAV_DIR}/{model_type}/subset_DEMAND_hoth_5dB_500msec/{out_name}",
-				 model_path=f"{const.PTH_DIR}/{model_type}/subset_DEMAND_hoth_5dB_500msec/{out_name}.pth")
+				 out_dir=f"{const.OUTPUT_WAV_DIR}/{model_type}/DEMAND_hoth_0505dB_05sec_1ch/{out_name}",
+				 model_path=f"{const.PTH_DIR}/{model_type}/DEMAND_hoth_0505dB_05sec_1ch/{out_name}.pth")
 
-            # evaluation(
-            #     target_dir=f"{const.MIX_DATA_DIR}/GNN/subset_DEMAND_hoth_5dB_500msec/test/clean",
-            #     estimation_dir=f"{const.OUTPUT_WAV_DIR}/{model_type}/subset_DEMAND_hoth_5dB_500msec/{out_name}",
-            #     out_path=f"{const.EVALUATION_DIR}/{out_name}.csv",
-            # )
+			evaluation(
+				target_dir=f"{const.MIX_DATA_DIR}/GNN/DEMAND_hoth_0505dB_05sec_1ch/test/clean",
+				estimation_dir=f"{const.OUTPUT_WAV_DIR}/{model_type}/DEMAND_hoth_0505dB_05sec_1ch/{out_name}",
+				out_path=f"{const.EVALUATION_DIR}/{model_type}/{out_name}.csv",
+			)
