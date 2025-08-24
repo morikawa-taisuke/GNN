@@ -12,11 +12,13 @@ from torchinfo import summary
 
 from models.graph_utils import GraphBuilder, GraphConfig, NodeSelectionType, EdgeSelectionType
 
+from mymodule import confirmation_GPU
+
 # PyTorchのCUDAメモリ管理設定。セグメントを拡張可能にすることで、断片化によるメモリ不足エラーを緩和します。
 os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "expandable_segments:True"
 
 # CUDAが利用可能かチェックし、利用可能ならGPUを、そうでなければCPUを使用するデバイスとして設定します。
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+device = confirmation_GPU.get_device()
 print(f"GNN_encoder.py 使用デバイス: {device}")
 
 

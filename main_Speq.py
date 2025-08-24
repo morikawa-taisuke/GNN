@@ -1,6 +1,5 @@
 import os
 import time
-from itertools import permutations
 from pathlib import Path
 
 import numpy as np
@@ -14,525 +13,373 @@ from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
 from tqdm.contrib import tenumerate
 
-import UGNNNet_DatasetClass
-from All_evaluation import main as evaluation
-from models.SpeqGNN import SpeqGCNNet, SpeqGATNet, SpeqGCNNet2, SpeqGATNet2
-from models.SpeqGNN_encoder import SpeqGCN_encoder, SpeqGAT_encoder
-from mymodule import my_func, const
+# from All_evaluation import main as evaluation
+from CsvDataset import CsvDataset, CsvInferenceDataset
+from models.ConvTasNet_models import enhance_ConvTasNet
+from models.SpeqGNN import SpeqGNN
+from models.GNN_encoder import GNNEncoder
+from models.graph_utils import GraphConfig, NodeSelectionType, EdgeSelectionType
+from models.wave_unet import U_Net
+from mymodule import my_func, const, LossFunction, confirmation_GPU
 
 # CUDAのメモリ管理設定
-os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "expandable_segments:True"
+# os.environ['PYTORCH_CUDA_ALLOC_CONF'] = 'expandable_segments:True'
 
 # CUDAの可用性をチェック
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-# device = "mps"
-print(f"Using device: {device}")
+device = confirmation_GPU.get_device()
+print(f"main_Speq 使用デバイス: {device}")
 
 
 def padding_tensor(tensor1, tensor2):
-    """
-    最後の次元（例: 時系列長）が異なる2つのテンソルに対して、
-    短い方を末尾にゼロパディングして長さをそろえる。
+	"""
+	最後の次元（例: 時系列長）が異なる2つのテンソルに対して、
+	短い方を末尾にゼロパディングして長さをそろえる。
 
-    Args:
-        tensor1, tensor2 (torch.Tensor): 任意の次元数のテンソル
+	Args:
+		tensor1, tensor2 (torch.Tensor): 任意の次元数のテンソル
 
-    Returns:
-        padded_tensor1, padded_tensor2 (torch.Tensor)
-    """
-    len1 = tensor1.size(-1)
-    len2 = tensor2.size(-1)
-    max_len = max(len1, len2)
+	Returns:
+		padded_tensor1, padded_tensor2 (torch.Tensor)
+	"""
+	len1 = tensor1.size(-1)
+	len2 = tensor2.size(-1)
+	max_len = max(len1, len2)
 
-    pad1 = [0, max_len - len1]  # 最後の次元だけパディング
-    pad2 = [0, max_len - len2]
+	pad1 = [0, max_len - len1]  # 最後の次元だけパディング
+	pad2 = [0, max_len - len2]
 
-    padded_tensor1 = F.pad(tensor1, pad1)
-    padded_tensor2 = F.pad(tensor2, pad2)
+	padded_tensor1 = F.pad(tensor1, pad1)
+	padded_tensor2 = F.pad(tensor2, pad2)
 
-    return padded_tensor1, padded_tensor2
-
-
-def sisdr(x, s, eps=1e-8):
-    """
-    calculate training loss
-    input:
-          x: separated signal, N x S tensor
-          s: reference signal, N x S tensor
-    Return:
-          sisdr: N tensor
-    """
-
-    def l2norm(mat, keepdim=False):
-        return torch.norm(mat, dim=-1, keepdim=keepdim)
-
-    if x.shape != s.shape:
-        raise RuntimeError(
-            "Dimention mismatch when calculate si-sdr, {} vs {}".format(
-                x.shape, s.shape
-            )
-        )
-    x_zm = x - torch.mean(x, dim=-1, keepdim=True)
-    s_zm = s - torch.mean(s, dim=-1, keepdim=True)
-    t = (
-        torch.sum(x_zm * s_zm, dim=-1, keepdim=True)
-        * s_zm
-        / torch.sum(s_zm * s_zm, dim=-1, keepdim=True)
-    )
-    return 20 * torch.log10(eps + l2norm(t) / (l2norm(t - x_zm) + eps))
+	return padded_tensor1, padded_tensor2
 
 
-def si_sdr_loss(ests, egs):
-    # spks x n x S
-    # ests: estimation
-    # egs: target
-    refs = egs
-    num_speeker = len(refs)
-    # print("spks", num_speeker)
-    # print(f"ests:{ests.shape}")
-    # print(f"egs:{egs.shape}")
+def train(model: nn.Module,
+		  train_csv: str,
+		  val_csv: str,
+		  wave_type: str,
+		  out_path: str = "./RESULT/pth/result.pth",
+		  loss_type: str = "stft_MSE",
+		  batchsize: int = const.BATCHSIZE,
+		  checkpoint_path: str = None,
+		  train_count: int = const.EPOCH,
+		  earlystopping_threshold: int = 5):
+	"""GPUの設定"""
+	device = confirmation_GPU.get_device()
+	""" その他の設定 """
+	out_path = Path(out_path)  # path型に変換
+	out_name, out_dir = out_path.stem, out_path.parent  # ファイル名とディレクトリを分離
+	# logの保存先の指定("tensorboard --logdir ./logs"で確認できる)
+	writer = SummaryWriter(log_dir=f"{const.LOG_DIR}\\{out_name}")
 
-    def sisdr_loss(permute):
-        # for one permute
-        # print("permute", permute)
-        return sum([sisdr(ests[s], refs[t]) for s, t in enumerate(permute)]) / len(
-            permute
-        )
-        # average the value
+	now = my_func.get_now_time()
+	csv_path = os.path.join(const.LOG_DIR, out_name, f"{out_name}_{now}.csv")  # CSVファイルのパス
+	my_func.make_dir(csv_path)
+	with open(csv_path, "w") as csv_file:  # ファイルオープン
+		csv_file.write(f"dataset,out_name,loss_func\n{train_csv},{out_path},{loss_type}")
 
-    # P x N
-    N = egs.size(0)
-    sisdr_mat = torch.stack([sisdr_loss(p) for p in permutations(range(num_speeker))])
-    max_perutt, _ = torch.max(sisdr_mat, dim=0)
-    # si-snr
-    return -torch.sum(max_perutt) / N
+	""" Early_Stoppingの設定 """
+	best_loss = np.inf  # 損失関数の最小化が目的の場合，初めのbest_lossを無限大にする
+	earlystopping_count = 0
 
+	""" Load dataset データセットの読み込み """
+	train_dataset = CsvDataset(csv_path=train_csv, input_column_header=wave_type)
+	train_loader = DataLoader(dataset=train_dataset, batch_size=batchsize, shuffle=True, pin_memory=True)
 
-def train(
-    model: nn.Module,
-    mix_dir: str,
-    clean_dir: str,
-    out_path: str = "./RESULT/pth/result.pth",
-    loss_func: str = "stft_MSE",
-    batchsize: int = const.BATCHSIZE,
-    checkpoint_path: str = None,
-    train_count: int = const.EPOCH,
-    earlystopping_threshold: int = 5,
-):
-    """GPUの設定"""
-    device = "cuda" if torch.cuda.is_available() else "cpu"  # GPUが使えれば使う
-    """ その他の設定 """
-    out_path = Path(out_path)  # path型に変換
-    out_name, out_dir = out_path.stem, out_path.parent  # ファイル名とディレクトリを分離
-    writer = SummaryWriter(
-        log_dir=f"{const.LOG_DIR}\\{out_name}"
-    )  # logの保存先の指定("tensorboard --logdir ./logs"で確認できる)
-    now = my_func.get_now_time()
-    csv_path = os.path.join(
-        const.LOG_DIR, out_name, f"{out_name}_{now}.csv"
-    )  # CSVファイルのパス
-    my_func.make_dir(csv_path)
-    with open(csv_path, "w") as csv_file:  # ファイルオープン
-        csv_file.write(f"dataset,out_name,loss_func\n{mix_dir},{out_path},{loss_func}")
+	val_dataset = CsvDataset(csv_path=val_csv, input_column_header=wave_type)
+	val_loader = DataLoader(dataset=val_dataset, batch_size=batchsize, shuffle=True, pin_memory=True)
 
-    """ Early_Stoppingの設定 """
-    best_loss = np.inf  # 損失関数の最小化が目的の場合，初めのbest_lossを無限大にする
-    earlystopping_count = 0
+	# print(f"\nmodel:{model}\n")                           # モデルのアーキテクチャの出力
+	""" 最適化関数の設定 """
+	optimizer = optim.Adam(model.parameters(), lr=0.001)  # optimizerを選択(Adam)
 
-    """ Load dataset データセットの読み込み """
-    dataset = UGNNNet_DatasetClass.SpectralDataset(
-        clean_audio_dir=clean_dir,
-        noisy_audio_dir=mix_dir,
-        n_fft=model.n_fft,
-        hop_length=model.hop_length,
-        win_length=model.win_length,
-    )  # データセットの読み込み
-    dataset_loader = DataLoader(
-        dataset, batch_size=batchsize, shuffle=True, pin_memory=True
-    )
+	# torchmetricsを用いた損失関数の初期化
+	loss_func = LossFunction.get_loss_computer(loss_type, device)
 
-    # STFTパラメータをモデルから取得 (SpectralDatasetと一致させる必要がある)
-    # 本来はconfigファイル等で一元管理するのが望ましい
-    n_fft = model.n_fft
-    hop_length = model.hop_length
+	""" チェックポイントの設定 """
+	if checkpoint_path != None:
+		print("restart_training")
+		checkpoint = torch.load(checkpoint_path)  # checkpointの読み込み
+		model.load_state_dict(checkpoint["model_state_dict"])  # 学習途中のモデルの読み込み
+		optimizer.load_state_dict(checkpoint["optimizer_state_dict"])  # オプティマイザの読み込み
+		# optimizerのstateを現在のdeviceに移す。これをしないと、保存前後でdeviceの不整合が起こる可能性がある。
+		for state in optimizer.state.values():
+			for k, v in state.items():
+				if isinstance(v, torch.Tensor):
+					state[k] = v.to(device)
+		start_epoch = checkpoint["epoch"] + 1
+		loss = checkpoint["loss"]
+	else:
+		start_epoch = 1
 
-    # print(f"\nmodel:{model}\n")                           # モデルのアーキテクチャの出力
-    """ 最適化関数の設定 """
-    optimizer = optim.Adam(model.parameters(), lr=0.001)  # optimizerを選択(Adam)
-    if loss_func != "SISDR":  # 損失関数に使用する式の指定(最小二乗誤差)
-        loss_function = nn.MSELoss().to(device)
+	""" 学習の設定を出力 """
+	print("====================")
+	print("device: ", device)
+	print("out_path: ", out_path)
+	print("dataset: ", train_csv)
+	print("loss_func: ", loss_type)
+	print("====================")
 
-    """ チェックポイントの設定 """
-    if checkpoint_path != None:
-        print("restart_training")
-        checkpoint = torch.load(checkpoint_path)  # checkpointの読み込み
-        # 学習途中のモデルの読み込み
-        model.load_state_dict(checkpoint["model_state_dict"])
-        # オプティマイザの読み込み
-        optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
-        # optimizerのstateを現在のdeviceに移す。これをしないと、保存前後でdeviceの不整合が起こる可能性がある。
-        for state in optimizer.state.values():
-            for k, v in state.items():
-                if isinstance(v, torch.Tensor):
-                    state[k] = v.to(device)
-        start_epoch = checkpoint["epoch"] + 1
-        loss = checkpoint["loss"]
-    else:
-        start_epoch = 1
+	my_func.make_dir(out_dir)
+	model.train()  # 学習モードに設定
 
-    """ 学習の設定を出力 """
-    print("=" * 32)
-    print("device: ", device)
-    print("out_path: ", out_path)
-    print("dataset: ", mix_dir)
-    print("loss_func: ", loss_func)
-    print("=" * 32)
+	start_time = time.time()  # 時間を測定
+	epoch = 0
+	for epoch in range(start_epoch, train_count + 1):  # 学習回数
+		print("Train Epoch:", epoch)  # 学習回数の表示
+		model_loss_sum = 0  # 総損失の初期化
+		for _, (mix_data, target_data) in tenumerate(train_loader):
+			mix_data, target_data = mix_data.to(device), target_data.to(device)  # データをGPUに移動
 
-    my_func.make_dir(out_dir)
-    model.train()  # 学習モードに設定
+			""" 勾配のリセット """
+			optimizer.zero_grad()  # optimizerの初期化
 
-    start_time = time.time()  # 時間を測定
-    epoch = 0
-    for epoch in range(start_epoch, train_count + 1):  # 学習回数
-        print(f"Train Epoch: {epoch}/{train_count}")  # 学習回数の表示
-        model_loss_sum = 0  # 総損失の初期化
-        for _, (
-            mix_magnitude_spec,
-            mix_complex_spec,
-            original_len,
-            target_wave,
-        ) in tenumerate(dataset_loader):
-            mix_magnitude_spec = mix_magnitude_spec.to(device)
-            mix_complex_spec = mix_complex_spec.to(device)
-            # original_len はスカラーまたはリストなので、必要に応じてテンソル化するが、ISTFTのlength引数はint
-            target_wave = target_wave.to(device)
+			""" データの整形 """
+			mix_data = mix_data.to(torch.float32)  # target_dataのタイプを変換 int16→float32
+			target_data = target_data.to(torch.float32)  # target_dataのタイプを変換 int16→float32
 
-            """ 勾配のリセット """
-            optimizer.zero_grad()  # optimizerの初期化
+			""" モデルに通す(予測値の計算) """
+			# --- STFT ---
+			original_length = mix_data.shape[-1]
+			# torchaudio.stftは (batch, time) または (time) を期待するため、チャンネル次元を削除
+			mix_data_squeezed = mix_data.squeeze(1)
 
-            """ データの整形 """
-            # SpectralDatasetがfloat32で返すことを想定。必要ならここで変換。
+			# 複素スペクトログラムを計算
+			mix_complex = torch.stft(
+				mix_data_squeezed,
+				n_fft=model.n_fft,
+				hop_length=model.hop_length,
+				win_length=model.win_length,
+				window=model.window.to(device),
+				return_complex=True
+			)
+			mix_magnitude = torch.abs(mix_complex).unsqueeze(1)  # (B, 1, F, T)
+			estimate_data = model(mix_magnitude, mix_complex, original_length)  # モデルに通す
 
-            """ モデルに通す(予測値の計算) """
-            # forward(self, x_magnitude, complex_spec_input, original_length=None)
-            # original_len はバッチ内の各要素の長さのリスト/テンソルになる可能性があるので、適切に処理
-            # DataLoaderのバッチ処理でoriginal_lenがどうなるか注意。ここでは最初の要素の長さを仮定。
-            # バッチ内の全要素が同じ長さであることを前提とするか、可変長を扱えるようにする必要がある。
-            # SpectralDatasetでmax_length_secにより固定長にパディングされているはず。
-            current_original_length = (
-                original_len[0].item()
-                if isinstance(original_len, torch.Tensor)
-                else original_len[0]
-            )
-            estimate_wave = model(
-                mix_magnitude_spec, mix_complex_spec, current_original_length
-            )
+			""" データの整形 """
+			# print("estimation:", estimate_data.shape)
+			# print("target:", target_data.shape)
+			estimate_data, target_data = padding_tensor(estimate_data, target_data)
 
-            """ データの整形 """
-            estimate_wave, target_wave_padded = padding_tensor(
-                estimate_wave, target_wave
-            )
+			""" 損失の計算 """
+			model_loss = loss_func(estimate_data, target_data)
+			model_loss_sum += model_loss  # 損失の加算
 
-            """ 損失の計算 """
-            model_loss = 0
-            match loss_func:
-                case "SISDR":
-                    model_loss = si_sdr_loss(estimate_wave, target_wave_padded[0])
-                case "wave_MSE":
-                    model_loss = loss_function(
-                        estimate_wave, target_wave_padded
-                    )  # 時間波形上でMSEによる損失関数の計算
-                case "stft_MSE":
-                    """周波数軸に変換"""
-                    # estimate_wave, target_wave_padded は (B, C, T) or (B, T) の形状
-                    # torch.stftは (..., L) or (B, L) を期待
-                    # squeeze(1) はチャンネル数が1の場合。
-                    stft_estimate_data = torch.stft(
-                        estimate_wave.squeeze(1),
-                        n_fft=n_fft,
-                        hop_length=hop_length,
-                        return_complex=True,
-                    )
-                    stft_target_data = torch.stft(
-                        target_wave_padded.squeeze(1),
-                        n_fft=n_fft,
-                        hop_length=hop_length,
-                        return_complex=True,
-                    )
-                    model_loss = loss_function(
-                        stft_estimate_data, stft_target_data
-                    )  # 時間周波数上MSEによる損失の計算
+			""" 後処理 """
+			model_loss.backward()  # 誤差逆伝搬
+			optimizer.step()  # 勾配の更新
 
-            model_loss_sum += model_loss  # 損失の加算
+			del (
+				mix_data,
+				target_data,
+				model_loss,
+			)  # 使用していない変数の削除 estimate_data,
+			torch.cuda.empty_cache()  # メモリの解放 1iterationごとに解放
 
-            """ 後処理 """
-            model_loss.backward()  # 誤差逆伝搬
-            optimizer.step()  # 勾配の更新
+		""" チェックポイントの作成 """
+		torch.save(
+			{
+				"epoch": epoch,
+				"model_state_dict": model.state_dict(),
+				"optimizer_state_dict": optimizer.state_dict(),
+				"loss": model_loss_sum,
+			},
+			f"{out_dir}/{out_name}_ckp.pth",
+		)
 
-            del (
-                mix_magnitude_spec,
-                mix_complex_spec,
-                target_wave,
-                estimate_wave,
-                model_loss,
-            )
-            torch.cuda.empty_cache()  # メモリの解放 1iterationごとに解放
+		writer.add_scalar(str(out_name[0]), model_loss_sum, epoch)
+		print(f"[{epoch}]model_loss_sum:{model_loss_sum}")  # 損失の出力
 
-        """ チェックポイントの作成 """
-        torch.save(
-            {
-                "epoch": epoch,
-                "model_state_dict": model.state_dict(),
-                "optimizer_state_dict": optimizer.state_dict(),
-                "loss": model_loss_sum,
-            },
-            f"{out_dir}/{out_name}_ckp.pth",
-        )
+		torch.cuda.empty_cache()  # メモリの解放 1iterationごとに解放
+		with open(csv_path, "a") as out_file:  # ファイルオープン
+			out_file.write(f"{model_loss_sum}\n")  # 書き込み
 
-        writer.add_scalar(f"{out_name}/loss", model_loss_sum, epoch)
-        print(f"[{epoch}/{train_count}] Epoch Loss: {model_loss_sum:.6f}")
+		""" Early_Stopping の判断 """
+		model.eval()
+		val_loss = 0.0
 
-        torch.cuda.empty_cache()  # メモリの解放 1iterationごとに解放
-        with open(csv_path, "a") as out_file:  # ファイルオープン
-            out_file.write(f"{epoch},{model_loss_sum}\n")  # 書き込み
+		# 勾配計算を無効化してメモリ効率を上げる
+		with torch.no_grad():
+			progress_bar_val = tqdm(val_loader, desc="Validation")
+			for mix_data, target_data in progress_bar_val:
+				mix_data = mix_data.to(device)
+				target_data = target_data.to(device)
 
-        """ Early_Stopping の判断 """
-        # best_lossとmodel_loss_sumを比較
-        if model_loss_sum < best_loss:  # model_lossのほうが小さい場合
-            print(f"{epoch:3} [epoch] | {model_loss_sum:.6} <- {best_loss:.6}")
-            torch.save(
-                model.to(device).state_dict(), f"{out_dir}/BEST_{out_name}.pth"
-            )  # 出力ファイルの保存
-            best_loss = model_loss_sum  # best_lossの変更
-            earlystopping_count = 0
-            # estimate_wave はループの最後のバッチのものなので、必ずしもベストモデルの出力ではない
-            # if estimate_wave is not None and estimate_wave.numel() > 0 : # estimate_waveがNoneでないかつ空でないことを確認
-            #     estimate_to_save = estimate_wave[0].cpu().detach().numpy() # バッチの最初の要素
-            #     if estimate_to_save.ndim > 1:
-            #          estimate_to_save = estimate_to_save.squeeze(0) # (C, T) -> (T) if C=1
-            #     sf.write(f"./RESULT/BEST_{out_name}_epoch{epoch}.wav", estimate_to_save, const.SR)
+				# --- STFT ---
+				original_length = mix_data.shape[-1]
+				mix_data_squeezed = mix_data.squeeze(1)
 
-        else:
-            earlystopping_count += 1
-            if (epoch > 100) and (earlystopping_count > earlystopping_threshold):
-                break
-        if epoch == 100:
-            torch.save(
-                model.to(device).state_dict(), f"{out_dir}/{out_name}_{epoch}.pth"
-            )  # 出力ファイルの保存
+				mix_complex = torch.stft(
+					mix_data_squeezed,
+					n_fft=model.n_fft,
+					hop_length=model.hop_length,
+					win_length=model.win_length,
+					window=model.window.to(device),
+					return_complex=True
+				)
+				mix_magnitude = torch.abs(mix_complex).unsqueeze(1)
 
-    """ 学習モデル(pthファイル)の出力 """
-    print("model save")
-    torch.save(
-        model.to(device).state_dict(), f"{out_dir}/{out_name}_{epoch}.pth"
-    )  # 出力ファイルの保存
+				estimate_data = model(mix_magnitude, mix_complex, original_length)
 
-    writer.close()
+				estimate_data, target_data = padding_tensor(estimate_data, target_data)
+				model_loss = loss_func(estimate_data, target_data)
+				val_loss += model_loss
+				progress_bar_val.set_postfix({"loss": model_loss})
+			avg_val_loss = val_loss / len(val_loader)
+		if avg_val_loss < best_loss:
+			print(f"Validation loss improved ({best_loss:.6f} --> {avg_val_loss:.6f}). Saving model...")
+			best_loss = avg_val_loss
+			# 最良モデルを保存
+			torch.save(model.state_dict(), f"{out_dir}/BEST_{out_name}.pth")
+			earlystopping_count = 0  # カウンターをリセット
+		else:
+			earlystopping_count += 1
+			print(f"Validation loss did not improve. Patience: {earlystopping_count}/{earlystopping_threshold}")
 
-    """ 学習時間の計算 """
-    time_end = time.time()  # 現在時間の取得
-    time_sec = time_end - start_time  # 経過時間の計算(sec)
-    time_h = float(time_sec) / 3600.0  # sec->hour
-    print(f"time：{str(time_h)}h")  # 出力
+		if earlystopping_count >= earlystopping_threshold:
+			print("Early stopping triggered. Training finished.")
+			break
+
+	torch.save(model.to(device).state_dict(), f"{out_dir}/{out_name}_{epoch}.pth")  # 出力ファイルの保存
+
+	""" 学習モデル(pthファイル)の出力 """
+	print("model save")
+	torch.save(model.to(device).state_dict(), f"{out_dir}/{out_name}_{epoch}.pth")  # 出力ファイルの保存
+
+	writer.close()
+
+	""" 学習時間の計算 """
+	time_end = time.time()  # 現在時間の取得
+	time_sec = time_end - start_time  # 経過時間の計算(sec)
+	time_h = float(time_sec) / 3600.0  # sec->hour
+	print(f"time：{str(time_h)}h")  # 出力
 
 
-def test(
-    model: nn.Module, mix_dir: str, out_dir: str, model_path: str, prm: int = const.SR
-):
-    # filelist_mixdown = my_func.get_file_list(mix_dir)
-    # print('number of mixdown file', len(filelist_mixdown))
-    print("=" * 32)
-    print("data: ", mix_dir)
-    print("out_dir: ", out_dir)
-    print("model_path: ", model_path)
-    print("=" * 32)
+def test(model: nn.Module, test_csv: str, wave_type: str, out_dir: str, model_path: str, prm: int = const.SR):
+	# ディレクトリを作成
+	my_func.make_dir(out_dir)
+	model_path = Path(model_path)  # path型に変換
+	model_dir, model_name = (
+		model_path.parent,
+		model_path.stem,
+	)  # ファイル名とディレクトリを分離
 
-    # STFTパラメータ (モデルと一致させる)
-    n_fft = model.n_fft
-    hop_length = model.hop_length
-    win_length = model.win_length
-    window = model.window.to(device)
+	model.load_state_dict(torch.load(os.path.join(model_dir, f"BEST_{model_name}.pth"), map_location=device))
+	model.eval()
 
-    # ディレクトリを作成
-    my_func.make_dir(out_dir)
-    model_path = Path(model_path)  # path型に変換
-    model_dir, model_name = (
-        model_path.parent,
-        model_path.stem,
-    )  # ファイル名とディレクトリを分離
+	dataset = CsvInferenceDataset(csv_path=test_csv, input_column_header=wave_type)
+	dataset_loader = DataLoader(dataset, batch_size=1, shuffle=True, pin_memory=True)
 
-    model.load_state_dict(
-        torch.load(
-            os.path.join(model_dir, f"BEST_{model_name}.pth"), map_location=device
-        )
-    )
-    model.eval()
+	for mix_data, mix_name in tqdm(dataset_loader):
+		mix_data = mix_data.to(device)  # データをGPUに移動
+		mix_data = mix_data.to(torch.float32)  # データの型を変換 int16→float32
 
-    dataset = UGNNNet_DatasetClass.AudioDataset_test(mix_dir)  # データセットの読み込み
-    dataset_loader = DataLoader(dataset, batch_size=1, shuffle=True, pin_memory=True)
+		# --- STFT ---
+		original_length = mix_data.shape[-1]
+		mix_data_squeezed = mix_data.squeeze(1)
 
-    for mix_wave, mix_name_tuple in tqdm(
-        dataset_loader
-    ):  # filelist_mixdownを全て確認して、それぞれをfmixdownに代入
-        mix_wave = mix_wave.to(device)  # (B, C, T)
-        mix_name = mix_name_tuple[0]  # DataLoaderがタプルでラップする場合がある
+		mix_complex = torch.stft(
+			mix_data_squeezed,
+			n_fft=model.n_fft,
+			hop_length=model.hop_length,
+			win_length=model.win_length,
+			window=model.window.to(device),
+			return_complex=True
+		)
+		mix_magnitude = torch.abs(mix_complex).unsqueeze(1)
 
-        # STFT実行
-        # 振幅スペクトログラム (B, C, F, T_spec)
-        mix_magnitude_spec = torch.stft(
-            mix_wave.squeeze(1),
-            n_fft=n_fft,
-            hop_length=hop_length,
-            win_length=win_length,
-            window=window,
-            return_complex=False,
-        )
-        mix_magnitude_spec = torch.sqrt(
-            mix_magnitude_spec[..., 0] ** 2 + mix_magnitude_spec[..., 1] ** 2
-        ).unsqueeze(
-            1
-        )  # (B, 1, F, T_spec)
+		separate = model(mix_magnitude, mix_complex, original_length)  # モデルの適用
+		# print(f"Initial separate shape: {separate.shape}") # デバッグ用
 
-        # 複素スペクトログラム (B, F, T_spec)
-        mix_complex_spec = torch.stft(
-            mix_wave.squeeze(1),
-            n_fft=n_fft,
-            hop_length=hop_length,
-            win_length=win_length,
-            window=window,
-            return_complex=True,
-        )
+		separate = separate.cpu()
+		separate = separate.detach().numpy()
+		# print(f"separate: {separate.shape}")
+		# print(f"mix_name: {mix_name}")
+		# print(f"mix_name: {type(mix_name)}")
 
-        original_len = mix_wave.shape[-1]
+		# separate の形状を (length,) に整形する
+		# モデルの出力が (1, 1, length) と仮定
+		data_to_write = separate.squeeze()
 
-        with torch.no_grad():
-            separate = model(
-                mix_magnitude_spec, mix_complex_spec, original_len
-            )  # モデルの適用
+		# 正規化
+		mix_max = torch.max(mix_data)  # mix_waveの最大値を取得
+		data_to_write = data_to_write / np.max(data_to_write) * mix_max.cpu().detach().numpy()
 
-        separate = separate.cpu()
-        separate = separate.detach().numpy()
-        # print(f"separate: {separate.shape}")
-        # print(f"mix_name: {mix_name}")
-        # print(f"mix_name: {type(mix_name)}")
-
-        # separate の形状を (length,) に整形する
-        # モデルの出力が (1, 1, length) と仮定
-        data_to_write = separate.squeeze()
-
-        # 正規化
-        mix_max = torch.max(mix_wave)  # mix_waveの最大値を取得
-        data_to_write = (
-            data_to_write / np.max(data_to_write) * mix_max.cpu().detach().numpy()
-        )  # 正規化
-
-        # 分離した speechを出力ファイルとして保存する。
-        # ファイル名とフォルダ名を結合してパス文字列を作成
-        out_path = os.path.join(out_dir, (mix_name + ".wav"))
-        # print('saving... ', fname)
-        # 混合データを保存
-        # my_func.save_wav(out_path, separate[0], prm)
-        sf.write(out_path, data_to_write, prm)
-        torch.cuda.empty_cache()  # メモリの解放 1音声ごとに解放
+		# 分離した speechを出力ファイルとして保存する。
+		# ファイル名とフォルダ名を結合してパス文字列を作成
+		out_path = os.path.join(out_dir, (mix_name[0] + ".wav"))
+		# print('saving... ', fname)
+		# 混合データを保存
+		# my_func.save_wav(out_path, separate[0], prm)
+		sf.write(out_path, data_to_write, prm)
+		torch.cuda.empty_cache()  # メモリの解放 1音声ごとに解放
 
 
 if __name__ == "__main__":
-    """stftのパラメータ"""
-    n_fft = 1024  # STFTのフレームサイズ
-    hop_length = n_fft // 2  # STFTのホップサイズ
-    win_length = n_fft  # STFTのウィンドウ長
-    """ モデルの設定 """
-    num_mic = 1  # マイクの数
-    num_node = 16  # k近傍の数
-    model_list = [
-        "SpeqGCN_encoder",
-        "SpeqGAT_encoder",
-    ]  # モデルの種類をSpeqGCNに限定 , "SpeqGAT", "SpeqGAT2", "SpeqGCN_encoder"
-    for model_type in model_list:
-        if model_type == "SpeqGCN":  # モデル名をSpeqGCNに変更
-            model = SpeqGCNNet(
-                n_channels=num_mic,
-                n_classes=1,
-                num_node=num_node,
-                n_fft=n_fft,
-                hop_length=hop_length,
-                win_length=win_length,
-            ).to(device)
-        elif model_type == "SpeqGAT":
-            model = SpeqGATNet(
-                n_channels=num_mic,
-                n_classes=1,
-                num_node=num_node,
-                n_fft=n_fft,
-                hop_length=hop_length,
-                win_length=win_length,
-            ).to(device)
-        elif model_type == "SpeqGCN2":
-            model = SpeqGCNNet2(
-                n_channels=num_mic,
-                n_classes=1,
-                num_node=num_node,
-                n_fft=n_fft,
-                hop_length=hop_length,
-                win_length=win_length,
-            ).to(device)
-        elif model_type == "SpeqGAT2":
-            model = SpeqGATNet2(
-                n_channels=num_mic,
-                n_classes=1,
-                num_node=num_node,
-                n_fft=n_fft,
-                hop_length=hop_length,
-                win_length=win_length,
-            ).to(device)
-        elif model_type == "SpeqGCN_encoder":
-            model = SpeqGCN_encoder(
-                n_channels=num_mic,
-                n_classes=1,
-                num_node=num_node,
-                n_fft=n_fft,
-                hop_length=hop_length,
-                win_length=win_length,
-            ).to(device)
-        elif model_type == "SpeqGAT_encoder":
-            model = SpeqGAT_encoder(
-                n_channels=num_mic,
-                n_classes=1,
-                num_node=num_node,
-                n_fft=n_fft,
-                hop_length=hop_length,
-                win_length=win_length,
-            ).to(device)
-        else:
-            raise ValueError(f"Unknown model type: {model_type}")
-        wave_types = [
-            "noise_only",
-            "reverbe_only",
-            "noise_reverbe",
-        ]  # 入寮信号の種類 (noise_only, reverbe_only, noise_reverbe)
-        for wave_type in wave_types:
-            out_name = (
-                f"{model_type}_{wave_type}_{num_node}node_{n_fft}fft"  # 出力ファイル名
-            )
+	"""モデルの設定"""
+	num_mic = 1  # マイクの数
+	num_node = 16  # ノードの数
+	model_list = [
+		"GCN",
+		"GAT",
+	]  # モデルの種類  "UGCN", "UGCN2", "UGAT", "UGAT2", "ConvTasNet", "UNet"
+	wave_types = [
+		"noise_only",
+		# "reverbe_only",
+		# "noise_reverbe",
+	]  # 入力信号の種類 (noise_only, reverbe_only, noise_reverbe)
 
-            train(
-                model=model,
-                mix_dir=f"{const.MIX_DATA_DIR}/GNN/subset_DEMAND_hoth_5dB_500msec/train/{wave_type}",
-                clean_dir=f"{const.MIX_DATA_DIR}/GNN/subset_DEMAND_hoth_5dB_500msec/train/clean",
-                out_path=f"{const.PTH_DIR}/{model_type}/subset_DEMAND_hoth_5dB_500msec/{out_name}.pth",
-                batchsize=1,
-                loss_func="SISDR",
-            )
+	graph_config = GraphConfig(
+		num_edges=num_node,
+		node_selection=NodeSelectionType.TEMPORAL,
+		edge_selection=EdgeSelectionType.RANDOM,
+		bidirectional=True,
+		temporal_window=4000,  # 時間窓のサイズ
+	)
 
-            test(
-                model=model,
-                mix_dir=f"{const.MIX_DATA_DIR}/GNN/subset_DEMAND_hoth_5dB_500msec/test/{wave_type}",
-                out_dir=f"{const.OUTPUT_WAV_DIR}/{model_type}/subset_DEMAND_hoth_5dB_500msec/{out_name}",
-                model_path=f"{const.PTH_DIR}/{model_type}/subset_DEMAND_hoth_5dB_500msec/{out_name}.pth",
-            )
+	stft_params = {
+		"n_fft": 512,
+		"hop_length": 256,
+		"win_length": 512
+	}
 
-            evaluation(
-                target_dir=f"{const.MIX_DATA_DIR}/GNN/subset_DEMAND_hoth_5dB_500msec/test/clean",
-                estimation_dir=f"{const.OUTPUT_WAV_DIR}/{model_type}/subset_DEMAND_hoth_5dB_500msec/{out_name}",
-                out_path=f"{const.EVALUATION_DIR}/{out_name}.csv",
-            )
+	for model_type in model_list:
+		if model_type == "GCN":
+			model = SpeqGNN(n_channels=num_mic, n_classes=num_mic, gnn_type="GCN", graph_config=graph_config, **stft_params).to(device)
+		elif model_type == "GAT":
+			model = SpeqGNN(n_channels=num_mic, n_classes=num_mic, gnn_type="GAT", graph_config=graph_config, **stft_params).to(device)
+		elif model_type == "GCNEncoder":
+			model = GNNEncoder(n_channels=num_mic, gnn_type="GCN", num_node=num_node, graph_config=graph_config).to(device)
+		elif model_type == "GATEncoder":
+			model = GNNEncoder(n_channels=num_mic, gnn_type="GAT", num_node=num_node, graph_config=graph_config).to(device)
+		elif model_type == "ConvTasNet":
+			model = enhance_ConvTasNet().to(device)
+		elif model_type == "UNet":
+			model = U_Net().to(device)
+		else:
+			raise ValueError(f"Unknown model type: {model_type}")
+
+		for wave_type in wave_types:
+			out_name = f"new_{model_type}_{wave_type}_{num_node}node_win"  # 出力ファイル名
+			# C:\Users\kataoka-lab\Desktop\sound_data\sample_data\speech\DEMAND\clean\train
+			train(model=model,
+				  train_csv=f"/Users/a/Documents/sound_data/mix_data/DEMAND_hoth_0505dB_05sec_1ch/train.csv",
+				  val_csv=f"/Users/a/Documents/sound_data/mix_data/DEMAND_hoth_0505dB_05sec_1ch/val.csv",
+				  wave_type=wave_type,
+				  out_path=f"{const.PTH_DIR}/{model_type}/subset_DEMAND_hoth_5dB_500msec/{out_name}.pth",
+				  loss_type="SISDR",
+				  batchsize=1, checkpoint_path=None, train_count=1, earlystopping_threshold=10)
+
+			test(
+				model=model,
+				test_csv=f"/Users/a/Documents/sound_data/mix_data/DEMAND_hoth_0505dB_05sec_1ch/test.csv",
+				wave_type=wave_type,
+				out_dir=f"{const.OUTPUT_WAV_DIR}/{model_type}/subset_DEMAND_hoth_5dB_500msec/{out_name}",
+				model_path=f"{const.PTH_DIR}/{model_type}/subset_DEMAND_hoth_5dB_500msec/{out_name}.pth",
+			)
+		#
+		# evaluation(
+		#     target_dir=f"{const.MIX_DATA_DIR}/GNN/subset_DEMAND_hoth_5dB_500msec/test/clean",
+		#     estimation_dir=f"{const.OUTPUT_WAV_DIR}/{model_type}/subset_DEMAND_hoth_5dB_500msec/{out_name}",
+		#     out_path=f"{const.EVALUATION_DIR}/{out_name}.csv",
+		# )

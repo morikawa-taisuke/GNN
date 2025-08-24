@@ -7,8 +7,10 @@ from torchinfo import summary
 
 from models.graph_utils import GraphBuilder, GraphConfig, NodeSelectionType, EdgeSelectionType
 
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+from mymodule import confirmation_GPU
 
+device = confirmation_GPU.get_device()
+print(f"GNN.py 使用デバイス: {device}")
 
 class DoubleConv1D(nn.Module):
     def __init__(self, in_channels, out_channels):
@@ -155,11 +157,6 @@ class UGNN(nn.Module):
             )
 
         self.graph_builder = GraphBuilder(graph_config)
-
-    def create_knn_graph(self, x_nodes_batched, k, batch_size, num_nodes_per_sample):
-        batch_indices = torch.arange(batch_size, device=x_nodes_batched.device).repeat_interleave(num_nodes_per_sample)
-        edge_index = knn_graph(x=x_nodes_batched, k=k, batch=batch_indices, loop=False)
-        return edge_index
 
     def forward(self, x):
         # エンコーダ

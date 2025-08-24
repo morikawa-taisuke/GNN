@@ -19,14 +19,14 @@ from torchinfo import summary
 import os
 from pathlib import Path
 
-from mymodule import const
+from mymodule import const, confirmation_GPU
 
 # CUDAのメモリ管理設定
 os.environ['PYTORCH_CUDA_ALLOC_CONF'] = 'expandable_segments:True'
 
 # CUDAの可用性をチェック
-device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-print(f"Using device: {device}")
+device = confirmation_GPU.get_device()
+print(f"wave_unet.py 使用デバイス: {device}")
 
 def padding_tensor(tensor1, tensor2):
     """
