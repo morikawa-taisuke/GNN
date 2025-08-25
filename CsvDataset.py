@@ -6,11 +6,7 @@ import torch.nn.functional as F
 import torchaudio
 from torch.utils.data import Dataset
 from pathlib import Path
-
-
-# ===================================================================
-# ▼▼▼ 改良版データローダ ▼▼▼
-# ===================================================================
+import torch
 
 
 class CsvDataset(Dataset):
@@ -90,6 +86,26 @@ class CsvDataset(Dataset):
         データセットの総数を返す。
         """
         return len(self.data_df)
+
+    @staticmethod
+    def collate_fn(batch):
+        """バッチ内のテンソルサイズを揃えるためのカスタムcollate関数"""
+        # バッチ内の最大長を見つける
+        max_len = max([x[0].size(-1) for x in batch])
+
+        # 全てのテンソルを最大長にパディング
+        padded_batch = []
+        for mix_data, target_data in batch:
+            pad_mix = F.pad(mix_data, (0, max_len - mix_data.size(-1)))
+            pad_target = F.pad(target_data, (0, max_len - target_data.size(-1)))
+            padded_batch.append((pad_mix, pad_target))
+
+        # バッチ化
+        mix_data = torch.stack([x[0] for x in padded_batch])
+        target_data = torch.stack([x[1] for x in padded_batch])
+
+        return mix_data, target_data
+
 
 # ===================================================================
 # ▼▼▼ [改良版] 推論用データローダ ▼▼▼

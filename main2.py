@@ -97,10 +97,10 @@ def train(model: nn.Module,
 
 	""" Load dataset データセットの読み込み """
 	train_dataset = CsvDataset(csv_path=train_csv, input_column_header=wave_type)
-	train_loader = DataLoader(dataset=train_dataset, batch_size=batchsize, shuffle=True, pin_memory=True)
+	train_loader = DataLoader(dataset=train_dataset, batch_size=batchsize, shuffle=True, pin_memory=True, collate_fn=CsvDataset.collate_fn)
 
 	val_dataset = CsvDataset(csv_path=val_csv, input_column_header=wave_type)
-	val_loader = DataLoader(dataset=val_dataset, batch_size=batchsize, shuffle=True, pin_memory=True)
+	val_loader = DataLoader(dataset=val_dataset, batch_size=batchsize, shuffle=True, pin_memory=True, collate_fn=CsvDataset.collate_fn)
 
 	# print(f"\nmodel:{model}\n")                           # モデルのアーキテクチャの出力
 	""" 最適化関数の設定 """
@@ -335,7 +335,7 @@ if __name__ == "__main__":
 				  wave_type=wave_type,
 				  out_path=f"{const.PTH_DIR}/{model_type}/DEMAND_hoth_0505dB_05sec_1ch/{out_name}.pth",
 				  loss_type="SISDR",
-				  batchsize=1, checkpoint_path=None, train_count=100, earlystopping_threshold=10)
+				  batchsize=8, checkpoint_path=None, train_count=500, earlystopping_threshold=10)
 
 			test(model=model,
 				 test_csv=f"{const.MIX_DATA_DIR}/DEMAND_hoth_0505dB_05sec_1ch/test.csv",
