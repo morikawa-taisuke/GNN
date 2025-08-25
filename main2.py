@@ -168,12 +168,12 @@ def train(model: nn.Module,
 			model_loss.backward()  # 誤差逆伝搬
 			optimizer.step()  # 勾配の更新
 
-			del (
-				mix_data,
-				target_data,
-				model_loss,
-			)  # 使用していない変数の削除 estimate_data,
-			torch.cuda.empty_cache()  # メモリの解放 1iterationごとに解放
+			# del (
+			# 	mix_data,
+			# 	target_data,
+			# 	model_loss,
+			# )  # 使用していない変数の削除 estimate_data,
+			# torch.cuda.empty_cache()  # メモリの解放 1iterationごとに解放
 
 		""" チェックポイントの作成 """
 		torch.save(
@@ -290,8 +290,8 @@ if __name__ == "__main__":
 	num_mic = 1  # マイクの数
 	num_node = 16  # ノードの数
 	model_list = [
-		"UGCN",
-		"UGAT",
+		"ConvTasNet",
+		# "UGAT",
 	]  # モデルの種類  "UGCN", "UGCN2", "UGAT", "UGAT2", "ConvTasNet", "UNet"
 	wave_types = [
 		"noise_only",
@@ -326,7 +326,8 @@ if __name__ == "__main__":
 			raise ValueError(f"Unknown model type: {model_type}")
 
 		for wave_type in wave_types:
-			out_name = f"new_{model_type}_{wave_type}_{num_node}node_{node_selection.value}_{edge_selection.value}"	# 出力名
+			# out_name = f"new_{model_type}_{wave_type}_{num_node}node_{node_selection.value}_{edge_selection.value}"	# 出力名
+			out_name = f"{model_type}_{wave_type}"	# 出力名
 			# C:\Users\kataoka-lab\Desktop\sound_data\sample_data\speech\DEMAND\clean\train
 			train(model=model,
 				  train_csv=f"{const.MIX_DATA_DIR}/DEMAND_hoth_0505dB_05sec_1ch/train.csv",
@@ -334,16 +335,16 @@ if __name__ == "__main__":
 				  wave_type=wave_type,
 				  out_path=f"{const.PTH_DIR}/{model_type}/DEMAND_hoth_0505dB_05sec_1ch/{out_name}.pth",
 				  loss_type="SISDR",
-				  batchsize=8, checkpoint_path=None, train_count=1, earlystopping_threshold=10)
+				  batchsize=1, checkpoint_path=None, train_count=100, earlystopping_threshold=10)
 
 			test(model=model,
-				 test_csv=f"{{const.MIX_DATA_DIR}}/DEMAND_hoth_0505dB_05sec_1ch/test.csv",
+				 test_csv=f"{const.MIX_DATA_DIR}/DEMAND_hoth_0505dB_05sec_1ch/test.csv",
 				 wave_type=wave_type,
 				 out_dir=f"{const.OUTPUT_WAV_DIR}/{model_type}/DEMAND_hoth_0505dB_05sec_1ch/{out_name}",
 				 model_path=f"{const.PTH_DIR}/{model_type}/DEMAND_hoth_0505dB_05sec_1ch/{out_name}.pth")
 
 			evaluation(
-				target_dir=f"{const.MIX_DATA_DIR}/GNN/DEMAND_hoth_0505dB_05sec_1ch/test/clean",
+				target_dir=f"{const.MIX_DATA_DIR}/DEMAND_hoth_0505dB_05sec_1ch/test/clean",
 				estimation_dir=f"{const.OUTPUT_WAV_DIR}/{model_type}/DEMAND_hoth_0505dB_05sec_1ch/{out_name}",
 				out_path=f"{const.EVALUATION_DIR}/{model_type}/{out_name}.csv",
 			)
