@@ -209,7 +209,8 @@ def train(model: nn.Module,
 				model_loss = loss_func(estimate_data, target_data)
 				val_loss += model_loss
 				progress_bar_val.set_postfix({"loss": model_loss})
-			avg_val_loss = val_loss / len(val_loader)
+			avg_val_loss = val_loss
+
 		if avg_val_loss < best_loss:
 			print(f"Validation loss improved ({best_loss:.6f} --> {avg_val_loss:.6f}). Saving model...")
 			best_loss = avg_val_loss
@@ -290,8 +291,7 @@ if __name__ == "__main__":
 	num_mic = 1  # マイクの数
 	num_node = 16  # ノードの数
 	model_list = [
-		"UGCN",
-		"UGAT",
+		"UGCN", "UGCN2",
 	]  # モデルの種類  "UGCN", "UGCN2", "UGAT", "UGAT2", "ConvTasNet", "UNet"
 	wave_types = [
 		"noise_only",
@@ -325,25 +325,27 @@ if __name__ == "__main__":
 		else:
 			raise ValueError(f"Unknown model type: {model_type}")
 
+
+		dir_name = "DEMAND_hoth_0505dB_05sec_1ch"
 		for wave_type in wave_types:
 			out_name = f"new_{model_type}_{wave_type}_{num_node}node_{node_selection.value}_{edge_selection.value}"	# 出力名
 			# C:\Users\kataoka-lab\Desktop\sound_data\sample_data\speech\DEMAND\clean\train
 			train(model=model,
-				  train_csv=f"{const.MIX_DATA_DIR}/DEMAND_hoth_0505dB_05sec_1ch/train.csv",
-				  val_csv=f"{const.MIX_DATA_DIR}/DEMAND_hoth_0505dB_05sec_1ch/val.csv",
+				  train_csv=f"{const.MIX_DATA_DIR}/{dir_name}/train.csv",
+				  val_csv=f"{const.MIX_DATA_DIR}/{dir_name}/val.csv",
 				  wave_type=wave_type,
-				  out_path=f"{const.PTH_DIR}/{model_type}/DEMAND_hoth_0505dB_05sec_1ch/{out_name}.pth",
+				  out_path=f"{const.PTH_DIR}/{model_type}/{dir_name}/{out_name}.pth",
 				  loss_type="SISDR",
-				  batchsize=8, checkpoint_path=None, train_count=500, earlystopping_threshold=10)
+				  batchsize=16, checkpoint_path=None, train_count=500, earlystopping_threshold=10)
 
 			test(model=model,
-				 test_csv=f"{const.MIX_DATA_DIR}/DEMAND_hoth_0505dB_05sec_1ch/test.csv",
+				 test_csv=f"{const.MIX_DATA_DIR}/{dir_name}/test.csv",
 				 wave_type=wave_type,
-				 out_dir=f"{const.OUTPUT_WAV_DIR}/{model_type}/DEMAND_hoth_0505dB_05sec_1ch/{out_name}",
-				 model_path=f"{const.PTH_DIR}/{model_type}/DEMAND_hoth_0505dB_05sec_1ch/{out_name}.pth")
+				 out_dir=f"{const.OUTPUT_WAV_DIR}/{model_type}/{dir_name}/{out_name}",
+				 model_path=f"{const.PTH_DIR}/{model_type}/{dir_name}/{out_name}.pth")
 
 			evaluation(
-				target_dir=f"{const.MIX_DATA_DIR}/DEMAND_hoth_0505dB_05sec_1ch/test/clean",
-				estimation_dir=f"{const.OUTPUT_WAV_DIR}/{model_type}/DEMAND_hoth_0505dB_05sec_1ch/{out_name}",
+				target_dir=f"{const.MIX_DATA_DIR}/{dir_name}/test/clean",
+				estimation_dir=f"{const.OUTPUT_WAV_DIR}/{model_type}/{dir_name}/{out_name}",
 				out_path=f"{const.EVALUATION_DIR}/{model_type}/{out_name}.csv",
 			)
