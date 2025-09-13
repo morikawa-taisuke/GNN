@@ -93,7 +93,7 @@ def visualize_spectral_graph(x_nodes, edge_index, freq_bins, time_frames, max_ti
     print(f"最小次数: {np.min(degrees)}")
     print(f"最大次数: {np.max(degrees)}")
 
-
+# --- 既存のユーティリティークラス (SpeqGNN.pyから再利用) ---
 class DoubleConv(nn.Module):
     """(畳み込み => バッチ正規化 => ReLU) を2回繰り返すブロック"""
 
@@ -109,6 +109,7 @@ class DoubleConv(nn.Module):
         )
 
     def forward(self, x):
+        """順伝播"""
         return self.double_conv(x)
 
 
@@ -120,6 +121,7 @@ class Down(nn.Module):
         self.maxpool_conv = nn.Sequential(nn.MaxPool1d(2), DoubleConv(in_channels, out_channels))
 
     def forward(self, x):
+        """順伝播"""
         return self.maxpool_conv(x)
 
 
@@ -279,7 +281,6 @@ class GNNEncoder(nn.Module):
                 edge_selection=EdgeSelectionType.KNN,
                 bidirectional=True,
             )
-
         self.graph_builder = GraphBuilder(graph_config)
 
     def forward(self, x_waveform):
