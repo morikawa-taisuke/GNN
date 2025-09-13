@@ -291,12 +291,11 @@ if __name__ == "__main__":
 	num_mic = 1  # マイクの数
 	num_node = 16  # ノードの数
 	model_list = [
-		"UGCN", "UGCN2",
+		"UGCN", "UGAT", "GCNEncoder", "GATEncoder",
 	]  # モデルの種類  "UGCN", "UGCN2", "UGAT", "UGAT2", "ConvTasNet", "UNet"
 	wave_types = [
 		"noise_only",
 		"reverbe_only",
-		"noise_reverbe",
 	]  # 入力信号の種類 (noise_only, reverbe_only, noise_reverbe)
 	node_selection = NodeSelectionType.ALL  # ノード選択の方法 (ALL, TEMPORAL)
 	edge_selection = EdgeSelectionType.RANDOM  # エッジ選択の方法 (RAMDOM, TEMPORAL)
@@ -347,5 +346,5 @@ if __name__ == "__main__":
 			evaluation(
 				target_dir=f"{const.MIX_DATA_DIR}/{dir_name}/test/clean",
 				estimation_dir=f"{const.OUTPUT_WAV_DIR}/{model_type}/{dir_name}/{out_name}",
-				out_path=f"{const.EVALUATION_DIR}/{model_type}/{out_name}.csv",
+				out_path=f"{const.EVALUATION_DIR}/{dir_name}/{model_type}/{out_name}.csv",
 			)
