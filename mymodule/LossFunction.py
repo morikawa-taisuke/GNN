@@ -5,40 +5,40 @@ from torchmetrics.regression import MeanSquaredError as MSE
 
 
 def get_loss_computer(loss_func_name: str, device: torch.device):
-    """
-    損失関数名に基づいて、損失を計算する関数（callable）を返す。
-    ループ内の分岐をなくし、コードをクリーンにする。
+	"""
+	損失関数名に基づいて、損失を計算する関数（callable）を返す。
+	ループ内の分岐をなくし、コードをクリーンにする。
 
-    Args:
-        loss_func_name (str): 損失関数の名前 ("SISDR", "wave_MSE", "stft_MSE")
-        device (torch.device): 計算に使用するデバイス
+	Args:
+		loss_func_name (str): 損失関数の名前 ("SISDR", "wave_MSE", "stft_MSE")
+		device (torch.device): 計算に使用するデバイス
 
-    Returns:
-        callable: (preds, target) -> loss を計算する関数
-    """
-    if loss_func_name == "SISDR":
-        metric = SISDR().to(device)
-        # SI-SDRは値が大きいほど良いため、損失として最小化するには-1を掛ける
-        return lambda preds, target: -metric(preds, target)
+	Returns:
+		callable: (preds, target) -> loss を計算する関数
+	"""
+	if loss_func_name == "SISDR":
+		metric = SISDR().to(device)
+		# SI-SDRは値が大きいほど良いため、損失として最小化するには-1を掛ける
+		return lambda preds, target: -metric(preds, target)
 
-    elif loss_func_name == "wave_MSE":
-        metric = MSE().to(device)
-        # MSEはそのまま損失として使える
-        return metric
+	elif loss_func_name == "wave_MSE":
+		metric = MSE().to(device)
+		# MSEはそのまま損失として使える
+		return metric
 
-    elif loss_func_name == "stft_MSE":
-        metric = MSE().to(device)
+	elif loss_func_name == "stft_MSE":
+		metric = MSE().to(device)
 
-        def stft_mse_computer(preds, target):
-            # STFTは (batch, signal_length) を期待するため、チャンネル次元を削除
-            # モデルの出力が (batch, 1, length) であることを想定
-            stft_preds = torch.stft(preds.squeeze(1), n_fft=1024, return_complex=False)
-            stft_target = torch.stft(target.squeeze(1), n_fft=1024, return_complex=False)
-            return metric(stft_preds, stft_target)
+		def stft_mse_computer(preds, target):
+			# STFTは (batch, signal_length) を期待するため、チャンネル次元を削除
+			# モデルの出力が (batch, 1, length) であることを想定
+			stft_preds = torch.stft(preds.squeeze(1), n_fft=1024, return_complex=False)
+			stft_target = torch.stft(target.squeeze(1), n_fft=1024, return_complex=False)
+			return metric(stft_preds, stft_target)
 
-        return stft_mse_computer
-    else:
-        raise ValueError(f"Unknown loss function: {loss_func_name}")
+		return stft_mse_computer
+	else:
+		raise ValueError(f"Unknown loss function: {loss_func_name}")
 
 if __name__ == "__main__":
 	# Set device
