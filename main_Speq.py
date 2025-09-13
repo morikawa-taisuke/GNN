@@ -13,7 +13,7 @@ from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
 from tqdm.contrib import tenumerate
 
-# from All_evaluation import main as evaluation
+from All_evaluation import main as evaluation
 from CsvDataset import CsvDataset, CsvInferenceDataset
 from models.ConvTasNet_models import enhance_ConvTasNet
 from models.SpeqGNN import SpeqGNN
@@ -84,10 +84,10 @@ def train(model: nn.Module,
 
 	""" Load dataset データセットの読み込み """
 	train_dataset = CsvDataset(csv_path=train_csv, input_column_header=wave_type)
-	train_loader = DataLoader(dataset=train_dataset, batch_size=batchsize, shuffle=True, pin_memory=True)
+	train_loader = DataLoader(dataset=train_dataset, batch_size=batchsize, shuffle=True, pin_memory=True, collate_fn=CsvDataset.collate_fn)
 
 	val_dataset = CsvDataset(csv_path=val_csv, input_column_header=wave_type)
-	val_loader = DataLoader(dataset=val_dataset, batch_size=batchsize, shuffle=True, pin_memory=True)
+	val_loader = DataLoader(dataset=val_dataset, batch_size=batchsize, shuffle=True, pin_memory=True, collate_fn=CsvDataset.collate_fn)
 
 	# print(f"\nmodel:{model}\n")                           # モデルのアーキテクチャの出力
 	""" 最適化関数の設定 """
@@ -160,6 +160,9 @@ def train(model: nn.Module,
 			# print("estimation:", estimate_data.shape)
 			# print("target:", target_data.shape)
 			estimate_data, target_data = padding_tensor(estimate_data, target_data)
+			# print("estimation:", estimate_data.shape)
+			# print("target:", target_data.shape)
+			estimate_data = estimate_data.unsqueeze(dim=0)
 
 			""" 損失の計算 """
 			model_loss = loss_func(estimate_data, target_data)
@@ -368,7 +371,7 @@ if __name__ == "__main__":
 				  wave_type=wave_type,
 				  out_path=f"{const.PTH_DIR}/{model_type}/subset_DEMAND_hoth_5dB_500msec/{out_name}.pth",
 				  loss_type="SISDR",
-				  batchsize=1, checkpoint_path=None, train_count=1, earlystopping_threshold=10)
+				  batchsize=16, checkpoint_path=None, train_count=1, earlystopping_threshold=10)
 
 			test(
 				model=model,
@@ -377,9 +380,9 @@ if __name__ == "__main__":
 				out_dir=f"{const.OUTPUT_WAV_DIR}/{model_type}/subset_DEMAND_hoth_5dB_500msec/{out_name}",
 				model_path=f"{const.PTH_DIR}/{model_type}/subset_DEMAND_hoth_5dB_500msec/{out_name}.pth",
 			)
-		#
-		# evaluation(
-		#     target_dir=f"{const.MIX_DATA_DIR}/GNN/subset_DEMAND_hoth_5dB_500msec/test/clean",
-		#     estimation_dir=f"{const.OUTPUT_WAV_DIR}/{model_type}/subset_DEMAND_hoth_5dB_500msec/{out_name}",
-		#     out_path=f"{const.EVALUATION_DIR}/{out_name}.csv",
-		# )
+
+		evaluation(
+		    target_dir=f"{const.MIX_DATA_DIR}/GNN/subset_DEMAND_hoth_5dB_500msec/test/clean",
+		    estimation_dir=f"{const.OUTPUT_WAV_DIR}/{model_type}/subset_DEMAND_hoth_5dB_500msec/{out_name}",
+		    out_path=f"{const.EVALUATION_DIR}/{out_name}.csv",
+		)
