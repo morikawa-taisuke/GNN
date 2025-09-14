@@ -365,7 +365,7 @@ class GNNEncoder(nn.Module):
         # x_gnn_out_reshaped: [B, C, L_encoded]
         # mask_resized: [B, n_classes, C, L_encoded]
         if self.n_classes == 1:
-            masked_features = x_gnn_out_reshaped * mask_resized.squeeze(1)  # 特徴量全体にマスクをブロードキャスト
+            masked_features = x_gnn_out_reshaped * mask_resized
         else:
             # 複数クラスを意図する場合、より具体的なロジックが必要です。
             # 一般的な音声強調では、n_classes=1 (単一マスク)です。
@@ -381,59 +381,64 @@ class GNNEncoder(nn.Module):
 
         return output_waveform
 
-
 def print_model_summary(model, batch_size, channels, length):
     """モデルのサマリーを表示するヘルパー関数"""
     x = torch.randn(batch_size, channels, length).to(device)
-    print(f"\n{model.__class__.__name__} モデルサマリー:")
+    print(f"\n--- {model.gnn_type} with {model.graph_builder.config.node_selection.value} nodes and {model.graph_builder.config.edge_selection.value} edges ---")
     summary(model, input_data=x)
 
 
-if __name__ == "__main__":
+def main():
     print("GNN_encoder.py のメイン実行（モデルテスト用）")
 
-    # モデルのパラメータ設定
-    batch = 1  # バッチサイズ
-    num_mic = 1  # マイクの数 (入力チャンネル数)
-    length = 16000 * 3  # 音声の長さ (サンプル数): 3秒
+    # パラメータ設定
+    batch = 1
+    num_mic = 1
+    length = 16000 * 8  # 8秒の音声データ
+    num_node_edges = 16
 
-    # GNNEncoderUNetモデルのインスタンス化 (GCNタイプ)
-    print("\n--- GNNEncoder (GCNをエンコーダとして使用) ---")
-    gnn_encoder_unet_gcn = GNNEncoder(
-        n_channels=num_mic, n_classes=1, hidden_dim_gnn=32, num_node=8, gnn_type="GCN"
-    ).to(device)
-    print_model_summary(gnn_encoder_unet_gcn, batch, num_mic, length)
+    # モデル共通パラメータ
+    common_params = {
+        "n_channels": num_mic,
+        "n_classes": 1,
+        "hidden_dim_gnn": 32,
+        "num_node": num_node_edges,
+    }
+    gat_params = {"gnn_heads": 4, "gnn_dropout": 0.6}
 
-    # GNNEncoderUNetモデルのインスタンス化 (GATタイプ)
-    print("\n--- GNNEncoder (GATをエンコーダとして使用) ---")
-    gnn_encoder_unet_gat = GNNEncoder(
-        n_channels=num_mic,
-        n_classes=1,
-        hidden_dim_gnn=32,
-        num_node=8,
-        gnn_type="GAT",
-        gnn_heads=4,
-        gnn_dropout=0.6,
-    ).to(device)
-    print_model_summary(gnn_encoder_unet_gat, batch, num_mic, length)
+    gnn_types = ["GCN", "GAT"]
+    node_selection_types = [NodeSelectionType.ALL, NodeSelectionType.TEMPORAL]
+    edge_selection_types = [EdgeSelectionType.RANDOM, EdgeSelectionType.KNN]
 
-    # サンプル入力データを作成
-    dummy_input = torch.randn(batch, num_mic, length).to(device)
+    for gnn_type in gnn_types:
+        for node_selection in node_selection_types:
+            for edge_selection in edge_selection_types:
+                if edge_selection == EdgeSelectionType.KNN and node_selection != NodeSelectionType.ALL:
+                    continue
 
-    print("\n--- 順伝播の例 (GCNEncoderUNet) ---")
-    with torch.no_grad():
-        output_gcn = gnn_encoder_unet_gcn(dummy_input)
-    print(f"入力形状: {dummy_input.shape}")
-    print(f"出力形状: {output_gcn.shape}")
+                graph_config = GraphConfig(
+                    num_edges=num_node_edges,
+                    node_selection=node_selection,
+                    edge_selection=edge_selection,
+                )
 
-    print("\n--- 順伝播の例 (GATEncoderUNet) ---")
-    with torch.no_grad():
-        output_gat = gnn_encoder_unet_gat(dummy_input)
-    print(f"入力形状: {dummy_input.shape}")
-    print(f"出力形状: {output_gat.shape}")
+                model_params = common_params.copy()
+                if gnn_type == "GAT":
+                    model_params.update(gat_params)
+
+                model = GNNEncoder(
+                    **model_params,
+                    gnn_type=gnn_type,
+                    graph_config=graph_config,
+                ).to(device)
+
+                print_model_summary(model, batch, num_mic, length)
 
     # メモリ使用量の表示
     if torch.cuda.is_available():
-        print(f"\nGPUメモリ使用量 (初期化および順伝播後):")
-        print(f"確保済み: {torch.cuda.memory_allocated(device) / 1024**2:.2f} MB")
-        print(f"キャッシュ: {torch.cuda.memory_reserved(device) / 1024**2:.2f} MB")
+        print(f"\nGPU Memory Usage (after initializations):")
+        print(f"Allocated: {torch.cuda.memory_allocated(device) / 1024 ** 2:.2f} MB")
+        print(f"Cached: {torch.cuda.memory_reserved(device) / 1024 ** 2:.2f} MB")
+
+if __name__ == "__main__":
+    main()

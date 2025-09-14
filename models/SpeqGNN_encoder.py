@@ -147,6 +147,7 @@ class SpeqGNN_encoder(nn.Module):
 		self.n_channels = n_channels
 		self.n_classes = n_classes
 		self.num_node_gnn = num_node
+		self.gnn_type = gnn_type
 
 		# ISTFT用のパラメータと窓関数
 		self.n_fft = n_fft
@@ -291,136 +292,79 @@ class SpeqGNN_encoder(nn.Module):
 		)
 		return output_waveform
 
+def print_model_summary(model, batch_size, channels, length, n_fft, hop_length, win_length):
+    # サンプル入力データの作成
+    x_time = torch.randn(batch_size, 1, length, device=device)
+    window = torch.hann_window(win_length, device=device)
 
-class SpeqGAT_encoder(SpeqGNN_encoder):
-	"""SpeqGNNPreUNetのGNN部分をGATに置き換えたモデル"""
+    # STFTでスペクトログラムに変換
+    stft_result = torch.stft(x_time.squeeze(1), n_fft=n_fft, hop_length=hop_length, win_length=win_length, window=window, return_complex=False)
+    x_magnitude_spec = torch.sqrt(stft_result[..., 0]**2 + stft_result[..., 1]**2).unsqueeze(1)
+    x_complex_spec = torch.stft(x_time.squeeze(1), n_fft=n_fft, hop_length=hop_length, win_length=win_length, window=window, return_complex=True)
+    original_len = x_time.shape[-1]
 
-	def __init__(
-			self,
-			n_channels,
-			n_classes,
-			hidden_dim_gnn=32,
-			num_node=8,
-			gnn_heads=8,
-			gnn_dropout=0.5,
-			n_fft=512,
-			hop_length=256,
-			win_length=None,
-	):
-		super(SpeqGAT_encoder, self).__init__(
-			n_channels,
-			n_classes,
-			hidden_dim_gnn,
-			num_node,
-			gnn_type="GAT",
-			gnn_heads=gnn_heads,
-			gnn_dropout=gnn_dropout,
-			n_fft=n_fft,
-			hop_length=hop_length,
-			win_length=win_length,
-		)
-		# GNN部分をGATで上書き (SpeqGNNPreUNetのコンストラクタで既に設定されているが、明示的にGATとしてインスタンス化)
-		gnn_input_dim = n_channels
-		gnn_output_channels = 64
-		self.initial_gnn = GAT(
-			gnn_input_dim,
-			hidden_dim_gnn,
-			gnn_output_channels,
-			heads=gnn_heads,
-			dropout_rate=gnn_dropout,
-		)
+    # モデルのサマリーを表示
+    print(f"\n--- {model.gnn_type} with {model.graph_builder.config.node_selection.value} nodes and {model.graph_builder.config.edge_selection.value} edges ---")
+    summary(model, input_data=(x_magnitude_spec, x_complex_spec, original_len), device=device)
 
+def main():
+    print("SpeqGNN_encoder.py main execution")
+    # パラメータ設定
+    batch = 1
+    num_mic = 1
+    length = 16000 * 8  # 8秒の音声データ
+    num_node_edges = 16
+    n_fft = 512
+    hop_length = n_fft // 2
+    win_length = n_fft
 
-# --- 使用例 ---
+    # モデル共通パラメータ
+    common_params = {
+        "n_channels": num_mic,
+        "n_classes": 1,
+        "hidden_dim_gnn": 32,
+        "num_node": num_node_edges,
+        "n_fft": n_fft,
+        "hop_length": hop_length,
+        "win_length": win_length,
+    }
+    gat_params = {"gnn_heads": 4, "gnn_dropout": 0.6}
+
+    gnn_types = ["GCN", "GAT"]
+    node_selection_types = [NodeSelectionType.ALL, NodeSelectionType.TEMPORAL]
+    edge_selection_types = [EdgeSelectionType.RANDOM, EdgeSelectionType.KNN]
+
+    for gnn_type in gnn_types:
+        for node_selection in node_selection_types:
+            for edge_selection in edge_selection_types:
+                if edge_selection == EdgeSelectionType.KNN and node_selection != NodeSelectionType.ALL:
+                    continue
+
+                graph_config = GraphConfig(
+                    num_edges=num_node_edges,
+                    node_selection=node_selection,
+                    edge_selection=edge_selection,
+                )
+
+                model_params = common_params.copy()
+                if gnn_type == "GAT":
+                    model_params.update(gat_params)
+
+                model = SpeqGNN_encoder(
+                    **model_params,
+                    gnn_type=gnn_type,
+                    graph_config=graph_config,
+
+                ).to(device)
+                model_type = f"{gnn_type}_{node_selection.value}_{edge_selection.value}"
+                print(f"\nModel Type: {model_type}")
+                print_model_summary(model, batch, num_mic, length, n_fft, hop_length, win_length)
+
+    # メモリ使用量の表示
+    if torch.cuda.is_available():
+        print(f"\nGPU Memory Usage (after initializations):")
+        print(f"Allocated: {torch.cuda.memory_allocated(device) / 1024 ** 2:.2f} MB")
+        print(f"Cached: {torch.cuda.memory_reserved(device) / 1024 ** 2:.2f} MB")
+
 if __name__ == "__main__":
-	print("SpeqGNN_PreUNet.py main execution for model testing")
-
-	# モデルのパラメータ設定
-	batch_size = 1
-	n_channels = 1  # マグニチュードスペクトログラムの入力チャネル (モノラル音声)
-	n_classes = 1  # マスクの出力チャネル
-
-	# STFT/ISTFTパラメータ
-	n_fft_val = 512
-	hop_length_val = 256
-	win_length_val = 512
-
-	# ダミーのスペクトログラムデータを作成
-	# 例: 音声が16kHzで3秒の場合、48000サンプル
-	# 時間フレーム数 = floor((48000 - win_length) / hop_length) + 1 = floor((48000 - 512) / 256) + 1 = 186
-	# 周波数ビン数 = n_fft / 2 + 1 = 512 / 2 + 1 = 257
-	dummy_freq_bins = n_fft_val // 2 + 1
-	dummy_time_frames = 188  # 任意のフレーム数
-	original_audio_length = 48000  # 元の波形サンプル長
-
-	# マグニチュードスペクトログラム: [B, C, F, T]
-	dummy_magnitude_spec = torch.randn(
-		batch_size, n_channels, dummy_freq_bins, dummy_time_frames
-	).to(device)
-	# 複素スペクトログラム: [B, F, T] (torchaudio.transforms.Spectrogram の return_complex=True の出力形式)
-	dummy_complex_spec = torch.randn(
-		batch_size, dummy_freq_bins, dummy_time_frames, dtype=torch.complex64
-	).to(device)
-
-	# SpeqGNN_encoder (GCN) のインスタンス化とサマリー表示
-	print("\n--- SpeqGNN_encoder (GCN) ---")
-	model_gcn = SpeqGNN_encoder(
-		n_channels=n_channels,
-		n_classes=n_classes,
-		hidden_dim_gnn=32,
-		num_node=8,
-		gnn_type="GCN",
-		n_fft=n_fft_val,
-		hop_length=hop_length_val,
-		win_length=win_length_val,
-	).to(device)
-	print("GCN Model Summary:")
-	summary(
-		model_gcn,
-		input_data=(dummy_magnitude_spec, dummy_complex_spec, original_audio_length),
-	)
-
-	# SpeqGAT_encoder (GAT) のインスタンス化とサマリー表示
-	print("\n--- SpeqGAT_encoder (GAT) ---")
-	model_gat = SpeqGAT_encoder(
-		n_channels=n_channels,
-		n_classes=n_classes,
-		hidden_dim_gnn=32,
-		num_node=8,
-		gnn_heads=4,
-		gnn_dropout=0.6,
-		n_fft=n_fft_val,
-		hop_length=hop_length_val,
-		win_length=win_length_val,
-	).to(device)
-	print("GAT Model Summary:")
-	summary(
-		model_gat,
-		input_data=(dummy_magnitude_spec, dummy_complex_spec, original_audio_length),
-	)
-
-	# フォワードパスの実行例 (GCNモデル)
-	print("\n--- Forward pass example (SpeqGNN_encoder - GCN) ---")
-	with torch.no_grad():
-		output_gcn = model_gcn(
-			dummy_magnitude_spec, dummy_complex_spec, original_audio_length
-		)
-	print(f"Input magnitude spec shape: {dummy_magnitude_spec.shape}")
-	print(f"Input complex spec shape: {dummy_complex_spec.shape}")
-	print(f"Output waveform shape: {output_gcn.shape}")  # [B, L_output]
-
-	# フォワードパスの実行例 (GATモデル)
-	print("\n--- Forward pass example (SpeqGAT_encoder - GAT) ---")
-	with torch.no_grad():
-		output_gat = model_gat(
-			dummy_magnitude_spec, dummy_complex_spec, original_audio_length
-		)
-	print(f"Input magnitude spec shape: {dummy_magnitude_spec.shape}")
-	print(f"Input complex spec shape: {dummy_complex_spec.shape}")
-	print(f"Output waveform shape: {output_gat.shape}")  # [B, L_output]
-
-	# GPUメモリ使用量の表示
-	if torch.cuda.is_available():
-		print(f"\nGPU Memory Usage (after initializations and forward passes):")
-		print(f"Allocated: {torch.cuda.memory_allocated(device) / 1024 ** 2:.2f} MB")
-		print(f"Cached: {torch.cuda.memory_reserved(device) / 1024 ** 2:.2f} MB")
+    main()
