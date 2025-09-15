@@ -119,7 +119,7 @@ class SpeqGNN_encoder(nn.Module):
 	def __init__(
 			self,
 			n_channels,
-			n_classes,
+			n_classes=1,
 			hidden_dim_gnn=32,
 			num_node=8,
 			gnn_type="GCN",
@@ -337,7 +337,7 @@ def main():
     for gnn_type in gnn_types:
         for node_selection in node_selection_types:
             for edge_selection in edge_selection_types:
-                if edge_selection == EdgeSelectionType.KNN and node_selection != NodeSelectionType.ALL:
+                if edge_selection != EdgeSelectionType.KNN and node_selection != NodeSelectionType.ALL:
                     continue
 
                 graph_config = GraphConfig(
