@@ -13,11 +13,11 @@ from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
 from tqdm.contrib import tenumerate
 
-# from All_evaluation import main as evaluation
+from All_evaluation import main as evaluation
 from CsvDataset import CsvDataset, CsvInferenceDataset
 from models.ConvTasNet_models import enhance_ConvTasNet
 from models.SpeqGNN import SpeqGNN
-from models.GNN_encoder import GNNEncoder
+from models.SpeqGNN_encoder import SpeqGNN_encoder
 from models.graph_utils import GraphConfig, NodeSelectionType, EdgeSelectionType
 from models.wave_unet import U_Net
 from mymodule import my_func, const, LossFunction, confirmation_GPU
@@ -84,10 +84,10 @@ def train(model: nn.Module,
 
 	""" Load dataset データセットの読み込み """
 	train_dataset = CsvDataset(csv_path=train_csv, input_column_header=wave_type)
-	train_loader = DataLoader(dataset=train_dataset, batch_size=batchsize, shuffle=True, pin_memory=True)
+	train_loader = DataLoader(dataset=train_dataset, batch_size=batchsize, shuffle=True, pin_memory=True, collate_fn=CsvDataset.collate_fn)
 
 	val_dataset = CsvDataset(csv_path=val_csv, input_column_header=wave_type)
-	val_loader = DataLoader(dataset=val_dataset, batch_size=batchsize, shuffle=True, pin_memory=True)
+	val_loader = DataLoader(dataset=val_dataset, batch_size=batchsize, shuffle=True, pin_memory=True, collate_fn=CsvDataset.collate_fn)
 
 	# print(f"\nmodel:{model}\n")                           # モデルのアーキテクチャの出力
 	""" 最適化関数の設定 """
@@ -160,6 +160,9 @@ def train(model: nn.Module,
 			# print("estimation:", estimate_data.shape)
 			# print("target:", target_data.shape)
 			estimate_data, target_data = padding_tensor(estimate_data, target_data)
+			# print("estimation:", estimate_data.shape)
+			# print("target:", target_data.shape)
+			estimate_data = estimate_data.unsqueeze(dim=0)
 
 			""" 損失の計算 """
 			model_loss = loss_func(estimate_data, target_data)
@@ -325,18 +328,20 @@ if __name__ == "__main__":
 	]  # モデルの種類  "UGCN", "UGCN2", "UGAT", "UGAT2", "ConvTasNet", "UNet"
 	wave_types = [
 		"noise_only",
-		# "reverbe_only",
+		"reverbe_only",
 		# "noise_reverbe",
 	]  # 入力信号の種類 (noise_only, reverbe_only, noise_reverbe)
 
+	node_selection = NodeSelectionType.ALL  # ノード選択の方法 (ALL, TEMPORAL)
+	edge_selection = EdgeSelectionType.RANDOM  # エッジ選択の方法 (RAMDOM, TEMPORAL)
+
 	graph_config = GraphConfig(
 		num_edges=num_node,
-		node_selection=NodeSelectionType.TEMPORAL,
-		edge_selection=EdgeSelectionType.RANDOM,
+		node_selection=node_selection,
+		edge_selection=edge_selection,
 		bidirectional=True,
 		temporal_window=4000,  # 時間窓のサイズ
 	)
-
 	stft_params = {
 		"n_fft": 512,
 		"hop_length": 256,
@@ -349,9 +354,9 @@ if __name__ == "__main__":
 		elif model_type == "GAT":
 			model = SpeqGNN(n_channels=num_mic, n_classes=num_mic, gnn_type="GAT", graph_config=graph_config, **stft_params).to(device)
 		elif model_type == "GCNEncoder":
-			model = GNNEncoder(n_channels=num_mic, gnn_type="GCN", num_node=num_node, graph_config=graph_config).to(device)
+			model = SpeqGNN_encoder(n_channels=num_mic, gnn_type="GCN", num_node=num_node, graph_config=graph_config).to(device)
 		elif model_type == "GATEncoder":
-			model = GNNEncoder(n_channels=num_mic, gnn_type="GAT", num_node=num_node, graph_config=graph_config).to(device)
+			model = SpeqGNN_encoder(n_channels=num_mic, gnn_type="GAT", num_node=num_node, graph_config=graph_config).to(device)
 		elif model_type == "ConvTasNet":
 			model = enhance_ConvTasNet().to(device)
 		elif model_type == "UNet":
@@ -360,23 +365,24 @@ if __name__ == "__main__":
 			raise ValueError(f"Unknown model type: {model_type}")
 
 		for wave_type in wave_types:
-			out_name = f"new_{model_type}_{wave_type}_{num_node}node_win"  # 出力ファイル名
+			out_name = f"new_{model_type}_{wave_type}_{num_node}node_{node_selection}_{edge_selection}"  # 出力ファイル名
+			print(out_name)
 			# C:\Users\kataoka-lab\Desktop\sound_data\sample_data\speech\DEMAND\clean\train
-			train(model=model,
-				  train_csv=f"/Users/a/Documents/sound_data/mix_data/DEMAND_hoth_0505dB_05sec_1ch/train.csv",
-				  val_csv=f"/Users/a/Documents/sound_data/mix_data/DEMAND_hoth_0505dB_05sec_1ch/val.csv",
-				  wave_type=wave_type,
-				  out_path=f"{const.PTH_DIR}/{model_type}/subset_DEMAND_hoth_5dB_500msec/{out_name}.pth",
-				  loss_type="SISDR",
-				  batchsize=1, checkpoint_path=None, train_count=1, earlystopping_threshold=10)
-
-			test(
-				model=model,
-				test_csv=f"/Users/a/Documents/sound_data/mix_data/DEMAND_hoth_0505dB_05sec_1ch/test.csv",
-				wave_type=wave_type,
-				out_dir=f"{const.OUTPUT_WAV_DIR}/{model_type}/subset_DEMAND_hoth_5dB_500msec/{out_name}",
-				model_path=f"{const.PTH_DIR}/{model_type}/subset_DEMAND_hoth_5dB_500msec/{out_name}.pth",
-			)
+		# 	train(model=model,
+		# 		  train_csv=f"/Users/a/Documents/sound_data/mix_data/DEMAND_hoth_0505dB_05sec_1ch/train.csv",
+		# 		  val_csv=f"/Users/a/Documents/sound_data/mix_data/DEMAND_hoth_0505dB_05sec_1ch/val.csv",
+		# 		  wave_type=wave_type,
+		# 		  out_path=f"{const.PTH_DIR}/{model_type}/subset_DEMAND_hoth_5dB_500msec/{out_name}.pth",
+		# 		  loss_type="SISDR",
+		# 		  batchsize=16, checkpoint_path=None, train_count=1, earlystopping_threshold=10)
+		#
+		# 	test(
+		# 		model=model,
+		# 		test_csv=f"/Users/a/Documents/sound_data/mix_data/DEMAND_hoth_0505dB_05sec_1ch/test.csv",
+		# 		wave_type=wave_type,
+		# 		out_dir=f"{const.OUTPUT_WAV_DIR}/{model_type}/subset_DEMAND_hoth_5dB_500msec/{out_name}",
+		# 		model_path=f"{const.PTH_DIR}/{model_type}/subset_DEMAND_hoth_5dB_500msec/{out_name}.pth",
+		# 	)
 		#
 		# evaluation(
 		#     target_dir=f"{const.MIX_DATA_DIR}/GNN/subset_DEMAND_hoth_5dB_500msec/test/clean",

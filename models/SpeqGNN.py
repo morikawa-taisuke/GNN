@@ -151,6 +151,7 @@ class SpeqGNN(nn.Module):
         super(SpeqGNN, self).__init__()
         self.n_channels = n_channels
         self.n_classes = n_classes
+        self.gnn_type = gnn_type
         self.graph_builder = GraphBuilder(graph_config)
 
         # ISTFT（逆短時間フーリエ変換）用のパラメータ
@@ -272,11 +273,8 @@ def print_model_summary(model, batch_size, channels, length):
 
     original_len = x_time.shape[-1]
 
-    # 上記のinputデータの形状を確認
-    print(f"Input shape: x_magnitude_spec: {x_magnitude_spec.shape}, x_complex_spec: {x_complex_spec.shape}, original_len: {original_len}")
-
     # モデルのサマリーを表示
-    print(f"\n{model.__class__.__name__} Model Summary:")
+    print(f"\n--- {model.gnn_type} with {model.graph_builder.config.node_selection.value} nodes and {model.graph_builder.config.edge_selection.value} edges ---")
     summary(model, input_data=(x_magnitude_spec, x_complex_spec, original_len), device=device)
 
 
@@ -286,38 +284,12 @@ def main():
     batch = 1
     num_mic = 1
     length = 16000 * 8  # 8秒の音声データ (例)
+    num_node_edges = 16
 
     # --- STFTパラメータ ---
     n_fft = 512
     hop_length = n_fft // 2
     win_length = n_fft
-    window = torch.hann_window(win_length, device=device)
-
-    # --- サンプル入力データの作成 ---
-    x_time = torch.randn(batch, 1, length, device=device)
-    # マグニチュードスペクトログラム
-    stft_result = torch.stft(x_time.squeeze(1), n_fft=n_fft, hop_length=hop_length, win_length=win_length, window=window, return_complex=False)
-    x_magnitude_spec = torch.sqrt(stft_result[..., 0]**2 + stft_result[..., 1]**2).unsqueeze(1) # (B, 1, F, T_spec)
-    # 複素スペクトログラム
-    x_complex_spec = torch.stft(x_time.squeeze(1), n_fft=n_fft, hop_length=hop_length, win_length=win_length, window=window, return_complex=True)
-    original_len = x_time.shape[-1]
-
-    # --- グラフ設定の定義 ---
-    num_node_edges = 16
-    graph_config_random = GraphConfig(
-        num_edges=num_node_edges,
-        node_selection=NodeSelectionType.ALL,
-        edge_selection=EdgeSelectionType.RANDOM,
-        bidirectional=True,
-        use_self_loops=False
-    )
-    graph_config_knn = GraphConfig(
-        num_edges=num_node_edges,
-        node_selection=NodeSelectionType.ALL,
-        edge_selection=EdgeSelectionType.KNN,
-        bidirectional=True,
-        use_self_loops=False
-    )
 
     # --- モデル共通パラメータ ---
     common_params = {
@@ -332,30 +304,36 @@ def main():
         "gat_dropout": 0.6
     }
 
-    print("\n--- SpeqGNN (GCN, Random Graph) ---")
-    speq_gcn_model = SpeqGNN(**common_params, gnn_type="GCN", graph_config=graph_config_random).to(device)
-    print_model_summary(speq_gcn_model, batch, num_mic, length)
-    output_gcn = speq_gcn_model(x_magnitude_spec, x_complex_spec, original_len)
-    print(f"Output shape: {output_gcn.shape}")
+    gnn_types = ["GCN", "GAT"]
+    node_selection_types = [NodeSelectionType.ALL, NodeSelectionType.TEMPORAL]
+    edge_selection_types = [EdgeSelectionType.RANDOM, EdgeSelectionType.KNN]
 
-    print("\n--- SpeqGNN (GAT, Random Graph) ---")
-    speq_gat_model = SpeqGNN(**common_params, **gat_params, gnn_type="GAT", graph_config=graph_config_random).to(device)
-    print_model_summary(speq_gat_model, batch, num_mic, length)
-    output_gat = speq_gat_model(x_magnitude_spec, x_complex_spec, original_len)
-    print(f"Output shape: {output_gat.shape}")
+    for gnn_type in gnn_types:
+        for node_selection in node_selection_types:
+            for edge_selection in edge_selection_types:
+                # KNNはALLノード選択でのみ意味があるため、それ以外の組み合わせはスキップ
+                if edge_selection == EdgeSelectionType.KNN and node_selection != NodeSelectionType.ALL:
+                    continue
 
-    print("\n--- SpeqGNN (GCN, k-NN Graph) ---")
-    speq_gcn2_model = SpeqGNN(**common_params, gnn_type="GCN", graph_config=graph_config_knn).to(device)
-    print_model_summary(speq_gcn2_model, batch, num_mic, length)
-    output_gcn2 = speq_gcn2_model(x_magnitude_spec, x_complex_spec, original_len)
-    print(f"Output shape: {output_gcn2.shape}")
+                graph_config = GraphConfig(
+                    num_edges=num_node_edges,
+                    node_selection=node_selection,
+                    edge_selection=edge_selection,
+                )
 
-    print("\n--- SpeqGNN (GAT, k-NN Graph) ---")
-    speq_gat2_model = SpeqGNN(**common_params, **gat_params, gnn_type="GAT", graph_config=graph_config_knn).to(device)
-    print_model_summary(speq_gat2_model, batch, num_mic, length)
-    output_gat2 = speq_gat2_model(x_magnitude_spec, x_complex_spec, original_len)
-    print(f"Output shape: {output_gat2.shape}")
+                model_params = common_params.copy()
+                if gnn_type == "GAT":
+                    model_params.update(gat_params)
 
+                model = SpeqGNN(
+                    **model_params,
+                    gnn_type=gnn_type,
+                    graph_config=graph_config,
+                ).to(device)
+
+                model_type = f"{gnn_type}_{node_selection.value}_{edge_selection.value}"
+                print(f"\nModel Type: {model_type}")
+                print_model_summary(model, batch, num_mic, length)
 
     # メモリ使用量の表示
     if torch.cuda.is_available():

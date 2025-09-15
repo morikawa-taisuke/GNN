@@ -22,15 +22,17 @@ class CsvDataset(Dataset):
         max_length_sec (int): 音声データの最大長（秒）。これを超える場合は切り捨てる。
     """
 
-    def __init__(self, csv_path, input_column_header, chunk_size=16384 * 4, sample_rate=16000, max_length_sec=3):
+    def __init__(self, csv_path, input_column_header, chunk_size=16384 * 4, sample_rate=16000, max_length_sec=None):
 
         super(CsvDataset, self).__init__()
 
         self.chunk_size = chunk_size
         self.teacher_column = "clean"  # 教師データは常に 'clean_path' を使用
         self.input_column = input_column_header
-
-        self.max_length_samples = max_length_sec * sample_rate
+        if max_length_sec is not None:
+            self.max_length_samples = max_length_sec * sample_rate
+        else:
+            self.max_length_samples = None
 
         # --- CSVファイルの読み込み ---
         try:
@@ -71,13 +73,14 @@ class CsvDataset(Dataset):
         clean_waveform, current_sample_rate = torchaudio.load(clean_path)
         noisy_waveform, _ = torchaudio.load(noisy_path)
 
-        if noisy_waveform.shape[-1] > self.max_length_samples:
-            noisy_waveform = noisy_waveform[:, : self.max_length_samples]
-            clean_waveform = clean_waveform[:, : self.max_length_samples]
-        elif noisy_waveform.shape[-1] < self.max_length_samples:
-            padding_amount = self.max_length_samples - noisy_waveform.shape[1]
-            noisy_waveform = F.pad(noisy_waveform, (0, padding_amount))
-            clean_waveform = F.pad(clean_waveform, (0, padding_amount))
+        if self.max_length_samples is not None:
+            if noisy_waveform.shape[-1] > self.max_length_samples:
+                noisy_waveform = noisy_waveform[:, :self.max_length_samples]
+                clean_waveform = clean_waveform[:, :self.max_length_samples]
+            elif noisy_waveform.shape[-1] < self.max_length_samples:
+                padding_amount = self.max_length_samples - noisy_waveform.shape[1]
+                noisy_waveform = F.pad(noisy_waveform, (0, padding_amount))
+                clean_waveform = F.pad(clean_waveform, (0, padding_amount))
 
         return noisy_waveform, clean_waveform
 

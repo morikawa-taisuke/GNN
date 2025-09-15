@@ -196,21 +196,12 @@ class UGNN(nn.Module):
         return out
 
 
-# def print_model_summary(model, batch_size=2, channels=1, length=16000):
-#     x = torch.randn(batch_size, channels, length).to(device)
-#     model = model.to(device)
-#     print(f"\nModel Summary for {model.__class__.__name__}:")
-#     print(f"Input shape: {x.shape}")
-#     output = model(x)
-#     print(f"Output shape: {output.shape}")
-
-
 def print_model_summary(model, batch_size, channels, length):
     # サンプル入力データを作成
     x = torch.randn(batch_size, channels, length).to(device)
 
     # モデルのサマリーを表示
-    print(f"\n{model.__class__.__name__} Model Summary:")
+    print(f"\n--- {model.gnn_type} with {model.graph_builder.config.node_selection.value} nodes and {model.graph_builder.config.edge_selection.value} edges ---")
     summary(model, input_data=x)
 
 
@@ -219,32 +210,40 @@ def main():
     # サンプルデータの作成（入力サイズを縮小）
     batch = 1
     num_mic = 1
-    length = 16000 * 8  # 2秒の音声データ (例)
+    length = 16000 * 8  # 8秒の音声データ (例)
+    num_node = 16
 
-    # ランダムな入力データを作成
-    # x = torch.randn(batch, num_mic, length).to(device)
+    gnn_types = ["GCN", "GAT"]
+    node_selection_types = [NodeSelectionType.ALL, NodeSelectionType.TEMPORAL]
+    edge_selection_types = [EdgeSelectionType.RANDOM, EdgeSelectionType.KNN]
 
-    print("\n--- UGCN (Random Graph) ---")
-    ugcn_model = UGNN(n_channels=num_mic, n_classes=1, num_node=8, gnn_type="GCN").to(device)
-    print_model_summary(ugcn_model, batch, num_mic, length)
-    x_ugcn = torch.randn(batch, num_mic, length).to(device)
-    output_ugcn = ugcn_model(x_ugcn)
-    print(f"UGCN Input shape: {x_ugcn.shape}, Output shape: {output_ugcn.shape}")
+    for gnn_type in gnn_types:
+        for node_selection in node_selection_types:
+            for edge_selection in edge_selection_types:
 
-    print("\n--- UGAT (Random Graph, GAT in bottleneck) ---")
-    ugat_model = UGNN(n_channels=num_mic, n_classes=1, num_node=8, gnn_type="GAT", gnn_heads=4, gnn_dropout=0.6).to(
-        device
-    )
-    print_model_summary(ugat_model, batch, num_mic, length)
-    x_ugat = torch.randn(batch, num_mic, length).to(device)
-    output_ugat = ugat_model(x_ugat)  # forwardはUGCNNetのものを継承
-    print(f"UGAT Input shape: {x_ugat.shape}, Output shape: {output_ugat.shape}")
+                graph_config = GraphConfig(
+                    num_edges=num_node,
+                    node_selection=node_selection,
+                    edge_selection=edge_selection,
+                )
 
-    # メモリ使用量の表示
-    if torch.cuda.is_available():
-        print(f"\nGPU Memory Usage (after initializations):")
-        print(f"Allocated: {torch.cuda.memory_allocated(device) / 1024 ** 2:.2f} MB")
-        print(f"Cached: {torch.cuda.memory_reserved(device) / 1024 ** 2:.2f} MB")
+                model = UGNN(
+                    n_channels=num_mic,
+                    n_classes=1,
+                    num_node=num_node,
+                    gnn_type=gnn_type,
+                    graph_config=graph_config,
+                ).to(device)
+
+                model_type = f"{gnn_type}_{node_selection.value}_{edge_selection.value}"
+                print(f"\nModel Type: {model_type}")
+                print_model_summary(model, batch, num_mic, length)
+
+                # メモリ使用量の表示
+                if torch.cuda.is_available():
+                    print(f"\nGPU Memory Usage (after initializations):")
+                    print(f"Allocated: {torch.cuda.memory_allocated(device) / 1024 ** 2:.2f} MB")
+                    print(f"Cached: {torch.cuda.memory_reserved(device) / 1024 ** 2:.2f} MB")
 
 
 if __name__ == "__main__":
