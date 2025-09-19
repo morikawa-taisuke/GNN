@@ -291,11 +291,12 @@ if __name__ == "__main__":
 	num_mic = 1  # マイクの数
 	num_node = 16  # ノードの数
 	model_list = [
-		"GCNEncoder", "GATEncoder",
+        "UGCN",
+        "UGAT",
+		"GCNEncoder",
+        "GATEncoder",
 	]  # モデルの種類  "UGCN", "UGCN2", "UGAT", "UGAT2", "ConvTasNet", "UNet"
 	wave_types = [
-		"noise_only",
-		"reverbe_only",
 		"noise_reverbe",
 	]  # 入力信号の種類 (noise_only, reverbe_only, noise_reverbe)
 	node_selection = NodeSelectionType.ALL  # ノード選択の方法 (ALL, TEMPORAL)
@@ -326,7 +327,7 @@ if __name__ == "__main__":
 			raise ValueError(f"Unknown model type: {model_type}")
 
 
-		dir_name = "DEMAND_hoth_0505dB_05sec_1ch"
+		dir_name = "DEMAND_hoth_10dB_500msec"
 		for wave_type in wave_types:
 			out_name = f"new_{model_type}_{wave_type}_{num_node}node_{node_selection.value}_{edge_selection.value}"	# 出力名
 			# C:\Users\kataoka-lab\Desktop\sound_data\sample_data\speech\DEMAND\clean\train
@@ -334,18 +335,18 @@ if __name__ == "__main__":
 				  train_csv=f"{const.MIX_DATA_DIR}/{dir_name}/train.csv",
 				  val_csv=f"{const.MIX_DATA_DIR}/{dir_name}/val.csv",
 				  wave_type=wave_type,
-				  out_path=f"{const.PTH_DIR}/{model_type}/{dir_name}/{out_name}.pth",
+				  out_path=f"{const.PTH_DIR}/{dir_name}/{model_type}/{out_name}.pth",
 				  loss_type="SISDR",
 				  batchsize=16, checkpoint_path=None, train_count=500, earlystopping_threshold=10)
 
 			test(model=model,
 				 test_csv=f"{const.MIX_DATA_DIR}/{dir_name}/test.csv",
 				 wave_type=wave_type,
-				 out_dir=f"{const.OUTPUT_WAV_DIR}/{model_type}/{dir_name}/{out_name}",
-				 model_path=f"{const.PTH_DIR}/{model_type}/{dir_name}/{out_name}.pth")
+				 out_dir=f"{const.OUTPUT_WAV_DIR}/{dir_name}/{model_type}/{out_name}",
+				 model_path=f"{const.PTH_DIR}/{dir_name}/{model_type}/{out_name}.pth")
 
 			evaluation(
 				target_dir=f"{const.MIX_DATA_DIR}/{dir_name}/test/clean",
-				estimation_dir=f"{const.OUTPUT_WAV_DIR}/{model_type}/{dir_name}/{out_name}",
+				estimation_dir=f"{const.OUTPUT_WAV_DIR}/{dir_name}/{model_type}/{out_name}",
 				out_path=f"{const.EVALUATION_DIR}/{dir_name}/{model_type}/{out_name}.csv",
 			)
