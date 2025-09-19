@@ -291,12 +291,11 @@ if __name__ == "__main__":
 	num_mic = 1  # マイクの数
 	num_node = 16  # ノードの数
 	model_list = [
-        "UGCN",
-        "UGAT",
-		"GCNEncoder",
-        "GATEncoder",
+        "UNet"
 	]  # モデルの種類  "UGCN", "UGCN2", "UGAT", "UGAT2", "ConvTasNet", "UNet"
 	wave_types = [
+		"noise_only",
+		"reverbe_only",
 		"noise_reverbe",
 	]  # 入力信号の種類 (noise_only, reverbe_only, noise_reverbe)
 	node_selection = NodeSelectionType.ALL  # ノード選択の方法 (ALL, TEMPORAL)
@@ -329,7 +328,7 @@ if __name__ == "__main__":
 
 		dir_name = "DEMAND_hoth_10dB_500msec"
 		for wave_type in wave_types:
-			out_name = f"new_{model_type}_{wave_type}_{num_node}node_{node_selection.value}_{edge_selection.value}"	# 出力名
+			out_name = f"{model_type}_{wave_type}"	# 出力名
 			# C:\Users\kataoka-lab\Desktop\sound_data\sample_data\speech\DEMAND\clean\train
 			train(model=model,
 				  train_csv=f"{const.MIX_DATA_DIR}/{dir_name}/train.csv",
