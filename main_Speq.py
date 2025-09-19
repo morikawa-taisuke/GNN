@@ -162,7 +162,7 @@ def train(model: nn.Module,
 			estimate_data, target_data = padding_tensor(estimate_data, target_data)
 			# print("estimation:", estimate_data.shape)
 			# print("target:", target_data.shape)
-			estimate_data = estimate_data.unsqueeze(dim=0)
+			estimate_data = estimate_data.unsqueeze(dim=1)  # (B, 1, length)
 
 			""" 損失の計算 """
 			model_loss = loss_func(estimate_data, target_data)
@@ -225,6 +225,7 @@ def train(model: nn.Module,
 				estimate_data = model(mix_magnitude, mix_complex, original_length)
 
 				estimate_data, target_data = padding_tensor(estimate_data, target_data)
+				estimate_data = estimate_data.unsqueeze(dim=1)  # (B, 1, length)
 				model_loss = loss_func(estimate_data, target_data)
 				val_loss += model_loss
 				progress_bar_val.set_postfix({"loss": model_loss})
@@ -325,6 +326,8 @@ if __name__ == "__main__":
 	model_list = [
 		"GCN",
 		"GAT",
+		"GCNEncoder",
+		"GATEncoder",
 	]  # モデルの種類  "UGCN", "UGCN2", "UGAT", "UGAT2", "ConvTasNet", "UNet"
 	wave_types = [
 		"noise_only",
@@ -364,28 +367,27 @@ if __name__ == "__main__":
 		else:
 			raise ValueError(f"Unknown model type: {model_type}")
 
+		dir_name = "DEMAND_hoth_10dB_500msec"
+		model_type = f"Speq{model_type}"
 		for wave_type in wave_types:
-			out_name = f"new_{model_type}_{wave_type}_{num_node}node_{node_selection}_{edge_selection}"  # 出力ファイル名
-			print(out_name)
+			out_name = f"new_{model_type}_{wave_type}_{num_node}node_{node_selection.value}_{edge_selection.value}"  # 出力名
 			# C:\Users\kataoka-lab\Desktop\sound_data\sample_data\speech\DEMAND\clean\train
-		# 	train(model=model,
-		# 		  train_csv=f"/Users/a/Documents/sound_data/mix_data/DEMAND_hoth_0505dB_05sec_1ch/train.csv",
-		# 		  val_csv=f"/Users/a/Documents/sound_data/mix_data/DEMAND_hoth_0505dB_05sec_1ch/val.csv",
-		# 		  wave_type=wave_type,
-		# 		  out_path=f"{const.PTH_DIR}/{model_type}/subset_DEMAND_hoth_5dB_500msec/{out_name}.pth",
-		# 		  loss_type="SISDR",
-		# 		  batchsize=16, checkpoint_path=None, train_count=1, earlystopping_threshold=10)
-		#
-		# 	test(
-		# 		model=model,
-		# 		test_csv=f"/Users/a/Documents/sound_data/mix_data/DEMAND_hoth_0505dB_05sec_1ch/test.csv",
-		# 		wave_type=wave_type,
-		# 		out_dir=f"{const.OUTPUT_WAV_DIR}/{model_type}/subset_DEMAND_hoth_5dB_500msec/{out_name}",
-		# 		model_path=f"{const.PTH_DIR}/{model_type}/subset_DEMAND_hoth_5dB_500msec/{out_name}.pth",
-		# 	)
-		#
-		# evaluation(
-		#     target_dir=f"{const.MIX_DATA_DIR}/GNN/subset_DEMAND_hoth_5dB_500msec/test/clean",
-		#     estimation_dir=f"{const.OUTPUT_WAV_DIR}/{model_type}/subset_DEMAND_hoth_5dB_500msec/{out_name}",
-		#     out_path=f"{const.EVALUATION_DIR}/{out_name}.csv",
-		# )
+			train(model=model,
+			      train_csv=f"{const.MIX_DATA_DIR}/{dir_name}/train.csv",
+			      val_csv=f"{const.MIX_DATA_DIR}/{dir_name}/val.csv",
+			      wave_type=wave_type,
+			      out_path=f"{const.PTH_DIR}/{dir_name}/{model_type}/{out_name}.pth",
+			      loss_type="SISDR",
+			      batchsize=16, checkpoint_path=None, train_count=500, earlystopping_threshold=10)
+
+			test(model=model,
+			     test_csv=f"{const.MIX_DATA_DIR}/{dir_name}/test.csv",
+			     wave_type=wave_type,
+			     out_dir=f"{const.OUTPUT_WAV_DIR}/{dir_name}/{model_type}/{out_name}",
+			     model_path=f"{const.PTH_DIR}/{dir_name}/{model_type}/{out_name}.pth")
+
+			evaluation(
+				target_dir=f"{const.MIX_DATA_DIR}/{dir_name}/test/clean",
+				estimation_dir=f"{const.OUTPUT_WAV_DIR}/{dir_name}/{model_type}/{out_name}",
+				out_path=f"{const.EVALUATION_DIR}/{dir_name}/{model_type}/{out_name}.csv",
+			)
