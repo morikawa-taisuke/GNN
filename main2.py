@@ -336,7 +336,7 @@ if __name__ == "__main__":
 				  wave_type=wave_type,
 				  out_path=f"{const.PTH_DIR}/{dir_name}/{model_type}/{out_name}.pth",
 				  loss_type="SISDR",
-				  batchsize=16, checkpoint_path=None, train_count=500, earlystopping_threshold=10)
+				  batchsize=2, checkpoint_path=None, train_count=500, earlystopping_threshold=10)
 
 			test(model=model,
 				 test_csv=f"{const.MIX_DATA_DIR}/{dir_name}/test.csv",
