@@ -19,7 +19,7 @@ from models.ConvTasNet_models import enhance_ConvTasNet
 from models.SpeqGNN import SpeqGNN
 from models.SpeqGNN_encoder import SpeqGNN_encoder
 from models.graph_utils import GraphConfig, NodeSelectionType, EdgeSelectionType
-from models.wave_unet import U_Net
+from models.Speq_UNet import Speq_UNet as U_Net
 from mymodule import my_func, const, LossFunction, confirmation_GPU
 
 # CUDAのメモリ管理設定
@@ -83,10 +83,10 @@ def train(model: nn.Module,
 	earlystopping_count = 0
 
 	""" Load dataset データセットの読み込み """
-	train_dataset = CsvDataset(csv_path=train_csv, input_column_header=wave_type)
+	train_dataset = CsvDataset(csv_path=train_csv, input_column_header=wave_type, max_length_sec=8)
 	train_loader = DataLoader(dataset=train_dataset, batch_size=batchsize, shuffle=True, pin_memory=True, collate_fn=CsvDataset.collate_fn)
 
-	val_dataset = CsvDataset(csv_path=val_csv, input_column_header=wave_type)
+	val_dataset = CsvDataset(csv_path=val_csv, input_column_header=wave_type, max_length_sec=8)
 	val_loader = DataLoader(dataset=val_dataset, batch_size=batchsize, shuffle=True, pin_memory=True, collate_fn=CsvDataset.collate_fn)
 
 	# print(f"\nmodel:{model}\n")                           # モデルのアーキテクチャの出力
@@ -324,19 +324,16 @@ if __name__ == "__main__":
 	num_mic = 1  # マイクの数
 	num_node = 16  # ノードの数
 	model_list = [
-		"GCN",
-		"GAT",
-		"GCNEncoder",
-		"GATEncoder",
+		"UNet"
 	]  # モデルの種類  "UGCN", "UGCN2", "UGAT", "UGAT2", "ConvTasNet", "UNet"
 	wave_types = [
 		"noise_only",
 		"reverbe_only",
-		# "noise_reverbe",
+		"noise_reverbe",
 	]  # 入力信号の種類 (noise_only, reverbe_only, noise_reverbe)
 
 	node_selection = NodeSelectionType.ALL  # ノード選択の方法 (ALL, TEMPORAL)
-	edge_selection = EdgeSelectionType.RANDOM  # エッジ選択の方法 (RAMDOM, TEMPORAL)
+	edge_selection = EdgeSelectionType.KNN  # エッジ選択の方法 (RAMDOM, KNN)
 
 	graph_config = GraphConfig(
 		num_edges=num_node,
@@ -363,7 +360,7 @@ if __name__ == "__main__":
 		elif model_type == "ConvTasNet":
 			model = enhance_ConvTasNet().to(device)
 		elif model_type == "UNet":
-			model = U_Net().to(device)
+			model = U_Net(n_channels=1, n_classes=1, **stft_params).to(device)
 		else:
 			raise ValueError(f"Unknown model type: {model_type}")
 
@@ -371,6 +368,7 @@ if __name__ == "__main__":
 		model_type = f"Speq{model_type}"
 		for wave_type in wave_types:
 			out_name = f"new_{model_type}_{wave_type}_{num_node}node_{node_selection.value}_{edge_selection.value}"  # 出力名
+			out_name = f"new_{model_type}_{wave_type}"  # 出力名
 			# C:\Users\kataoka-lab\Desktop\sound_data\sample_data\speech\DEMAND\clean\train
 			train(model=model,
 			      train_csv=f"{const.MIX_DATA_DIR}/{dir_name}/train.csv",
