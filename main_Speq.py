@@ -330,11 +330,11 @@ if __name__ == "__main__":
 	wave_types = [
 		# "noise_only",
 		"reverbe_only",
-		# "noise_reverbe",
+		"noise_reverbe",
 	]  # 入力信号の種類 (noise_only, reverbe_only, noise_reverbe)
 
-	node_selection = NodeSelectionType.TEMPORAL  # ノード選択の方法 (ALL, TEMPORAL)
-	edge_selection = EdgeSelectionType.RANDOM  # エッジ選択の方法 (RAMDOM, KNN)
+	node_selection = NodeSelectionType.ALL  # ノード選択の方法 (ALL, TEMPORAL)
+	edge_selection = EdgeSelectionType.KNN  # エッジ選択の方法 (RAMDOM, KNN)
 
 	graph_config = GraphConfig(
 		num_edges=num_node,
