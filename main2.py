@@ -63,7 +63,8 @@ def train(model: nn.Module,
 		  batchsize: int = const.BATCHSIZE,
 		  checkpoint_path: str = None,
 		  train_count: int = const.EPOCH,
-		  earlystopping_threshold: int = 5):
+		  earlystopping_threshold: int = 5,
+		  accumulation_steps: int = 4):
 	"""学習関数
 	Args:
 		model (nn.Module): 学習させるモデル
@@ -76,6 +77,7 @@ def train(model: nn.Module,
 		checkpoint_path (str): チェックポイントのパス（Noneの場合は新規学習）
 		train_count (int): 学習エポック数
 		earlystopping_threshold (int): Early Stoppingの閾値
+		accumulation_steps (int): 勾配を蓄積するステップ数
 	"""
 	"""GPUの設定"""
 	device = confirmation_GPU.get_device()
@@ -131,6 +133,7 @@ def train(model: nn.Module,
 	print("out_path: ", out_path)
 	print("dataset: ", train_csv)
 	print("loss_func: ", loss_type)
+	print("accumulation_steps: ", accumulation_steps)
 	print("====================")
 
 	my_func.make_dir(out_dir)
@@ -141,38 +144,44 @@ def train(model: nn.Module,
 	for epoch in range(start_epoch, train_count + 1):  # 学習回数
 		print("Train Epoch:", epoch)  # 学習回数の表示
 		model_loss_sum = 0  # 総損失の初期化
-		for _, (mix_data, target_data) in tenumerate(train_loader):
-			mix_data, target_data = mix_data.to(device), target_data.to(device)  # データをGPUに移動
+		optimizer.zero_grad()  # 勾配をエポックの開始時にリセット
 
-			""" 勾配のリセット """
-			optimizer.zero_grad()  # optimizerの初期化
+		for i, (mix_data, target_data) in tenumerate(train_loader):
+			mix_data, target_data = mix_data.to(device), target_data.to(device)  # データをGPUに移動
 
 			""" データの整形 """
 			mix_data = mix_data.to(torch.float32)  # target_dataのタイプを変換 int16→float32
 			target_data = target_data.to(torch.float32)  # target_dataのタイプを変換 int16→float32
 
 			""" モデルに通す(予測値の計算) """
-			# print("model_input", mix_data.shape)
 			estimate_data = model(mix_data)  # モデルに通す
 
 			""" データの整形 """
-			# print("estimation:", estimate_data.shape)
-			# print("target:", target_data.shape)
 			estimate_data, target_data = padding_tensor(estimate_data, target_data)
 
 			""" 損失の計算 """
 			model_loss = loss_func(estimate_data, target_data)
-			model_loss_sum += model_loss  # 損失の加算
 
-			""" 後処理 """
-			model_loss.backward()  # 誤差逆伝搬
-			optimizer.step()  # 勾配の更新
+			# 勾配蓄積のために損失をスケール
+			model_loss = model_loss / accumulation_steps
+
+			""" 誤差逆伝播 """
+			model_loss.backward()
+
+			# ログ記録用にスケールを戻した損失を加算
+			model_loss_sum += model_loss.item() * accumulation_steps
+
+			""" 勾配の更新 """
+			if (i + 1) % accumulation_steps == 0 or (i + 1) == len(train_loader):
+				optimizer.step()
+				optimizer.zero_grad()
 
 			del (
 				mix_data,
 				target_data,
+				estimate_data,
 				model_loss,
-			)  # 使用していない変数の削除 estimate_data,
+			)  # 使用していない変数の削除
 			torch.cuda.empty_cache()  # メモリの解放 1iterationごとに解放
 
 		""" チェックポイントの作成 """
@@ -207,9 +216,9 @@ def train(model: nn.Module,
 				estimate_data = model(mix_data)
 				estimate_data, target_data = padding_tensor(estimate_data, target_data)
 				model_loss = loss_func(estimate_data, target_data)
-				val_loss += model_loss
-				progress_bar_val.set_postfix({"loss": model_loss})
-			avg_val_loss = val_loss
+				val_loss += model_loss.item()
+				progress_bar_val.set_postfix({"loss": model_loss.item()})
+			avg_val_loss = val_loss / len(val_loader)
 
 		if avg_val_loss < best_loss:
 			print(f"Validation loss improved ({best_loss:.6f} --> {avg_val_loss:.6f}). Saving model...")
@@ -337,7 +346,7 @@ if __name__ == "__main__":
 				  wave_type=wave_type,
 				  out_path=f"{const.PTH_DIR}/{dir_name}/{model_type}/{out_name}.pth",
 				  loss_type="SISDR",
-				  batchsize=16, checkpoint_path=None, train_count=500, earlystopping_threshold=10)
+				  batchsize=2, checkpoint_path=None, train_count=500, earlystopping_threshold=10, accumulation_steps=8)
 
 			test(model=model,
 				 test_csv=f"{const.MIX_DATA_DIR}/{dir_name}/test.csv",
