@@ -63,7 +63,8 @@ def train(model: nn.Module,
 		  batchsize: int = const.BATCHSIZE,
 		  checkpoint_path: str = None,
 		  train_count: int = const.EPOCH,
-		  earlystopping_threshold: int = 5):
+		  earlystopping_threshold: int = 5,
+          accumulation_steps: int = 4):
 	"""GPUの設定"""
 	device = confirmation_GPU.get_device()
 	""" その他の設定 """
@@ -118,6 +119,7 @@ def train(model: nn.Module,
 	print("out_path: ", out_path)
 	print("dataset: ", train_csv)
 	print("loss_func: ", loss_type)
+	print("accumulation_steps: ", accumulation_steps)
 	print("====================")
 
 	my_func.make_dir(out_dir)
@@ -128,11 +130,9 @@ def train(model: nn.Module,
 	for epoch in range(start_epoch, train_count + 1):  # 学習回数
 		print("Train Epoch:", epoch)  # 学習回数の表示
 		model_loss_sum = 0  # 総損失の初期化
-		for _, (mix_data, target_data) in tenumerate(train_loader):
+		optimizer.zero_grad()
+		for i, (mix_data, target_data) in tenumerate(train_loader):
 			mix_data, target_data = mix_data.to(device), target_data.to(device)  # データをGPUに移動
-
-			""" 勾配のリセット """
-			optimizer.zero_grad()  # optimizerの初期化
 
 			""" データの整形 """
 			mix_data = mix_data.to(torch.float32)  # target_dataのタイプを変換 int16→float32
@@ -157,20 +157,20 @@ def train(model: nn.Module,
 			estimate_data = model(mix_magnitude, mix_complex, original_length)  # モデルに通す
 
 			""" データの整形 """
-			# print("estimation:", estimate_data.shape)
-			# print("target:", target_data.shape)
 			estimate_data, target_data = padding_tensor(estimate_data, target_data)
-			# print("estimation:", estimate_data.shape)
-			# print("target:", target_data.shape)
 			estimate_data = estimate_data.unsqueeze(dim=1)  # (B, 1, length)
 
 			""" 損失の計算 """
 			model_loss = loss_func(estimate_data, target_data)
-			model_loss_sum += model_loss  # 損失の加算
+			model_loss = model_loss / accumulation_steps
 
 			""" 後処理 """
 			model_loss.backward()  # 誤差逆伝搬
-			optimizer.step()  # 勾配の更新
+			model_loss_sum += model_loss.item() * accumulation_steps
+
+			if (i + 1) % accumulation_steps == 0 or (i + 1) == len(train_loader):
+				optimizer.step()  # 勾配の更新
+				optimizer.zero_grad()
 
 			del (
 				mix_data,
@@ -227,8 +227,8 @@ def train(model: nn.Module,
 				estimate_data, target_data = padding_tensor(estimate_data, target_data)
 				estimate_data = estimate_data.unsqueeze(dim=1)  # (B, 1, length)
 				model_loss = loss_func(estimate_data, target_data)
-				val_loss += model_loss
-				progress_bar_val.set_postfix({"loss": model_loss})
+				val_loss += model_loss.item()
+				progress_bar_val.set_postfix({"loss": model_loss.item()})
 			avg_val_loss = val_loss / len(val_loader)
 		if avg_val_loss < best_loss:
 			print(f"Validation loss improved ({best_loss:.6f} --> {avg_val_loss:.6f}). Saving model...")
@@ -329,12 +329,12 @@ if __name__ == "__main__":
 	]  # モデルの種類  "UGCN", "UGCN2", "UGAT", "UGAT2", "ConvTasNet", "UNet"
 	wave_types = [
 		# "noise_only",
-		"reverbe_only",
-		# "noise_reverbe",
+		# "reverbe_only",
+		"noise_reverbe",
 	]  # 入力信号の種類 (noise_only, reverbe_only, noise_reverbe)
 
-	node_selection = NodeSelectionType.TEMPORAL  # ノード選択の方法 (ALL, TEMPORAL)
-	edge_selection = EdgeSelectionType.RANDOM  # エッジ選択の方法 (RAMDOM, KNN)
+	node_selection = NodeSelectionType.ALL  # ノード選択の方法 (ALL, TEMPORAL)
+	edge_selection = EdgeSelectionType.KNN  # エッジ選択の方法 (RAMDOM, KNN)
 
 	graph_config = GraphConfig(
 		num_edges=num_node,
@@ -376,7 +376,7 @@ if __name__ == "__main__":
 			      wave_type=wave_type,
 			      out_path=f"{const.PTH_DIR}/{dir_name}/{model_type}/{out_name}.pth",
 			      loss_type="SISDR",
-			      batchsize=16, checkpoint_path=None, train_count=500, earlystopping_threshold=10)
+			      batchsize=8, checkpoint_path=None, train_count=500, earlystopping_threshold=10, accumulation_steps=2)
 
 			test(model=model,
 			     test_csv=f"{const.MIX_DATA_DIR}/{dir_name}/test.csv",
