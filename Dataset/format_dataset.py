@@ -5,7 +5,11 @@
 一つのCSVファイルにまとめます。
 
 使用例:
-python format_dataset.py --mixed_dir "mixed_reverb" --clean_reverb_dir "clean_reverb" --clean_dir "original_clean" --output_csv "dataset_list.csv"
+python format_dataset.py \
+	--mixed_dir "mixed_reverb" \
+	--clean_reverb_dir "clean_reverb" \
+	--clean_dir "original_clean" \
+	--output_csv "dataset_list.csv"
 """
 
 import os
