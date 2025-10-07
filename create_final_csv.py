@@ -1,5 +1,6 @@
 import csv
 import json
+import os.path
 import sys
 from pathlib import Path
 
@@ -14,15 +15,15 @@ from tqdm import tqdm
 DEFAULT_JSON_PATH = "sampled_vctk_file_list.json"
 
 # 拡張されたデータセットの親ディレクトリ
-DEFAULT_DATASET_ROOT = Path("C:/Users/kataoka-lab/Desktop/sound_data/mix_data/DEMAND_hoth_0505dB_05sec_1ch")
+DEFAULT_DATASET_ROOT = Path("C:/Users/kataoka-lab/Desktop/sound_data/mix_data/DEMAND_DEMAND")
 
 # --- 出力設定 ---
 # CSVファイルのヘッダー
 CSV_HEADER = [
-    "clean_path",
-    "noise_only_path",
-    "reverb_only_path",
-    "noise_reverb_path",
+    "clean",
+    "noise_only",
+    "reverb_only",
+    "noise_reverb",
 ]
 
 # 各音声ファイルの種類に対応するディレクトリ名
@@ -58,7 +59,7 @@ def create_final_csv_list_prefix(json_path: Path, dataset_root: Path):
     for split_name, speakers_data in all_splits_info.items():
         print(f"\n======== {split_name.upper()} セットの処理を開始 ========")
 
-        output_csv_path = Path(f"{split_name}.csv")
+        output_csv_path = os.path.join(dataset_root, F"{split_name}.csv")
         all_rows = []
         missing_files_count = 0
 
