@@ -8,6 +8,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
+from torch.utils.checkpoint import checkpoint
 from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
@@ -19,8 +20,9 @@ from models.ConvTasNet_models import enhance_ConvTasNet
 from models.SpeqGNN import SpeqGNN
 from models.SpeqGNN_encoder import SpeqGNN_encoder
 from models.graph_utils import GraphConfig, NodeSelectionType, EdgeSelectionType
-from models.Speq_UNet import Speq_UNet as U_Net
+# from models.Speq_UNet import Speq_UNet as U_Net
 from mymodule import my_func, const, LossFunction, confirmation_GPU
+import CSV_eval
 
 # CUDAのメモリ管理設定
 # os.environ['PYTORCH_CUDA_ALLOC_CONF'] = 'expandable_segments:True'
@@ -84,10 +86,10 @@ def train(model: nn.Module,
 	earlystopping_count = 0
 
 	""" Load dataset データセットの読み込み """
-	train_dataset = CsvDataset(csv_path=train_csv, input_column_header=wave_type)
+	train_dataset = CsvDataset(csv_path=train_csv, input_column_header=wave_type, max_length_sec=6)
 	train_loader = DataLoader(dataset=train_dataset, batch_size=batchsize, shuffle=True, pin_memory=True, collate_fn=CsvDataset.collate_fn)
 
-	val_dataset = CsvDataset(csv_path=val_csv, input_column_header=wave_type)
+	val_dataset = CsvDataset(csv_path=val_csv, input_column_header=wave_type, max_length_sec=6)
 	val_loader = DataLoader(dataset=val_dataset, batch_size=batchsize, shuffle=True, pin_memory=True, collate_fn=CsvDataset.collate_fn)
 
 	# print(f"\nmodel:{model}\n")                           # モデルのアーキテクチャの出力
@@ -322,17 +324,19 @@ def test(model: nn.Module, test_csv: str, wave_type: str, out_dir: str, model_pa
 if __name__ == "__main__":
 	"""モデルの設定"""
 	num_mic = 1  # マイクの数
-	num_node = 16  # ノードの数
+	num_node = 1024  # ノードの数
 	model_list = [
-		"UNet"
+		# "GCN",
+		"GAT",
+		# "ConvTasNet",
 	]  # モデルの種類  "UGCN", "UGCN2", "UGAT", "UGAT2", "ConvTasNet", "UNet"
 	wave_types = [
 		"noise_only",
-		"reverbe_only",
-		"noise_reverbe",
+		"reverb_only",
+		"noise_reverb",
 	]  # 入力信号の種類 (noise_only, reverbe_only, noise_reverbe)
 
-	node_selection = NodeSelectionType.ALL  # ノード選択の方法 (ALL, TEMPORAL)
+	node_selection = NodeSelectionType.TEMPORAL  # ノード選択の方法 (ALL, TEMPORAL)
 	edge_selection = EdgeSelectionType.KNN  # エッジ選択の方法 (RAMDOM, KNN)
 
 	graph_config = GraphConfig(
@@ -359,16 +363,20 @@ if __name__ == "__main__":
 			model = SpeqGNN_encoder(n_channels=num_mic, gnn_type="GAT", num_node=num_node, graph_config=graph_config).to(device)
 		elif model_type == "ConvTasNet":
 			model = enhance_ConvTasNet().to(device)
-		elif model_type == "UNet":
-			model = U_Net(n_channels=1, n_classes=1, **stft_params).to(device)
+		# elif model_type == "UNet":
+		# 	model = U_Net().to(device)
 		else:
 			raise ValueError(f"Unknown model type: {model_type}")
 
-		dir_name = "DEMAND_hoth_10dB_500msec"
-		model_type = f"Speq{model_type}"
+		dir_name = "DEMAND_DEMAND"
+		# model_type = f"Speq{model_type}"
 		for wave_type in wave_types:
-			# out_name = f"new_{model_type}_{wave_type}_{num_node}node_{node_selection.value}_{edge_selection.value}"  # 出力名
-			out_name = f"new_{model_type}_{wave_type}"  # 出力名
+			if wave_type == "noise_only":
+				checkpoint_path = "C:/Users/kataoka-lab/Desktop/sound_data/RESULT/pth/DEMAND_DEMAND/GAT/SISDR_GAT_noise_only_1024node_temporal_knn_ckp.pth"
+			else:
+				checkpoint_path = None
+			out_name = f"SISDR_{model_type}_{wave_type}_{num_node}node_{node_selection.value}_{edge_selection.value}"  # 出力名
+			# out_name = f"{model_type}_{wave_type}"  # 出力名
 			# C:\Users\kataoka-lab\Desktop\sound_data\sample_data\speech\DEMAND\clean\train
 			train(model=model,
 			      train_csv=f"{const.MIX_DATA_DIR}/{dir_name}/train.csv",
@@ -376,16 +384,23 @@ if __name__ == "__main__":
 			      wave_type=wave_type,
 			      out_path=f"{const.PTH_DIR}/{dir_name}/{model_type}/{out_name}.pth",
 			      loss_type="SISDR",
-			      batchsize=8, checkpoint_path=None, train_count=500, earlystopping_threshold=10, accumulation_steps=2)
+			      batchsize=1, train_count=500, earlystopping_threshold=10, accumulation_steps=16,
+			      checkpoint_path=checkpoint_path)
 
 			test(model=model,
 			     test_csv=f"{const.MIX_DATA_DIR}/{dir_name}/test.csv",
 			     wave_type=wave_type,
 			     out_dir=f"{const.OUTPUT_WAV_DIR}/{dir_name}/{model_type}/{out_name}",
 			     model_path=f"{const.PTH_DIR}/{dir_name}/{model_type}/{out_name}.pth")
+			#
+			# evaluation(
+			# 	target_dir=f"{const.MIX_DATA_DIR}/{dir_name}/test/clean",
+			# 	estimation_dir=f"{const.OUTPUT_WAV_DIR}/{dir_name}/{model_type}/{out_name}",
+			# 	out_path=f"{const.EVALUATION_DIR}/{dir_name}/{model_type}/{out_name}.csv",
+			# )
 
-			evaluation(
-				target_dir=f"{const.MIX_DATA_DIR}/{dir_name}/test/clean",
-				estimation_dir=f"{const.OUTPUT_WAV_DIR}/{dir_name}/{model_type}/{out_name}",
-				out_path=f"{const.EVALUATION_DIR}/{dir_name}/{model_type}/{out_name}.csv",
-			)
+			CSV_eval.main(input_csv_path=f"{const.MIX_DATA_DIR}/{dir_name}/test.csv",
+			              target_column="clean",
+			              estimation_column=wave_type,
+			              estimation_dir=f"{const.OUTPUT_WAV_DIR}/{dir_name}/{model_type}/{out_name}",
+			              out_path=f"{const.EVALUATION_DIR}/{dir_name}/{model_type}/{out_name}_CSV.csv")
