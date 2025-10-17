@@ -91,7 +91,7 @@ class CheckSpectralDataset(Dataset):
 
 		noisy_waveform = noisy_waveform[:, :min_len]
 		clean_waveform = clean_waveform[:, :min_len]
-		original_length = noisy_waveform.shape[-1]
+		noisy_length = noisy_waveform.shape[-1]
 
 		# STFTのためにチャンネル次元を削除 [1, L] -> [L]
 		noisy_waveform_squeezed = noisy_waveform.squeeze(0)
@@ -108,11 +108,13 @@ class CheckSpectralDataset(Dataset):
 		noisy_magnitude_spec = torch.abs(noisy_complex_spec).unsqueeze(0)  # [1, F, T]
 		clean_magnitude_spec = torch.abs(clean_complex_spec).unsqueeze(0)  # [1, F, T]
 
-		original_length = noisy_waveform.shape[-1]
+		noisy_length = noisy_waveform.shape[-1]
+		clean_length = clean_waveform.shape[-1]
+
 		file_name = clean_path.stem
 
 		# ノイズあり振幅[1, F, T]、クリーン振幅[1, F, T]、ノイズあり複素[F, T]、元の長さ[int]、ファイル名[str]を返す
-		return noisy_magnitude_spec, clean_magnitude_spec, noisy_complex_spec, original_length, file_name
+		return noisy_magnitude_spec, clean_magnitude_spec, noisy_complex_spec, clean_complex_spec, noisy_length, clean_length, file_name
 
 	def __len__(self):
 		return len(self.data_df)
@@ -202,98 +204,39 @@ def run_analysis(
 				tqdm.write(f"Collecting Node Metrics: {i}/{len(dataloader)}")
 
 			# --- 1. データローダーからの要素を明示的にアンパック（5要素を前提） ---
-			try:
-				# 5つの要素を明示的にアンパック
-				noisy_mag, clean_mag, noisy_complex, original_length_tensor, file_name_list = batch
+			# 5つの要素を明示的にアンパック
+			noisy_mag, clean_mag, noisy_complex, clean_complex, noisy_length, clean_length, file_name = batch
 
-				# TensorをPythonのintに変換
-				original_length_int = original_length_tensor.item()
-				# ファイル名リストから文字列を取得
-				file_name_str = file_name_list[0] if isinstance(file_name_list, list) else file_name_list
+			# TensorをPythonのintに変換
+			noisy_length_int = noisy_length.item()
+			clean_length_int = clean_length.item()
+			# ファイル名リストから文字列を取得
+			file_name_str = file_name[0] if isinstance(file_name, list) else file_name
 
-				# CUDAに移動
-				noisy_mag = noisy_mag.to(device)
-				clean_mag = clean_mag.to(device)
-				noisy_complex = noisy_complex.to(device)
-
-			except Exception as e:
-				# データローダーの戻り値の数や構造に問題がある可能性
-				print(f"\n[Error: Data Unpack] ファイル: {file_name_list}。要素数が5個か、要素の型を確認してください。エラー: {e}")
-				continue
+			# CUDAに移動
+			noisy_mag = noisy_mag.to(device)
+			clean_mag = clean_mag.to(device)
+			noisy_complex = noisy_complex.to(device)
+			clean_complex = clean_complex.to(device)
 
 			# --- 2. モデルのフォワードパスの実行 ---
-			try:
-				# モデル呼び出し。引数は4つで、original_lengthはintに変換済み
-				_, node_loss, edge_index = model(noisy_mag, clean_mag, noisy_complex, original_length_int)
+			# モデル呼び出し。引数は4つで、original_lengthはintに変換済み
+			_, noisy_node, noisy_index = model(noisy_mag, noisy_complex, noisy_length_int)
+			_, clean_node, clean_index = model(clean_mag, clean_complex, clean_length_int)
 
-			except Exception as e:
-				# モデル実行中のエラー。アンパックエラーの原因はここではない可能性が高い
-				print(f"\n[Error: Model Forward] ファイル: {file_name_str}。モデル内部でエラーが発生しました。エラー: {e}")
-				continue
+			# --- 3. Excelに出力
+			output_path = f"{output_dir}/{file_name_str}.xlsx"
+			# Excelファイルへの書き出し
+			with pd.ExcelWriter(output_path) as writer:
+				pd.DataFrame(noisy_node.cpu().numpy()).to_excel(writer, sheet_name="node", startcol=0)
+				pd.DataFrame(clean_node.cpu().numpy()).to_excel(writer, sheet_name="node", startcol=noisy_node.shape[1] + 1)
+				pd.DataFrame(noisy_index.cpu().numpy()).to_excel(writer, sheet_name="noisy_index")
+				pd.DataFrame(clean_index.cpu().numpy()).to_excel(writer, sheet_name="clean_index")
 
-			# --- 3. データ収集ロジック（変更なし） ---
 
-			# 最初のファイルからノード総数を取得
-			if num_nodes_per_file is None:
-				num_nodes_per_file = node_loss.shape[0]
-
-			# ノード誤差の収集
-			all_node_losses.append(node_loss.cpu().numpy())
-
-			# エッジ接続回数の集計 (始点ノードをカウント)
-			src_nodes = edge_index[0].cpu().numpy()
-			for node_id in src_nodes:
-				if node_id < num_nodes_per_file:
-					node_connection_counts[node_id] += 1
-
-			total_files += 1
-
-	# --- 3. データ集計とCSV出力 ---
-
-	if total_files == 0:
-		print("エラー: 収集されたデータがありません。データローダーとCSVパスを確認してください。")
-		return
-
-	# 1. ノードごとの平均誤差を計算
-	combined_losses = np.concatenate(all_node_losses)
-	avg_node_losses = combined_losses.reshape(total_files, num_nodes_per_file).mean(axis=0)
-
-	# 2. ノード接続回数のリストを整形
-	node_ids = np.arange(num_nodes_per_file)
-	connection_counts_array = np.array([node_connection_counts.get(i, 0) for i in node_ids])
-
-	# 3. ノード情報のマッピングと結果の整形
-	analysis_results = []
-	for node_id in node_ids:
-		# ノードIDを (時間インデックス, 周波数インデックス) にマッピング
-		# SpeqGNNのロジックに基づき、H(高さ)が周波数次元、W(幅)が時間次元に対応
-		freq_idx_bottleneck = node_id % estimated_freq_bins_bottleneck
-		time_idx_bottleneck = node_id // estimated_freq_bins_bottleneck
-
-		# 元の周波数ビンにマッピング (推定)
-		freq_idx_original_min = freq_idx_bottleneck * downsample_factor
-		freq_idx_original_max = (freq_idx_bottleneck + 1) * downsample_factor - 1
-
-		analysis_results.append({
-			'Node_ID': node_id,
-			'Avg_Loss': avg_node_losses[node_id],
-			'Connection_Count': connection_counts_array[node_id],
-			'Freq_Bin_Bottleneck': freq_idx_bottleneck,
-			'Freq_Bin_Original_Min': freq_idx_original_min,
-			'Freq_Bin_Original_Max': freq_idx_original_max,
-			'Time_Idx_Bottleneck': time_idx_bottleneck
-		})
-
-	# 4. CSVとして保存
-	results_df = pd.DataFrame(analysis_results)
-	output_path = Path(output_dir) / f"gnn_node_analysis_{gnn_type}_{num_node}_nodes.csv"
-
-	my_func.make_dir(output_path)
-	results_df.to_csv(output_path, index=False, float_format='%.6f')
 
 	print(f"\n=======================================================")
 	print(f"✅ GNNノード分析が完了しました。")
-	print(f"結果は以下のファイルに保存されました: {output_path.resolve()}")
 	print(f"=======================================================")
 
 

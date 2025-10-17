@@ -162,92 +162,78 @@ class CheckSpeqGNN(nn.Module):
 		x4 = self.down3(x3)  # ボトルネック特徴量
 		return x1, x2, x3, x4
 
-	def forward(self,
-	            noisy_magnitude: torch.Tensor,
-	            clean_magnitude: torch.Tensor,  # ★追加: 教師信号の振幅スペクトログラム
-	            complex_spec_input: torch.Tensor,
-	            original_length: Optional[int] = None) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+	def forward(self, x_magnitude, complex_spec_input, original_length=None):
 		"""
-		順伝播を拡張し、ノードごとの誤差とエッジインデックスを返す。
-
+		順伝播
 		Args:
-			noisy_magnitude (torch.Tensor): ノイズ入り信号の振幅スペクトログラム [B, C, F, T]
-			clean_magnitude (torch.Tensor): クリーン信号の振幅スペクトログラム [B, C, F, T]
-			complex_spec_input (torch.Tensor): ノイズ入り信号の複素スペクトログラム [B, F, T]
-			original_length (int, optional): 元の波形データの長さ。
-
-		Returns:
-			Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
-				(強調後の音声波形, ノードごとの平均誤差, 構築されたエッジインデックス)
+			x_magnitude (torch.Tensor): 入力マグニチュードスペクトログラム [バッチ, チャネル数, 周波数ビン, 時間フレーム]
+			complex_spec_input (torch.Tensor): 元の混合信号の複素スペクトログラム [バッチ, 周波数ビン, 時間フレーム]
+			original_length (int, optional): 元の波形データの長さ。ISTFTのlength引数に使用されます。
 		"""
-		# print(noisy_magnitude.shape)
-		batch_size, _, input_freq_bins, input_time_frames = noisy_magnitude.size()
+		batch_size, _, input_freq_bins, input_time_frames = x_magnitude.size()
 
-		# --- 1. エンコーダ特徴量の取得 ---
-		# ノイズあり信号のエンコーダパス
-		x1_noisy, x2_noisy, x3_noisy, x4_noisy = self._get_encoder_features(noisy_magnitude)
+		# 1. U-Net エンコーダ
+		x1 = self.inc(x_magnitude)
+		x2 = self.down1(x1)
+		x3 = self.down2(x2)
+		x4 = self.down3(x3)
 
-		# クリーン信号のエンコーダパス (同じ重みでフォワード)
-		with torch.no_grad():  # 教師信号のパスは勾配計算から除外
-			_, _, _, y4_clean = self._get_encoder_features(clean_magnitude.to(self.device))
+		# 2. ボトルネックでのGNN処理
+		_, channels_bottleneck, height_bottleneck, width_bottleneck = x4.size()
+		x4_reshaped = x4.view(batch_size, channels_bottleneck, -1).permute(0, 2, 1).reshape(-1, channels_bottleneck)
 
-		# --- 2. ノードごとの誤差計算 (ノイズ vs クリーン) ---
-		_, channels_bottleneck, height_bottleneck, width_bottleneck = x4_noisy.size()
-
-		# ノード次元にリシェイプ [B * N_nodes, C]
-		x4_reshaped_noisy = x4_noisy.view(batch_size, channels_bottleneck, -1).permute(0, 2, 1).reshape(-1, channels_bottleneck)
-		y4_reshaped_clean = y4_clean.view(batch_size, channels_bottleneck, -1).permute(0, 2, 1).reshape(-1, channels_bottleneck)
-
-		# ノードごとのL2誤差 (MSE) を計算し、ノードごとに平均化 [B * N_nodes]
-		# dim=1で特徴次元（512）の平均誤差を計算
-		node_loss = torch.mean((x4_reshaped_noisy - y4_reshaped_clean) ** 2, dim=1)
-
-		# --- 3. GNNの実行とエッジの取得 ---
 		# GraphBuilderを使用してグラフを作成
 		num_nodes_per_sample = height_bottleneck * width_bottleneck
-		edge_index = self.graph_builder.create_batch_graph(x=x4_reshaped_noisy,
+		edge_index = self.graph_builder.create_batch_graph(x=x4_reshaped,
 		                                                   batch_size=batch_size,
 		                                                   nodes_per_sample=num_nodes_per_sample)
 
 		# GNNによるノード特徴の更新
-		x4_processed_flat = self.gnn(x4_reshaped_noisy, edge_index)
+		x4_processed_flat = self.gnn(x4_reshaped, edge_index)
 
-		# GNNの出力をU-Netの形状に戻す
 		x4_processed = x4_processed_flat.view(batch_size, height_bottleneck, width_bottleneck,
 		                                      channels_bottleneck).permute(0, 3, 1, 2)
 
-		# --- 4. U-Net デコーダとマスクの適用 (SpeqGNN.pyの残りのロジック) ---
-		d3 = self.up1(x4_processed, x3_noisy)
-		d2 = self.up2(d3, x2_noisy)
-		d1 = self.up3(d2, x1_noisy)
+		# 3. U-Net デコーダ
+		d3 = self.up1(x4_processed, x3)
+		d2 = self.up2(d3, x2)
+		d1 = self.up3(d2, x1)
 
+		# 4. マスクの予測
 		mask_pred_raw = self.outc(d1)
 		mask_pred = torch.sigmoid(mask_pred_raw)
 
 		# 5. マスクを入力特徴マップのサイズにリサイズ
 		if mask_pred.size(2) != input_freq_bins or mask_pred.size(3) != input_time_frames:
 			mask_pred_resized = F.interpolate(mask_pred, size=(input_freq_bins, input_time_frames), mode='bilinear',
-		                                      align_corners=False)
+			                                  align_corners=False)
 		else:
 			mask_pred_resized = mask_pred
 
-		# マスクの適用
-		predicted_magnitude_tf = noisy_magnitude * mask_pred.squeeze(1)
+		# 6. マスクの適用
+		predicted_magnitude_tf = x_magnitude * mask_pred_resized
 
-		# ISTFTによる波形再構成
-		# ... (ISTFTロジック: 割愛)
+		# 7. ISTFTによる波形再構成
+		if predicted_magnitude_tf.size(1) == 1:
+			predicted_magnitude_for_istft = predicted_magnitude_tf.squeeze(1)  # [B, F, T]
+		else:
+			# n_classes > 1 の場合は特定の処理が必要。ここでは最初のチャネルを目的のマグニチュードと仮定します。
+			print(
+				f"Warning: SpeqGCNNet.forward - n_classes > 1 ({predicted_magnitude_tf.size(1)}), ISTFTには最初のチャネルを使用します。")
+			predicted_magnitude_for_istft = predicted_magnitude_tf[:, 0, :, :]
+
 		phase = torch.angle(complex_spec_input)
-		reconstructed_complex_spec = torch.polar(predicted_magnitude_tf.squeeze(1), phase)
+		reconstructed_complex_spec = torch.polar(predicted_magnitude_for_istft, phase)
 
-		output_waveform = torchaudio.transforms.InverseSpectrogram(
-			n_fft=self.n_fft,
-			hop_length=self.hop_length,
-			win_length=self.win_length,
-			window_fn=lambda n: torch.hann_window(n).to(reconstructed_complex_spec.device)
-		).to(self.device)(reconstructed_complex_spec, length=original_length)
-
-		# 3つの重要な情報を返す
-		return output_waveform, node_loss, edge_index
+		# ISTFTで時間領域の波形に戻す
+		output_waveform = torch.istft(reconstructed_complex_spec,
+		                              n_fft=self.n_fft,
+		                              hop_length=self.hop_length,
+		                              win_length=self.win_length,
+		                              window=self.window.to(reconstructed_complex_spec.device),
+		                              return_complex=False,
+		                              length=original_length)
+		return output_waveform, x4_processed_flat, edge_index
 
 
 def print_model_summary(model: CheckSpeqGNN, batch_size, length):
