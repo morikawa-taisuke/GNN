@@ -10,6 +10,7 @@ from pathlib import Path
 
 from numba.cuda import const
 from tqdm import tqdm
+from tqdm.contrib import tenumerate
 from torch.utils.data import Dataset, DataLoader
 from collections import defaultdict
 from typing import Optional, Tuple, Callable
@@ -196,7 +197,7 @@ def run_analysis(
 	with torch.no_grad():
 		print("ノード誤差とエッジ接続回数の収集を開始...")
 		# tqdm(dataloader, ...) の代わりにenumerateを使用し、データ収集中にエラーハンドリングを強化
-		for i, batch in enumerate(dataloader):
+		for i, batch in tenumerate(dataloader):
 			# print(batch)
 			# print(len(batch))
 			# プログレスバーの更新
@@ -226,12 +227,13 @@ def run_analysis(
 
 			# --- 3. Excelに出力
 			output_path = f"{output_dir}/{file_name_str}.xlsx"
+			my_func.make_dir(os.path.dirname(output_path))
 			# Excelファイルへの書き出し
 			with pd.ExcelWriter(output_path) as writer:
 				pd.DataFrame(noisy_node.cpu().numpy()).to_excel(writer, sheet_name="node", startcol=0)
 				pd.DataFrame(clean_node.cpu().numpy()).to_excel(writer, sheet_name="node", startcol=noisy_node.shape[1] + 1)
-				pd.DataFrame(noisy_index.cpu().numpy()).to_excel(writer, sheet_name="noisy_index")
-				pd.DataFrame(clean_index.cpu().numpy()).to_excel(writer, sheet_name="clean_index")
+				pd.DataFrame(noisy_index.cpu().numpy().T).to_excel(writer, sheet_name="noisy_index")
+				pd.DataFrame(clean_index.cpu().numpy().T).to_excel(writer, sheet_name="clean_index")
 
 
 
@@ -252,7 +254,7 @@ if __name__ == "__main__":
 	speech_type = "DEMAND_DEMAND"
 	MODEL_BASE_DIR = f"{const.PTH_DIR}/{speech_type}/{model}"  # 例: "models/saved_models/SpeqGAT_noise_only"
 	MODEL_NAME = f"{model}_{wave_type}"
-	MODEL_PATH = f"{MODEL_BASE_DIR}/SISDR_SpeqGAT_noise_reverb_32node_temporal_knn.pth"  # 例: BEST_SpeqGAT_noise_only.pthをロード
+	MODEL_PATH = f"{MODEL_BASE_DIR}/SISDR_SpeqGAT_{wave_type}_32node_all_knn.pth"  # 例: BEST_SpeqGAT_noise_only.pthをロード
 	# 2. データセットCSVファイルのパス
 	CSV_PATH = Path(f"{const.MIX_DATA_DIR}/{speech_type}/test.csv")
 	# 3. 出力ディレクトリ
@@ -261,7 +263,7 @@ if __name__ == "__main__":
 	# 4. モデルのハイパーパラメータ設定 (学習時と一致させる必要があります)
 	GNN_TYPE = "GAT"
 	NUM_NODE_EDGES = 32
-	MAX_LENGTH_SEC = 8
+	MAX_LENGTH_SEC = None
 	CSV_INPUT_COL = "noise_reverb"
 
 	STFT_PARAMS = {
