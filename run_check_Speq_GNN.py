@@ -212,6 +212,8 @@ def run_analysis(
 			noisy_length_int = noisy_length.item()
 			clean_length_int = clean_length.item()
 			# ファイル名リストから文字列を取得
+			print(file_name)
+			exit(2)
 			file_name_str = file_name[0] if isinstance(file_name, list) else file_name
 
 			# CUDAに移動
@@ -230,8 +232,9 @@ def run_analysis(
 			my_func.make_dir(os.path.dirname(output_path))
 			# Excelファイルへの書き出し
 			with pd.ExcelWriter(output_path) as writer:
-				pd.DataFrame(noisy_node.cpu().numpy()).to_excel(writer, sheet_name="node", startcol=0)
-				pd.DataFrame(clean_node.cpu().numpy()).to_excel(writer, sheet_name="node", startcol=noisy_node.shape[1] + 1)
+				pd.DataFrame(noisy_node.cpu().numpy()).to_excel(writer, sheet_name="nosie_node", startcol=0)
+				pd.DataFrame(clean_node.cpu().numpy()).to_excel(writer, sheet_name="clean_node", startcol=0)
+				pd.DataFrame(clean_node.cpu().numpy()-noisy_node.cpu().numpy()).to_excel(writer, sheet_name="error_node", startcol=0)
 				pd.DataFrame(noisy_index.cpu().numpy().T).to_excel(writer, sheet_name="noisy_index")
 				pd.DataFrame(clean_index.cpu().numpy().T).to_excel(writer, sheet_name="clean_index")
 
