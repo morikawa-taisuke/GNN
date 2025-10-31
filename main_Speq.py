@@ -8,7 +8,6 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
-from torch.utils.checkpoint import checkpoint
 from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
@@ -20,7 +19,7 @@ from models.ConvTasNet_models import enhance_ConvTasNet
 from models.SpeqGNN import SpeqGNN
 from models.SpeqGNN_encoder import SpeqGNN_encoder
 from models.graph_utils import GraphConfig, NodeSelectionType, EdgeSelectionType
-# from models.Speq_UNet import Speq_UNet as U_Net
+from models.Speq_UNet import Speq_UNet as U_Net
 from mymodule import my_func, const, LossFunction, confirmation_GPU
 import CSV_eval
 
@@ -160,9 +159,12 @@ def train(model: nn.Module,
 
 			""" データの整形 """
 			estimate_data, target_data = padding_tensor(estimate_data, target_data)
-			estimate_data = estimate_data.unsqueeze(dim=1)  # (B, 1, length)
+			target_data = target_data.squeeze(dim=1)  # (B, 1, length)
+			# estimate_data = estimate_data.unsqueeze(dim=1)  # (B, 1, length)
 
 			""" 損失の計算 """
+			# print("estimate_data shape:", estimate_data.shape)
+			# print("target_data shape:", target_data.shape)
 			model_loss = loss_func(estimate_data, target_data)
 			model_loss = model_loss / accumulation_steps
 
@@ -324,11 +326,9 @@ def test(model: nn.Module, test_csv: str, wave_type: str, out_dir: str, model_pa
 if __name__ == "__main__":
 	"""モデルの設定"""
 	num_mic = 1  # マイクの数
-	num_node = 1024  # ノードの数
+	num_node = 32  # ノードの数
 	model_list = [
-		# "GCN",
-		"GAT",
-		# "ConvTasNet",
+		"GAT"
 	]  # モデルの種類  "UGCN", "UGCN2", "UGAT", "UGAT2", "ConvTasNet", "UNet"
 	wave_types = [
 		"noise_only",
@@ -363,29 +363,25 @@ if __name__ == "__main__":
 			model = SpeqGNN_encoder(n_channels=num_mic, gnn_type="GAT", num_node=num_node, graph_config=graph_config).to(device)
 		elif model_type == "ConvTasNet":
 			model = enhance_ConvTasNet().to(device)
-		# elif model_type == "UNet":
-		# 	model = U_Net().to(device)
+		elif model_type == "UNet":
+			model = U_Net(n_channels=1, n_classes=1, **stft_params).to(device)
 		else:
 			raise ValueError(f"Unknown model type: {model_type}")
 
-		dir_name = "DEMAND_DEMAND"
-		# model_type = f"Speq{model_type}"
+		dir_name = "DEMAND_DEMAND_5dB_500msec"  # データセットのディレクトリ名
+		loss_type = "SISDR"  # 損失関数の種類 ("SISDR", "wave_MSE", "stft_MSE")
+		model_type = f"Speq{model_type}"
 		for wave_type in wave_types:
-			if wave_type == "noise_only":
-				checkpoint_path = "C:/Users/kataoka-lab/Desktop/sound_data/RESULT/pth/DEMAND_DEMAND/GAT/SISDR_GAT_noise_only_1024node_temporal_knn_ckp.pth"
-			else:
-				checkpoint_path = None
-			out_name = f"SISDR_{model_type}_{wave_type}_{num_node}node_{node_selection.value}_{edge_selection.value}"  # 出力名
-			# out_name = f"{model_type}_{wave_type}"  # 出力名
+			# out_name = f"new_{model_type}_{wave_type}_{num_node}node_{node_selection.value}_{edge_selection.value}"  # 出力名
+			out_name = f"{model_type}_{wave_type}"  # 出力名
 			# C:\Users\kataoka-lab\Desktop\sound_data\sample_data\speech\DEMAND\clean\train
 			train(model=model,
 			      train_csv=f"{const.MIX_DATA_DIR}/{dir_name}/train.csv",
 			      val_csv=f"{const.MIX_DATA_DIR}/{dir_name}/val.csv",
 			      wave_type=wave_type,
 			      out_path=f"{const.PTH_DIR}/{dir_name}/{model_type}/{out_name}.pth",
-			      loss_type="SISDR",
-			      batchsize=1, train_count=500, earlystopping_threshold=10, accumulation_steps=16,
-			      checkpoint_path=checkpoint_path)
+			      loss_type=loss_type,
+			      batchsize=4, checkpoint_path=None, train_count=500, earlystopping_threshold=10, accumulation_steps=4)
 
 			test(model=model,
 			     test_csv=f"{const.MIX_DATA_DIR}/{dir_name}/test.csv",
