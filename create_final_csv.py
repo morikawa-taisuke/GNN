@@ -15,7 +15,7 @@ from tqdm import tqdm
 DEFAULT_JSON_PATH = "sampled_vctk_file_list.json"
 
 # 拡張されたデータセットの親ディレクトリ
-DEFAULT_DATASET_ROOT = Path("C:/Users/kataoka-lab/Desktop/sound_data/mix_data/DEMAND_DEMAND")
+DEFAULT_DATASET_ROOT = Path("C:/Users/kataoka-lab/Desktop/sound_data/mix_data/DEMAND_DEMAND_5dB_500msec")
 
 # --- 出力設定 ---
 # CSVファイルのヘッダー
