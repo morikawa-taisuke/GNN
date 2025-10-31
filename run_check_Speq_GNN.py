@@ -1,36 +1,27 @@
-import os
+# coding:utf-8
 import sys
 import torch
-import torch.nn as nn
-import torch.nn.functional as F
-import torchaudio
-import numpy as np
-import pandas as pd
+import h5py # ★ 追加
+from typing import Optional
 from pathlib import Path
+import torchaudio
+import pandas as pd
 
 from numba.cuda import const
 from tqdm import tqdm
 from tqdm.contrib import tenumerate
 from torch.utils.data import Dataset, DataLoader
-from collections import defaultdict
-from typing import Optional, Tuple, Callable
 
-# 必要なモジュールのインポート
-# 🚨 実行環境に応じてパスを調整してください 🚨
-try:
-	# models/graph_utils.py からインポート
-	from models.graph_utils import GraphConfig, NodeSelectionType, EdgeSelectionType
-	# models/check_Speq_GNN.py からインポート
-	from models.check_SpeqGNN import CheckSpeqGNN
-	# CsvDataset.py のロジックを流用 (今回はスクリプト内に定義)
+# models/graph_utils.py からインポート
+from models.graph_utils import GraphConfig, NodeSelectionType, EdgeSelectionType
+# models/check_Speq_GNN.py からインポート
+from models.check_SpeqGNN import CheckSpeqGNN
+# CsvDataset.py のロジックを流用 (今回はスクリプト内に定義)
 
-	# mymodule/confirmation_GPU.py からインポート
-	from mymodule import confirmation_GPU
-	# mymodule/my_func.py からインポート (主にディレクトリ作成用)
-	from mymodule import my_func, const
-except ImportError as e:
-	print(f"エラー: 必要なモジュールのインポートに失敗しました。パスを確認してください: {e}", file=sys.stderr)
-	sys.exit(1)
+# mymodule/confirmation_GPU.py からインポート
+from mymodule import confirmation_GPU
+# mymodule/my_func.py からインポート (主にディレクトリ作成用)
+from mymodule import my_func, const
 
 
 # --- 1. 検証用データローダーの定義 ---
@@ -112,7 +103,7 @@ class CheckSpectralDataset(Dataset):
 		noisy_length = noisy_waveform.shape[-1]
 		clean_length = clean_waveform.shape[-1]
 
-		file_name = clean_path.stem
+		file_name = noisy_path.stem
 
 		# ノイズあり振幅[1, F, T]、クリーン振幅[1, F, T]、ノイズあり複素[F, T]、元の長さ[int]、ファイル名[str]を返す
 		return noisy_magnitude_spec, clean_magnitude_spec, noisy_complex_spec, clean_complex_spec, noisy_length, clean_length, file_name
@@ -126,7 +117,8 @@ class CheckSpectralDataset(Dataset):
 def run_analysis(
 		model_path: str,
 		test_csv_path: str,
-		output_dir: str,
+		output_dir: str, # ★ HDF5ファイルを含むディレクトリ
+		hdf5_filename: str, # ★ 出力HDF5ファイル名
 		gnn_type: str,
 		num_node: int,
 		max_length_sec: Optional[int],
@@ -136,6 +128,7 @@ def run_analysis(
 	device = confirmation_GPU.get_device()
 	print(f"分析に使用するデバイス: {device}")
 
+	# ... (モデル設定、モデルインスタンス化、重みロードは変更なし) ...
 	# モデル設定
 	graph_config = GraphConfig(
 		num_edges=num_node,
@@ -143,7 +136,6 @@ def run_analysis(
 		edge_selection=EdgeSelectionType.KNN,
 		bidirectional=True,
 	)
-
 	# モデルのインスタンス化
 	model = CheckSpeqGNN(
 		n_channels=1,
@@ -157,7 +149,7 @@ def run_analysis(
 	try:
 		model_name = Path(model_path).stem
 		# 一般的な「最良モデル」の命名規則を優先してロードを試みる
-		best_model_path = Path(model_path).parent / f"BEST_{model_name}.pth"
+		best_model_path = Path(model_path).parent / f"{model_name}.pth"
 		loaded_state_dict = torch.load(best_model_path, map_location=device)
 
 		# 冗長なキー名（例: 'module.' プレフィックス）の削除
@@ -169,75 +161,82 @@ def run_analysis(
 	except Exception as e:
 		print(f"⚠️ 警告: モデルの重みロード中にエラーが発生しました（{e}）。ランダムな重みで続行します。")
 
-	# データローダーの準備
+	# データローダーの準備 (変更なし)
 	dataloader = DataLoader(
 		CheckSpectralDataset(
 			csv_path=test_csv_path,
 			input_column_header=csv_input_column,
 			max_length_sec=max_length_sec,
 			**stft_params,
-			device=device,
+			device=device, # CheckSpectralDataset に device 引数がない場合は削除
 		),
-		batch_size=1,
-		shuffle=False
+		batch_size=1, # ★ バッチサイズ1を維持 (HDF5への書き込みロジックがバッチ=1前提のため)
+		shuffle=False,
+		num_workers=4 # ★ データ読み込み高速化のため num_workers を追加 (環境に合わせて調整)
 	)
+
+	# --- HDF5ファイルを開く ---
+	output_hdf5_path = Path(output_dir) / hdf5_filename
+	my_func.make_dir(str(output_hdf5_path)) # 出力ディレクトリを作成
+	hdf5_file = h5py.File(output_hdf5_path, 'w')
+	print(f"✅ 結果を {output_hdf5_path} に出力します。")
+
 
 	# --- データ収集の実行 ---
 	model.eval()
-	all_node_losses = []
-	node_connection_counts = defaultdict(int)
-	num_nodes_per_file = None
-	total_files = 0
+	# all_node_losses や node_connection_counts はこのスクリプトでは使われていないようなのでコメントアウト
+	# all_node_losses = []
+	# node_connection_counts = defaultdict(int)
+	# num_nodes_per_file = None
+	# total_files = 0
 
-	# U-Netのダウンサンプリング係数
-	downsample_factor = 2 ** 3
-	# ボトルネック層の周波数ビン数
-	estimated_freq_bins_bottleneck = int(np.ceil((stft_params['n_fft'] // 2 + 1) / downsample_factor))
+	# U-Netのダウンサンプリング係数 (もし使うなら残す)
+	# downsample_factor = 2 ** 3
+	# estimated_freq_bins_bottleneck = int(np.ceil((stft_params['n_fft'] // 2 + 1) / downsample_factor))
 
-	with torch.no_grad():
-		print("ノード誤差とエッジ接続回数の収集を開始...")
-		# tqdm(dataloader, ...) の代わりにenumerateを使用し、データ収集中にエラーハンドリングを強化
-		for i, batch in tenumerate(dataloader):
-			# print(batch)
-			# print(len(batch))
-			# プログレスバーの更新
-			if i % 50 == 0 or i == len(dataloader) - 1:
-				tqdm.write(f"Collecting Node Metrics: {i}/{len(dataloader)}")
+	try: # ★ ファイルI/Oエラー等に備えて try...finally を追加
+		with torch.no_grad():
+			print("ノード特徴量とエッジ情報の収集を開始...")
+			for i, batch in tenumerate(dataloader):
+				if i % 50 == 0 or i == len(dataloader) - 1:
+					tqdm.write(f"Processing: {i}/{len(dataloader)}")
 
-			# --- 1. データローダーからの要素を明示的にアンパック（5要素を前提） ---
-			# 5つの要素を明示的にアンパック
-			noisy_mag, clean_mag, noisy_complex, clean_complex, noisy_length, clean_length, file_name = batch
+				# --- 1. データローダーからの要素をアンパック ---
+				noisy_mag, clean_mag, noisy_complex, clean_complex, noisy_length, clean_length, file_name = batch
 
-			# TensorをPythonのintに変換
-			noisy_length_int = noisy_length.item()
-			clean_length_int = clean_length.item()
-			# ファイル名リストから文字列を取得
-			print(file_name)
-			exit(2)
-			file_name_str = file_name[0] if isinstance(file_name, list) else file_name
+				noisy_length_int = noisy_length.item()
+				clean_length_int = clean_length.item()
+				# ファイル名はリストの場合があるので最初の要素を取得
+				file_name_str = file_name[0] if isinstance(file_name, (list, tuple)) else file_name
+				# print(file_name_str) # デバッグ用
 
-			# CUDAに移動
-			noisy_mag = noisy_mag.to(device)
-			clean_mag = clean_mag.to(device)
-			noisy_complex = noisy_complex.to(device)
-			clean_complex = clean_complex.to(device)
+				# exit(2) # 元のコードにあった exit を削除
 
-			# --- 2. モデルのフォワードパスの実行 ---
-			# モデル呼び出し。引数は4つで、original_lengthはintに変換済み
-			_, noisy_node, noisy_index = model(noisy_mag, noisy_complex, noisy_length_int)
-			_, clean_node, clean_index = model(clean_mag, clean_complex, clean_length_int)
+				# CUDAに移動
+				noisy_mag = noisy_mag.to(device)
+				clean_mag = clean_mag.to(device)
+				noisy_complex = noisy_complex.to(device)
+				clean_complex = clean_complex.to(device)
 
-			# --- 3. Excelに出力
-			output_path = f"{output_dir}/{file_name_str}.xlsx"
-			my_func.make_dir(os.path.dirname(output_path))
-			# Excelファイルへの書き出し
-			with pd.ExcelWriter(output_path) as writer:
-				pd.DataFrame(noisy_node.cpu().numpy()).to_excel(writer, sheet_name="nosie_node", startcol=0)
-				pd.DataFrame(clean_node.cpu().numpy()).to_excel(writer, sheet_name="clean_node", startcol=0)
-				pd.DataFrame(clean_node.cpu().numpy()-noisy_node.cpu().numpy()).to_excel(writer, sheet_name="error_node", startcol=0)
-				pd.DataFrame(noisy_index.cpu().numpy().T).to_excel(writer, sheet_name="noisy_index")
-				pd.DataFrame(clean_index.cpu().numpy().T).to_excel(writer, sheet_name="clean_index")
+				# --- 2. モデルのフォワードパスの実行 ---
+				_, noisy_node, noisy_index = model(noisy_mag, noisy_complex, noisy_length_int)
+				_, clean_node, clean_index = model(clean_mag, clean_complex, clean_length_int)
 
+				# --- 3. HDF5ファイルに出力 ---
+				# ファイル名をキーにしたグループを作成 (存在すれば上書き)
+				file_group = hdf5_file.create_group(file_name_str)
+
+				# 各データをNumPy配列に変換してデータセットとして保存
+				file_group.create_dataset("noisy_node", data=noisy_node.cpu().numpy())
+				file_group.create_dataset("clean_node", data=clean_node.cpu().numpy())
+				file_group.create_dataset("error_node", data=(clean_node - noisy_node).cpu().numpy())
+				file_group.create_dataset("noisy_index", data=noisy_index.cpu().numpy().T) # 元のExcel出力に合わせて転置
+				file_group.create_dataset("clean_index", data=clean_index.cpu().numpy().T) # 元のExcel出力に合わせて転置
+
+	finally: # ★ ループ終了後またはエラー発生時にファイルを確実に閉じる
+		if 'hdf5_file' in locals() and hdf5_file:
+			hdf5_file.close()
+			print(f"✅ HDF5ファイル {output_hdf5_path} を閉じました。")
 
 
 	print(f"\n=======================================================")
@@ -251,23 +250,26 @@ if __name__ == "__main__":
 	# 🚨🚨🚨 以下を**必ず**あなたの環境に合わせて修正してください 🚨🚨🚨
 
 	# 1. モデルファイルの設定
-	# モデルの重みファイルが保存されているディレクトリとファイル名
 	model = "SpeqGAT"
 	wave_type = "noise_reverb"
 	speech_type = "DEMAND_DEMAND"
-	MODEL_BASE_DIR = f"{const.PTH_DIR}/{speech_type}/{model}"  # 例: "models/saved_models/SpeqGAT_noise_only"
+	MODEL_BASE_DIR = f"{const.PTH_DIR}/{speech_type}/{model}"
 	MODEL_NAME = f"{model}_{wave_type}"
-	MODEL_PATH = f"{MODEL_BASE_DIR}/SISDR_SpeqGAT_{wave_type}_32node_all_knn.pth"  # 例: BEST_SpeqGAT_noise_only.pthをロード
+	# ★ 必要に応じてモデルパスを修正
+	MODEL_PATH = f"{MODEL_BASE_DIR}/BEST_SISDR_{model}_{wave_type}_32node_all_knn.pth" # BESTモデルを使うことを推奨
+
 	# 2. データセットCSVファイルのパス
 	CSV_PATH = Path(f"{const.MIX_DATA_DIR}/{speech_type}/test.csv")
-	# 3. 出力ディレクトリ
-	OUTPUT_DIR = f"{const.OUTPUT_WAV_DIR}/{speech_type}/{model}/gnn_node_analysis"
 
-	# 4. モデルのハイパーパラメータ設定 (学習時と一致させる必要があります)
+	# 3. 出力ディレクトリとHDF5ファイル名
+	OUTPUT_DIR = f"{const.OUTPUT_WAV_DIR}/{speech_type}/{model}/gnn_node_analysis_hdf5/{wave_type}" # ★ 出力ディレクトリ変更
+	HDF5_FILENAME = f"{MODEL_NAME}_analysis_results.h5" # ★ HDF5ファイル名を設定
+
+	# 4. モデルのハイパーパラメータ設定 (学習時と一致させる)
 	GNN_TYPE = "GAT"
 	NUM_NODE_EDGES = 32
 	MAX_LENGTH_SEC = None
-	CSV_INPUT_COL = "noise_reverb"
+	CSV_INPUT_COL = "noise_reverb" # ★ CSV内の入力列名
 
 	STFT_PARAMS = {
 		"n_fft": 512,
@@ -275,13 +277,14 @@ if __name__ == "__main__":
 		"win_length": 512,
 	}
 
-	print("--- GNNノード分析プログラムの実行 ---")
+	print("--- GNNノード分析プログラムの実行 (HDF5出力) ---")
 
-	# 実行
+	# 実行 (引数を更新)
 	run_analysis(
 		model_path=Path(MODEL_PATH),
 		test_csv_path=str(CSV_PATH),
-		output_dir=OUTPUT_DIR,
+		output_dir=OUTPUT_DIR,       # ★
+		hdf5_filename=HDF5_FILENAME, # ★
 		gnn_type=GNN_TYPE,
 		num_node=NUM_NODE_EDGES,
 		max_length_sec=MAX_LENGTH_SEC,
