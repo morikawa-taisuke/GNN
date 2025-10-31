@@ -166,3 +166,4 @@ if __name__ == "__main__":
     #         print(new_name.format(angle=angle))
     #         # print(len(my_func.get_file_list(os.path.join(directory, angle, "test", wave_type))))
     #         rename_files_in_directory(os.path.join(directory, angle, wave_type), search_string, new_name.format(angle=angle))
+
