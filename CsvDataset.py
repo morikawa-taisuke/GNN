@@ -78,10 +78,10 @@ class CsvDataset(Dataset):
 			if noisy_waveform.shape[-1] > self.max_length_samples:
 				noisy_waveform = noisy_waveform[:, :self.max_length_samples]
 				clean_waveform = clean_waveform[:, :self.max_length_samples]
-			elif noisy_waveform.shape[-1] < self.max_length_samples:
-				padding_amount = self.max_length_samples - noisy_waveform.shape[1]
-				noisy_waveform = F.pad(noisy_waveform, (0, padding_amount))
-				clean_waveform = F.pad(clean_waveform, (0, padding_amount))
+			# elif noisy_waveform.shape[-1] < self.max_length_samples:
+			# 	padding_amount = self.max_length_samples - noisy_waveform.shape[1]
+			# 	noisy_waveform = F.pad(noisy_waveform, (0, padding_amount))
+			# 	clean_waveform = F.pad(clean_waveform, (0, padding_amount))
 
 		return noisy_waveform, clean_waveform
 
@@ -161,6 +161,7 @@ class CsvInferenceDataset(Dataset):
 		# --- 1. ファイルパスの取得 ---
 		row = self.data_df.iloc[index]
 		noisy_path = row[self.input_column]
+		# print("noisy_path:", noisy_path)
 
 		# --- 2. 音声の読み込み ---
 		noisy_waveform, current_sample_rate = torchaudio.load(noisy_path)
