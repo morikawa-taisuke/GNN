@@ -101,7 +101,7 @@ def generate_complete_dataset(
 		raise ValueError("指定されたディレクトリに、必要なファイルが見つかりませんでした。")
 
 	# CSVヘッダーの定義
-	csv_header = ["mixed_path", "clean_reverb_path", "clean_path", "rir_path", "rt60", "c50", "d50", "cepstrum_coeffs"]
+	csv_header = ["noise_reverb_path", "clean_reverb_path", "clean_path", "rir_path", "rt60", "c50", "d50", "cepstrum_coeffs"]
 	csv_data = []
 
 	print(f"Generating dataset with SNR={snr}dB...")
