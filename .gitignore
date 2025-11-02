@@ -17,3 +17,5 @@ log/
 # Specific file patterns
 */mac_GPU.py
 mymodule/const.py
+/Dataset/config_generate_reverb_dataset.py
+/Dataset/config_format_complete_dataset.py
