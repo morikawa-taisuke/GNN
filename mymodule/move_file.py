@@ -122,20 +122,22 @@ if __name__ == "__main__":
 
 if __name__ == "__main__":
     # 移動元ディレクトリと移動先ディレクトリを指定
-    clean_mix_list = ["noise_reverbe", "target", "noisy"]
     """ 条件に合致するファイルの検索文字列を指定 """
     search_string = "p232"  # "検索文字列"
     remove = True
     """ ディレクトリ名の作成 """
-    source_directory = f"C:/Users/kataoka-lab/Desktop/sound_data/mix_data/DEMAND_hoth_0505dB_05sec_1ch/test/"  # "移動元ディレクトリのパス"
+    source_directory = f"C:/Users/kataoka-lab/Desktop/sound_data/sample_data/speech/DEMAND/val"  # "移動元ディレクトリのパス"
     wave_type_list = [
         "clean",
         "noise_only",
         "noise_reverbe",
         "reverbe_only",
     ]  # "noise_only", "noise_reverbe", "reverbe_only"
-    for wave_type in wave_type_list:
-        destination_directory = f"{source_directory}/{wave_type}/{search_string}"  # "移動先ディレクトリのパス"
+
+    speeker_list = my_func.get_subdir_list(source_directory)
+    for wave_type in speeker_list:
+        destination_directory = f"{source_directory}/"  # "移動先ディレクトリのパス"
+        search_string = wave_type
         """ ファイルを移動 """
         move_files(os.path.join(source_directory, wave_type), destination_directory, search_string, is_remove=remove)
 
