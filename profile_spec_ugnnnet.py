@@ -6,7 +6,7 @@ import torch.nn as nn
 import torch.optim as optim
 from torch.profiler import profile, record_function, ProfilerActivity
 
-from models.SpeqGNN import SpeqGCNNet, SpeqGCNNet2
+from models import SpeqGNN
 
 
 def profile_model(
@@ -137,21 +137,12 @@ if __name__ == "__main__":
     hop_length = n_fft // 2
     win_length = n_fft
 
-    model_list = ["SpeqGCN", "SpeqGCN2"]
+    model_list = ["GCN", "GAT"]
 
     for model_type in model_list:
         print(f"\n===== Profiling {model_type} =====")
-        if model_type == "SpeqGCN":
-            model = SpeqGCNNet(
-                n_channels=num_mic_main,
-                n_classes=1,
-                num_node=num_node_main,
-                n_fft=n_fft,
-                hop_length=hop_length,
-                win_length=win_length,
-            ).to(device)
-        elif model_type == "SpeqGCN2":
-            model = SpeqGCNNet2(
+        if model_type == "GCN" or model_type == "GAT":
+            model = SpeqGNN(
                 n_channels=num_mic_main,
                 n_classes=1,
                 num_node=num_node_main,
