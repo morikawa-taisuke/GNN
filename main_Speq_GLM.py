@@ -88,11 +88,11 @@ def train(model: nn.Module,
 	earlystopping_count = 0
 
 	""" Load dataset データセットの読み込み """
-	train_dataset = CsvDataset(csv_path=train_csv, input_column_header=wave_type, max_length_sec=6)
+	train_dataset = CsvDataset(csv_path=train_csv, input_column_header=wave_type, max_length_sec=5)
 	train_loader = DataLoader(dataset=train_dataset, batch_size=batchsize, shuffle=True, pin_memory=True,
 	                          collate_fn=CsvDataset.collate_fn)
 
-	val_dataset = CsvDataset(csv_path=val_csv, input_column_header=wave_type, max_length_sec=6)
+	val_dataset = CsvDataset(csv_path=val_csv, input_column_header=wave_type, max_length_sec=5)
 	val_loader = DataLoader(dataset=val_dataset, batch_size=batchsize, shuffle=True, pin_memory=True,
 	                        collate_fn=CsvDataset.collate_fn)
 
@@ -258,6 +258,7 @@ def train(model: nn.Module,
 				estimate_data = model(mix_magnitude, mix_complex, original_length)
 
 				estimate_data, target_data = padding_tensor(estimate_data, target_data)
+				target_data = target_data.squeeze(dim=1)  # (B, 1, length)
 
 				# ★ 変更点: 損失計算 (GLM対応)
 				model_loss_only = loss_func(estimate_data, target_data)
@@ -385,13 +386,13 @@ if __name__ == "__main__":
 	]  # モデルの種類  "GCN", "GAT"
 
 	wave_types = [
-		"noise_only",
+		# "noise_only",
 		"reverb_only",
 		"noise_reverb",
 	]  # 入力信号の種類 (noise_only, reverbe_only, noise_reverbe)
 
 	# ★ 変更点: GLM用の設定
-	glm_k = 16  # Graph Learning Module の k (近傍)
+	glm_k = 32  # Graph Learning Module の k (近傍)
 	graph_reg_lambda = 0.1  # グラフ正則化損失の重み
 	hidden_dim = 32  # GNNの隠れ層の次元
 	gat_heads = 4  # GATのヘッド数
