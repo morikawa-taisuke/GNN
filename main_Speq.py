@@ -13,7 +13,6 @@ from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
 from tqdm.contrib import tenumerate
 
-from All_evaluation import main as evaluation
 from CsvDataset import CsvDataset, CsvInferenceDataset
 from models.ConvTasNet_models import enhance_ConvTasNet
 from models.SpeqGNN import SpeqGNN
@@ -21,7 +20,7 @@ from models.SpeqGNN_encoder import SpeqGNN_encoder
 from models.graph_utils import GraphConfig, NodeSelectionType, EdgeSelectionType
 from models.Speq_UNet import Speq_UNet as U_Net
 from mymodule import my_func, const, LossFunction, confirmation_GPU
-import CSV_eval
+from evaluation import CSV_eval
 
 # CUDAのメモリ管理設定
 # os.environ['PYTORCH_CUDA_ALLOC_CONF'] = 'expandable_segments:True'
@@ -331,13 +330,13 @@ if __name__ == "__main__":
 		"GAT"
 	]  # モデルの種類  "UGCN", "UGCN2", "UGAT", "UGAT2", "ConvTasNet", "UNet"
 	wave_types = [
-		"noise_only",
+		# "noise_only",
 		"reverb_only",
 		"noise_reverb",
 	]  # 入力信号の種類 (noise_only, reverbe_only, noise_reverbe)
 
-	node_selection = NodeSelectionType.TEMPORAL  # ノード選択の方法 (ALL, TEMPORAL)
-	edge_selection = EdgeSelectionType.KNN  # エッジ選択の方法 (RAMDOM, KNN)
+	node_selection = NodeSelectionType.ALL  # ノード選択の方法 (ALL, TEMPORAL)
+	edge_selection = EdgeSelectionType.GRID  # エッジ選択の方法 (RAMDOM, KNN, GRID)
 
 	graph_config = GraphConfig(
 		num_edges=num_node,
@@ -368,12 +367,12 @@ if __name__ == "__main__":
 		else:
 			raise ValueError(f"Unknown model type: {model_type}")
 
-		dir_name = "DEMAND_DEMAND_5dB_500msec"  # データセットのディレクトリ名
+		dir_name = "DEMAND_hoth_10dB_500msec"  # データセットのディレクトリ名
 		loss_type = "SISDR"  # 損失関数の種類 ("SISDR", "wave_MSE", "stft_MSE")
 		model_type = f"Speq{model_type}"
 		for wave_type in wave_types:
-			# out_name = f"new_{model_type}_{wave_type}_{num_node}node_{node_selection.value}_{edge_selection.value}"  # 出力名
-			out_name = f"{model_type}_{wave_type}"  # 出力名
+			out_name = f"new_{model_type}_{wave_type}_{num_node}node_{node_selection.value}_{edge_selection.value}"  # 出力名
+			# out_name = f"{model_type}_{wave_type}"  # 出力名
 			# C:\Users\kataoka-lab\Desktop\sound_data\sample_data\speech\DEMAND\clean\train
 			train(model=model,
 			      train_csv=f"{const.MIX_DATA_DIR}/{dir_name}/train.csv",
@@ -381,7 +380,7 @@ if __name__ == "__main__":
 			      wave_type=wave_type,
 			      out_path=f"{const.PTH_DIR}/{dir_name}/{model_type}/{out_name}.pth",
 			      loss_type=loss_type,
-			      batchsize=4, checkpoint_path=None, train_count=500, earlystopping_threshold=10, accumulation_steps=4)
+			      batchsize=16, checkpoint_path=None, train_count=500, earlystopping_threshold=10, accumulation_steps=1)
 
 			test(model=model,
 			     test_csv=f"{const.MIX_DATA_DIR}/{dir_name}/test.csv",
