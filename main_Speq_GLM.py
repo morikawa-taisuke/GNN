@@ -13,7 +13,6 @@ from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
 from tqdm.contrib import tenumerate
 
-from All_evaluation import main as evaluation
 from CsvDataset import CsvDataset, CsvInferenceDataset
 # from models.ConvTasNet_models import enhance_ConvTasNet # Speq_GLMでは不要
 from models.Speq_GLM import SpeqGNN  # ★ 変更点: SpeqGNN -> Speq_GLM
@@ -21,7 +20,7 @@ from models.Speq_GLM import SpeqGNN  # ★ 変更点: SpeqGNN -> Speq_GLM
 # from models.graph_utils import GraphConfig, NodeSelectionType, EdgeSelectionType # Speq_GLMでは不要
 # from models.Speq_UNet import Speq_UNet as U_Net # Speq_GLMでは不要
 from mymodule import my_func, const, LossFunction, confirmation_GPU
-import CSV_eval
+from evaluation import CSV_eval
 
 # CUDAのメモリ管理設定
 # os.environ['PYTORCH_CUDA_ALLOC_CONF'] = 'expandable_segments:True'

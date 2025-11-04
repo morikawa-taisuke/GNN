@@ -57,7 +57,8 @@ def train(model: nn.Module,
           batchsize: int = const.BATCHSIZE,
           checkpoint_path: str = None,
           train_count: int = const.EPOCH,
-          earlystopping_threshold: int = 5):
+          earlystopping_threshold: int = 5,
+          accumulation_steps: int = 4):
 	"""学習関数 (マルチタスク学習対応)
 	Args:
 		model (nn.Module): 学習させるモデル (ReverbGNNEncoder)
@@ -107,26 +108,34 @@ def train(model: nn.Module,
 	""" チェックポイントの設定 (既存ロジックは省略) """
 	# ... (必要に応じて実装)
 
-	""" 学習の設定を出力 (既存ロジックは省略) """
-	# ...
+	""" 学習の設定を出力 """
+	print("====================")
+	print("device: ", device)
+	print("out_path: ", out_path)
+	print("dataset: ", train_csv)
+	print("main_loss_func: ", main_loss_type)
+	print("reverb_loss_weight: ", reverb_loss_weight)
+	print("accumulation_steps: ", accumulation_steps)
+	print("====================")
+
 
 	my_func.make_dir(out_dir)
-	model.train()
+
 
 	start_time = time.time()
 	for epoch in range(1, train_count + 1):
 		print(f"Train Epoch: {epoch}")
+		model.train() # ★重要: エポックの開始時にモデルを学習モードに設定
 		total_loss_sum = 0
 		main_loss_sum = 0
 		reverb_loss_sum = 0
+		optimizer.zero_grad()
 
 		# ★変更: dataloaderから3つの要素をアンパック
-		for _, (mix_data, target_data, reverb_true) in tenumerate(train_loader):
+		for i, (mix_data, target_data, reverb_true) in tenumerate(train_loader):
 
 			# ★変更: reverb_true をGPUに移動
 			mix_data, target_data, reverb_true = mix_data.to(device), target_data.to(device), reverb_true.to(device)
-
-			optimizer.zero_grad()
 
 			mix_data = mix_data.to(torch.float32)
 			target_data = target_data.to(torch.float32)
@@ -148,19 +157,23 @@ def train(model: nn.Module,
 			# 2. 補助損失 (残響特徴量)
 			L_reverb = reverb_loss_func(reverb_pred, reverb_true)
 
-			# 3. 総損失
-			model_loss = L_main + reverb_loss_weight * L_reverb
+			# 3. 総損失 (勾配蓄積のためにスケール)
+			model_loss = (L_main + reverb_loss_weight * L_reverb) / accumulation_steps
 
-			# --- 損失の集計 ---
-			total_loss_sum += model_loss.item()
-			main_loss_sum += L_main.item()
-			reverb_loss_sum += L_reverb.item() * reverb_loss_weight  # 重みを掛けた後の値を集計
 
 			""" 後処理 """
 			model_loss.backward()
-			optimizer.step()
 
-			del mix_data, target_data, reverb_true, estimate_data_w, reverb_pred, model_loss
+			# --- 損失の集計 (スケールを戻して集計) ---
+			total_loss_sum += model_loss.item() * accumulation_steps
+			main_loss_sum += L_main.item()
+			reverb_loss_sum += L_reverb.item() * reverb_loss_weight
+
+			if (i + 1) % accumulation_steps == 0 or (i + 1) == len(train_loader):
+				optimizer.step()
+				optimizer.zero_grad()
+
+			del mix_data, target_data, reverb_true, estimate_data_w, reverb_pred, model_loss, L_main, L_reverb
 			torch.cuda.empty_cache()
 
 		# --- エポック集計とログ ---
@@ -234,7 +247,6 @@ def train(model: nn.Module,
 	time_sec = time_end - start_time  # 経過時間の計算(sec)
 	time_h = float(time_sec) / 3600.0  # sec->hour
 	print(f"time：{str(time_h)}h")  # 出力
-
 
 def test(model: nn.Module, test_csv: str, wave_type: str, out_dir: str, model_path: str, prm: int = const.SR):
 	"""
@@ -327,7 +339,7 @@ if __name__ == "__main__":
 	    reverb_loss_weight=reverb_loss_weight, # ★追加
 		out_path=f"{const.PTH_DIR}/{dir_name}/{model_type}/{out_name}.pth",
 		main_loss_type="SISDR",
-		batchsize=4, checkpoint_path=None, train_count=500, earlystopping_threshold=10
+		batchsize=4, checkpoint_path=None, train_count=500, earlystopping_threshold=10, accumulation_steps=4
 	)
 
 	# --- 推論の実行 ---
