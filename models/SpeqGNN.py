@@ -195,13 +195,19 @@ class SpeqGNN(nn.Module):
 
         # 2. ボトルネックでのGNN処理
         _, channels_bottleneck, height_bottleneck, width_bottleneck = x4.size()
-        x4_reshaped = x4.view(batch_size, channels_bottleneck, -1).permute(0, 2, 1).reshape(-1, channels_bottleneck)
+        # x4_reshaped = x4.view(batch_size, channels_bottleneck, -1).permute(0, 2, 1).reshape(-1, channels_bottleneck)
+        #
+        # # GraphBuilderを使用してグラフを作成
+        # num_nodes_per_sample = height_bottleneck * width_bottleneck
+        # edge_index = self.graph_builder.create_batch_graph(x=x4_reshaped,
+        #                                                    batch_size=batch_size,
+        #                                                    nodes_per_sample=num_nodes_per_sample)
+        edge_index = self.graph_builder.create_batch_graph(x_features_4d=x4)
 
-        # GraphBuilderを使用してグラフを作成
-        num_nodes_per_sample = height_bottleneck * width_bottleneck
-        edge_index = self.graph_builder.create_batch_graph(x=x4_reshaped,
-                                                           batch_size=batch_size,
-                                                           nodes_per_sample=num_nodes_per_sample)
+        # ★★★ ここが変更点 (2) ★★★
+        # GNN 層 (self.gnn) はフラットな [B*N, C] 形式を期待するため、
+        # グラフ構築とは別に、ここで変形処理を行う。
+        x4_reshaped = x4.view(batch_size, channels_bottleneck, -1).permute(0, 2, 1).reshape(-1, channels_bottleneck)
 
         # GNNによるノード特徴の更新
         x4_processed_flat = self.gnn(x4_reshaped, edge_index)
