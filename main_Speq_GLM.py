@@ -393,7 +393,7 @@ if __name__ == "__main__":
 
 	# ★ 変更点: GLM用の設定
 	glm_k = 32  # Graph Learning Module の k (近傍)
-	graph_reg_lambda = 0.1  # グラフ正則化損失の重み
+	graph_reg_lambda = 0.5  # グラフ正則化損失の重み
 	hidden_dim = 32  # GNNの隠れ層の次元
 	gat_heads = 4  # GATのヘッド数
 	gat_dropout = 0.6  # GATのドロップアウト率
@@ -427,7 +427,7 @@ if __name__ == "__main__":
 		loss_type = "SISDR"  # 損失関数の種類 ("SISDR", "wave_MSE", "stft_MSE")
 
 		# ★ 変更点: モデル名にGLMとkを追加
-		model_name_base = f"Speq_{model_type}_GLM_k{glm_k}"
+		model_name_base = f"Speq_{model_type}_GLM_k{glm_k}_lamda{graph_reg_lambda}"
 
 		for wave_type in wave_types:
 			out_name = f"{model_name_base}_{wave_type}"  # 出力名
