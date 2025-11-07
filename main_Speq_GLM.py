@@ -393,7 +393,7 @@ if __name__ == "__main__":
 
 	# ★ 変更点: GLM用の設定
 	glm_k = 32  # Graph Learning Module の k (近傍)
-	graph_reg_lambda = 0.75  # グラフ正則化損失の重み
+	graph_reg_lambda = 0.5  # グラフ正則化損失の重み
 	hidden_dim = 32  # GNNの隠れ層の次元
 	gat_heads = 4  # GATのヘッド数
 	gat_dropout = 0.6  # GATのドロップアウト率
