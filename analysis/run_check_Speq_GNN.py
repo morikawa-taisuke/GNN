@@ -198,8 +198,8 @@ def run_analysis(
 		with torch.no_grad():
 			print("ノード特徴量とエッジ情報の収集を開始...")
 			for i, batch in tenumerate(dataloader):
-				if i % 50 == 0 or i == len(dataloader) - 1:
-					tqdm.write(f"Processing: {i}/{len(dataloader)}")
+				# if i % 50 == 0 or i == len(dataloader) - 1:
+				# 	tqdm.write(f"Processing: {i}/{len(dataloader)}")
 
 				# --- 1. データローダーからの要素をアンパック ---
 				noisy_mag, clean_mag, noisy_complex, clean_complex, noisy_length, clean_length, file_name = batch
@@ -219,12 +219,18 @@ def run_analysis(
 				clean_complex = clean_complex.to(device)
 
 				# --- 2. モデルのフォワードパスの実行 ---
-				_, noisy_node, noisy_index = model(noisy_mag, noisy_complex, noisy_length_int)
-				_, clean_node, clean_index = model(clean_mag, clean_complex, clean_length_int)
+				# ★変更点: 戻り値が増えたので bottleneck_shape を受け取る
+				_, noisy_node, noisy_index, bottleneck_shape = model(noisy_mag, noisy_complex, noisy_length_int)
+				# clean側は形状が同じなので shape は受け取らなくて良い ( _ で捨てる)
+				_, clean_node, clean_index, _ = model(clean_mag, clean_complex, clean_length_int)
 
 				# --- 3. HDF5ファイルに出力 ---
 				# ファイル名をキーにしたグループを作成 (存在すれば上書き)
 				file_group = hdf5_file.create_group(file_name_str)
+
+				# ★追加点: 形状情報を属性(metadata)として保存
+				file_group.attrs['bottleneck_height'] = bottleneck_shape[0]  # 周波数ビン数
+				file_group.attrs['bottleneck_width'] = bottleneck_shape[1]  # 時間フレーム数
 
 				# 各データをNumPy配列に変換してデータセットとして保存
 				file_group.create_dataset("noisy_node", data=noisy_node.cpu().numpy())
@@ -252,22 +258,22 @@ if __name__ == "__main__":
 	# 1. モデルファイルの設定
 	model = "SpeqGAT"
 	wave_type = "noise_reverb"
-	speech_type = "DEMAND_DEMAND"
+	speech_type = "DEMAND_hoth_10dB_500msec"
 	MODEL_BASE_DIR = f"{const.PTH_DIR}/{speech_type}/{model}"
 	MODEL_NAME = f"{model}_{wave_type}"
 	# ★ 必要に応じてモデルパスを修正
-	MODEL_PATH = f"{MODEL_BASE_DIR}/BEST_SISDR_{model}_{wave_type}_32node_all_knn.pth" # BESTモデルを使うことを推奨
+	MODEL_PATH = f"{MODEL_BASE_DIR}/BEST_new_{model}_{wave_type}e_16node_temporal_knn.pth" # BESTモデルを使うことを推奨
 
 	# 2. データセットCSVファイルのパス
 	CSV_PATH = Path(f"{const.MIX_DATA_DIR}/{speech_type}/test.csv")
 
 	# 3. 出力ディレクトリとHDF5ファイル名
 	OUTPUT_DIR = f"{const.OUTPUT_WAV_DIR}/{speech_type}/{model}/gnn_node_analysis_hdf5/{wave_type}" # ★ 出力ディレクトリ変更
-	HDF5_FILENAME = f"{MODEL_NAME}_analysis_results.h5" # ★ HDF5ファイル名を設定
+	HDF5_FILENAME = f"{MODEL_NAME}_16node_temporal_knn.h5" # ★ HDF5ファイル名を設定
 
 	# 4. モデルのハイパーパラメータ設定 (学習時と一致させる)
 	GNN_TYPE = "GAT"
-	NUM_NODE_EDGES = 32
+	NUM_NODE_EDGES = 16
 	MAX_LENGTH_SEC = None
 	CSV_INPUT_COL = "noise_reverb" # ★ CSV内の入力列名
 

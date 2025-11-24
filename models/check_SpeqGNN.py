@@ -180,13 +180,13 @@ class CheckSpeqGNN(nn.Module):
 
 		# 2. ボトルネックでのGNN処理
 		_, channels_bottleneck, height_bottleneck, width_bottleneck = x4.size()
-		x4_reshaped = x4.view(batch_size, channels_bottleneck, -1).permute(0, 2, 1).reshape(-1, channels_bottleneck)
 
 		# GraphBuilderを使用してグラフを作成
-		num_nodes_per_sample = height_bottleneck * width_bottleneck
-		edge_index = self.graph_builder.create_batch_graph(x=x4_reshaped,
-		                                                   batch_size=batch_size,
-		                                                   nodes_per_sample=num_nodes_per_sample)
+		# create_batch_graph は4Dテンソルを直接受け取るように変更された
+		edge_index = self.graph_builder.create_batch_graph(x_features_4d=x4)
+
+		# GNNへの入力のために特徴量をリシェイプ
+		x4_reshaped = x4.view(batch_size, channels_bottleneck, -1).permute(0, 2, 1).reshape(-1, channels_bottleneck)
 
 		# GNNによるノード特徴の更新
 		x4_processed_flat = self.gnn(x4_reshaped, edge_index)
@@ -233,7 +233,7 @@ class CheckSpeqGNN(nn.Module):
 		                              window=self.window.to(reconstructed_complex_spec.device),
 		                              return_complex=False,
 		                              length=original_length)
-		return output_waveform, x4_processed_flat, edge_index
+		return output_waveform, x4_processed_flat, edge_index, (height_bottleneck, width_bottleneck)
 
 
 def print_model_summary(model: CheckSpeqGNN, batch_size, length):
