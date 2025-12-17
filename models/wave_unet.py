@@ -22,7 +22,7 @@ from pathlib import Path
 from mymodule import const, confirmation_GPU
 
 # CUDAのメモリ管理設定
-os.environ['PYTORCH_CUDA_ALLOC_CONF'] = 'expandable_segments:True'
+# os.environ['PYTORCH_CUDA_ALLOC_CONF'] = 'expandable_segments:True'
 
 # CUDAの可用性をチェック
 device = confirmation_GPU.get_device()
@@ -167,9 +167,10 @@ def print_model_summary(model, batch, num_mic, length):
 def model_check():
     print("main")
     # サンプルデータの作成（入力サイズを縮小）
-    batch = const.BATCHSIZE
+    batch = 1 # const.BATCHSIZE
     num_mic = 1  # 入力サイズを縮小
-    length = 128000  # 入力サイズを縮小
+    sec = 8
+    length = const.SR * sec  # 入力サイズを縮小
     
     # ランダムな入力画像を作成
     x = torch.randn(batch, num_mic, length).to(device)
