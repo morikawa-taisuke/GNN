@@ -20,6 +20,8 @@ from models.SpeqGNN_encoder import SpeqGNN_encoder
 from models.graph_utils import GraphConfig, NodeSelectionType, EdgeSelectionType
 from models.Speq_UNet import Speq_UNet as U_Net
 from mymodule import my_func, const, LossFunction, confirmation_GPU
+import All_evaluation as evaluation
+from losses import get_loss_function
 from evaluation import CSV_eval
 
 # CUDAのメモリ管理設定
@@ -95,7 +97,8 @@ def train(model: nn.Module,
 	optimizer = optim.Adam(model.parameters(), lr=0.001)  # optimizerを選択(Adam)
 
 	# torchmetricsを用いた損失関数の初期化
-	loss_func = LossFunction.get_loss_computer(loss_type, device)
+	# loss_func = LossFunction.get_loss_computer(loss_type, device)
+	loss_func = get_loss_function(loss_type, device=device)  # 損失関数
 
 	""" チェックポイントの設定 """
 	if checkpoint_path != None:
@@ -328,15 +331,15 @@ if __name__ == "__main__":
 	num_node = 32  # ノードの数
 	model_list = [
 		"GAT"
-	]  # モデルの種類  "UGCN", "UGCN2", "UGAT", "UGAT2", "ConvTasNet", "UNet"
+	]  # モデルの種類  "GAT", "GCN", "ConvTasNet", "UNet"
 	wave_types = [
 		# "noise_only",
-		"reverb_only",
+		# "reverb_only",
 		"noise_reverb",
 	]  # 入力信号の種類 (noise_only, reverbe_only, noise_reverbe)
 
 	node_selection = NodeSelectionType.ALL  # ノード選択の方法 (ALL, TEMPORAL)
-	edge_selection = EdgeSelectionType.GRID  # エッジ選択の方法 (RAMDOM, KNN, GRID)
+	edge_selection = EdgeSelectionType.RANDOM  # エッジ選択の方法 (RANDOM, KNN, GRID)
 
 	graph_config = GraphConfig(
 		num_edges=num_node,
@@ -367,11 +370,11 @@ if __name__ == "__main__":
 		else:
 			raise ValueError(f"Unknown model type: {model_type}")
 
-		dir_name = "DEMAND_hoth_10dB_500msec"  # データセットのディレクトリ名
+		dir_name = "DEMAND_DEMAND"  # データセットのディレクトリ名
 		loss_type = "SISDR"  # 損失関数の種類 ("SISDR", "wave_MSE", "stft_MSE")
-		model_type = f"Speq{model_type}"
+		model_type = f"AAA_Speq{model_type}"
 		for wave_type in wave_types:
-			out_name = f"new_{model_type}_{wave_type}_{num_node}node_{node_selection.value}_{edge_selection.value}"  # 出力名
+			out_name = f"{model_type}_{wave_type}_{num_node}node_{node_selection.value}_{edge_selection.value}"  # 出力名
 			# out_name = f"{model_type}_{wave_type}"  # 出力名
 			# C:\Users\kataoka-lab\Desktop\sound_data\sample_data\speech\DEMAND\clean\train
 			train(model=model,
@@ -380,14 +383,14 @@ if __name__ == "__main__":
 			      wave_type=wave_type,
 			      out_path=f"{const.PTH_DIR}/{dir_name}/{model_type}/{out_name}.pth",
 			      loss_type=loss_type,
-			      batchsize=16, checkpoint_path=None, train_count=500, earlystopping_threshold=10, accumulation_steps=1)
+			      batchsize=4, checkpoint_path=None, train_count=500, earlystopping_threshold=10, accumulation_steps=4)
 
 			test(model=model,
 			     test_csv=f"{const.MIX_DATA_DIR}/{dir_name}/test.csv",
 			     wave_type=wave_type,
 			     out_dir=f"{const.OUTPUT_WAV_DIR}/{dir_name}/{model_type}/{out_name}",
 			     model_path=f"{const.PTH_DIR}/{dir_name}/{model_type}/{out_name}.pth")
-			#
+
 			# evaluation(
 			# 	target_dir=f"{const.MIX_DATA_DIR}/{dir_name}/test/clean",
 			# 	estimation_dir=f"{const.OUTPUT_WAV_DIR}/{dir_name}/{model_type}/{out_name}",
