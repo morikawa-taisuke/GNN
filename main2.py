@@ -14,7 +14,6 @@ from tqdm import tqdm
 from tqdm.contrib import tenumerate
 
 from All_evaluation import main as evaluation
-from evaluation import CSV_eval
 from CsvDataset import CsvDataset, CsvInferenceDataset
 from models.ConvTasNet_models import enhance_ConvTasNet
 from models.GNN import UGNN
@@ -99,7 +98,7 @@ def train(model: nn.Module,
 	earlystopping_count = 0
 
 	""" Load dataset データセットの読み込み """
-	train_dataset = CsvDataset(csv_path=train_csv, input_column_header=wave_type, max_length_sec=6)
+	train_dataset = CsvDataset(csv_path=train_csv, input_column_header=wave_type)
 	train_loader = DataLoader(dataset=train_dataset, batch_size=batchsize, shuffle=True, pin_memory=True, collate_fn=CsvDataset.collate_fn)
 
 	val_dataset = CsvDataset(csv_path=val_csv, input_column_header=wave_type)
@@ -129,13 +128,13 @@ def train(model: nn.Module,
 		start_epoch = 1
 
 	""" 学習の設定を出力 """
-	print("========================================")
+	print("====================")
 	print("device: ", device)
 	print("out_path: ", out_path)
 	print("dataset: ", train_csv)
 	print("loss_func: ", loss_type)
 	print("accumulation_steps: ", accumulation_steps)
-	print("========================================")
+	print("====================")
 
 	my_func.make_dir(out_dir)
 	model.train()  # 学習モードに設定
@@ -159,9 +158,6 @@ def train(model: nn.Module,
 
 			""" データの整形 """
 			estimate_data, target_data = padding_tensor(estimate_data, target_data)
-			# print("estimation: ", estimate_data.shape)
-			# print("target: ", target_data.shape)
-			target_data = target_data.squeeze(0)
 
 			""" 損失の計算 """
 			model_loss = loss_func(estimate_data, target_data)
@@ -218,10 +214,6 @@ def train(model: nn.Module,
 				target_data = target_data.to(device)
 
 				estimate_data = model(mix_data)
-				# print("estimation: ", estimate_data.shape)
-				# print("target: ", target_data.shape)
-				target_data = target_data.squeeze(0)
-
 				estimate_data, target_data = padding_tensor(estimate_data, target_data)
 				model_loss = loss_func(estimate_data, target_data)
 				val_loss += model_loss.item()
@@ -309,14 +301,14 @@ if __name__ == "__main__":
 	num_node = 16  # ノードの数
 	model_list = [
         "UNet"
-	]  # モデルの種類  "UGCN", "UGAT", "ConvTasNet", "UNet"
+	]  # モデルの種類  "UGCN", "UGCN2", "UGAT", "UGAT2", "ConvTasNet", "UNet"
 	wave_types = [
 		"noise_only",
-		"reverb_only",
-		"noise_reverb",
+		"reverbe_only",
+		"noise_reverbe",
 	]  # 入力信号の種類 (noise_only, reverbe_only, noise_reverbe)
-	node_selection = NodeSelectionType.TEMPORAL  # ノード選択の方法 (ALL, TEMPORAL)
-	edge_selection = EdgeSelectionType.RANDOM  # エッジ選択の方法 (RAMDOM, KNN)
+	node_selection = NodeSelectionType.ALL  # ノード選択の方法 (ALL, TEMPORAL)
+	edge_selection = EdgeSelectionType.RANDOM  # エッジ選択の方法 (RAMDOM, TEMPORAL)
 
 	graph_config = GraphConfig(
 		num_edges=num_node,
@@ -343,10 +335,9 @@ if __name__ == "__main__":
 			raise ValueError(f"Unknown model type: {model_type}")
 
 
-		dir_name = "DEMAND_DEMAND"
+		dir_name = "DEMAND_hoth_10dB_500msec"
 		for wave_type in wave_types:
 			out_name = f"{model_type}_{wave_type}"	# 出力名
-			# out_name = f"new_{model_type}_{wave_type}_{num_node}node_{node_selection.value}_{edge_selection.value}"  # 出力名
 			# C:\Users\kataoka-lab\Desktop\sound_data\sample_data\speech\DEMAND\clean\train
 			train(model=model,
 				  train_csv=f"{const.MIX_DATA_DIR}/{dir_name}/train.csv",
@@ -354,7 +345,7 @@ if __name__ == "__main__":
 				  wave_type=wave_type,
 				  out_path=f"{const.PTH_DIR}/{dir_name}/{model_type}/{out_name}.pth",
 				  loss_type="SISDR",
-				  batchsize=1, checkpoint_path=None, train_count=500, earlystopping_threshold=10, accumulation_steps=16)
+				  batchsize=2, checkpoint_path=None, train_count=500, earlystopping_threshold=10, accumulation_steps=8)
 
 			test(model=model,
 				 test_csv=f"{const.MIX_DATA_DIR}/{dir_name}/test.csv",
@@ -362,13 +353,8 @@ if __name__ == "__main__":
 				 out_dir=f"{const.OUTPUT_WAV_DIR}/{dir_name}/{model_type}/{out_name}",
 				 model_path=f"{const.PTH_DIR}/{dir_name}/{model_type}/{out_name}.pth")
 
-			# evaluation(
-			# 	target_dir=f"{const.MIX_DATA_DIR}/{dir_name}/test/clean",
-			# 	estimation_dir=f"{const.OUTPUT_WAV_DIR}/{dir_name}/{model_type}/{out_name}",
-			# 	out_path=f"{const.EVALUATION_DIR}/{dir_name}/{model_type}/{out_name}.csv",
-			# )
-			CSV_eval.main(input_csv_path=f"{const.MIX_DATA_DIR}/{dir_name}/test.csv",
-						  target_column="clean",
-						  estimation_column=wave_type,  # この列は実際には使われないが、CsvInferenceDatasetとの互換性のため
-						  estimation_dir=f"{const.OUTPUT_WAV_DIR}/{dir_name}/{model_type}/{out_name}",
-						  out_path=f"{const.EVALUATION_DIR}/{dir_name}/{model_type}/{out_name}_CSV.csv")
+			evaluation(
+				target_dir=f"{const.MIX_DATA_DIR}/{dir_name}/test/clean",
+				estimation_dir=f"{const.OUTPUT_WAV_DIR}/{dir_name}/{model_type}/{out_name}",
+				out_path=f"{const.EVALUATION_DIR}/{dir_name}/{model_type}/{out_name}.csv",
+			)
