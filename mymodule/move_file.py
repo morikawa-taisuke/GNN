@@ -135,11 +135,11 @@ if __name__ == "__main__":
     ]  # "noise_only", "noise_reverbe", "reverbe_only"
 
     speeker_list = my_func.get_subdir_list(source_directory)
-    for wave_type in speeker_list:
-        destination_directory = f"{source_directory}/"  # "移動先ディレクトリのパス"
-        search_string = wave_type
-        """ ファイルを移動 """
-        move_files(os.path.join(source_directory, wave_type), destination_directory, search_string, is_remove=remove)
+    """ ファイルを移動 """
+    # for wave_type in speeker_list:
+    #     destination_directory = f"{source_directory}/"  # "移動先ディレクトリのパス"
+    #     search_string = wave_type
+    #     move_files(os.path.join(source_directory, wave_type), destination_directory, search_string, is_remove=remove)
 
     # sub_dir_list = my_func.get_subdir_list(source_directory)
     # # print(sub_dir_list)
@@ -153,19 +153,19 @@ if __name__ == "__main__":
 
     """ 文字列の置換 """
     # 使用例
-    # C:\Users\kataoka-lab\Desktop\sound_data\dataset\subset_DEMAND_hoth_1010dB_05sec_4ch_10cm\Front\noise_only
-    # directory = "C:\\Users\\kataoka-lab\\Desktop\\sound_data\\dataset\\subset_DEMAND_hoth_1010dB_05sec_4ch_10cm\\"
-    # # subdir_list = my_func.get_subdir_list(directory).remove("noise_only", "")
-    # # subdir_list.remove("noise_only")
-    # # print(subdir_list)
-    # search_string = ".npz"
-    # new_name = "_{angle}.npz"
+    #     C:/Users/kataoka-lab/Desktop/sound_data/dataset/subset_DEMAND_hoth_1010dB_05sec_4ch_10cm/Front/noise_only
+    directory = "C:/Users/kataoka-lab/Desktop/PyRoomAcoustics/scripts/precomputed_params"
+    # subdir_list = my_func.get_subdir_list(directory).remove("noise_only", "")
+    # subdir_list.remove("noise_only")
+    # print(subdir_list)
+    search_string = ".0"
+    new_name = ""
     # angle_list = ["Right", "FrontRight", "Front", "FrontLeft", "Left"]  # "Right", "FrontRight", "Front", "FrontLeft", "Left"
     # for angle in angle_list:
-    #     wave_list = my_func.get_subdir_list(os.path.join(directory, angle))
-    #     # wave_list = ["noise_only"]
-    #     for wave_type in wave_list:
-    #         print(new_name.format(angle=angle))
-    #         # print(len(my_func.get_file_list(os.path.join(directory, angle, "test", wave_type))))
-    #         rename_files_in_directory(os.path.join(directory, angle, wave_type), search_string, new_name.format(angle=angle))
+    # wave_list = my_func.get_subdir_list(os.path.join(directory, angle))
+    # wave_list = ["noise_only"]
+    # for wave_type in wave_list:
+    #     print(new_name.format(angle=angle))
+        # print(len(my_func.get_file_list(os.path.join(directory, angle, "test", wave_type))))
+    rename_files_in_directory(directory, search_string, new_name)
 
