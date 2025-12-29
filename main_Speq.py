@@ -178,11 +178,7 @@ def train(model: nn.Module,
 				optimizer.step()  # 勾配の更新
 				optimizer.zero_grad()
 
-			del (
-				mix_data,
-				target_data,
-				model_loss,
-			)  # 使用していない変数の削除 estimate_data,
+			del (mix_data, target_data, model_loss, )  # 使用していない変数の削除 estimate_data,
 			torch.cuda.empty_cache()  # メモリの解放 1iterationごとに解放
 
 		""" チェックポイントの作成 """
@@ -195,13 +191,13 @@ def train(model: nn.Module,
 			},
 			f"{out_dir}/{out_name}_ckp.pth",
 		)
-
-		writer.add_scalar(str(out_name[0]), model_loss_sum, epoch)
-		print(f"[{epoch}]model_loss_sum:{model_loss_sum}")  # 損失の出力
+		avg_train_loss = model_loss_sum / len(train_loader)
+		writer.add_scalar(str(out_name[0]), avg_train_loss, epoch)
+		print(f"[{epoch}]avg_train_loss:{avg_train_loss}")  # 損失の出力
 
 		torch.cuda.empty_cache()  # メモリの解放 1iterationごとに解放
 		with open(csv_path, "a") as out_file:  # ファイルオープン
-			out_file.write(f"{model_loss_sum}\n")  # 書き込み
+			out_file.write(f"\n{avg_train_loss}")  # 書き込み
 
 		""" Early_Stopping の判断 """
 		model.eval()
@@ -330,12 +326,13 @@ if __name__ == "__main__":
 	num_mic = 1  # マイクの数
 	num_node = 32  # ノードの数
 	model_list = [
-		"GAT"
+		"GCN",
+		# "GAT"
 	]  # モデルの種類  "GAT", "GCN", "ConvTasNet", "UNet"
 	wave_types = [
-		# "noise_only",
-		# "reverb_only",
 		"noise_reverb",
+		"reverb_only",
+		"noise_only",
 	]  # 入力信号の種類 (noise_only, reverbe_only, noise_reverbe)
 
 	node_selection = NodeSelectionType.ALL  # ノード選択の方法 (ALL, TEMPORAL)
@@ -370,7 +367,7 @@ if __name__ == "__main__":
 		else:
 			raise ValueError(f"Unknown model type: {model_type}")
 
-		dir_name = "DEMAND_DEMAND"  # データセットのディレクトリ名
+		dir_name = "Random_Dataset_VCTK_DEMAND_1ch"  # データセットのディレクトリ名
 		loss_type = "SISDR"  # 損失関数の種類 ("SISDR", "wave_MSE", "stft_MSE")
 		model_type = f"AAA_Speq{model_type}"
 		for wave_type in wave_types:
