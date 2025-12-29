@@ -12,7 +12,7 @@ __pycache__/
 
 # Project output and logs
 /RESULT/
-log/
+/log/
 
 # Specific file patterns
 */mac_GPU.py
