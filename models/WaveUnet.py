@@ -1,200 +1,135 @@
-from __future__ import print_function
-
-import time  # 時間
-from librosa.core import stft, istft
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from torch.utils.data import DataLoader
-import numpy as np
-from tqdm.contrib import tenumerate
-from tqdm import tqdm
-from torch.utils.tensorboard import SummaryWriter
-from torch.autograd import Variable
-from itertools import permutations
-from torch.nn.utils import weight_norm
-import scipy.signal as sp
-import scipy as scipy
-from torchinfo import summary
 import os
-from pathlib import Path
+from torchinfo import summary
 
-from mymodule import const, confirmation_GPU
+# デバイスの確認（既存コードの mymodule を利用することを想定）
+try:
+	from mymodule import confirmation_GPU
 
-# CUDAのメモリ管理設定
-os.environ['PYTORCH_CUDA_ALLOC_CONF'] = 'expandable_segments:True'
+	device = confirmation_GPU.get_device()
+except ImportError:
+	device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
-# CUDAの可用性をチェック
-device = confirmation_GPU.get_device()
-print(f"wave_unet.py 使用デバイス: {device}")
+print(f"Wave_UNet.py (Original Reproduction) 使用デバイス: {device}")
 
 
-def padding_tensor(tensor1, tensor2):
+class Wave_UNet(nn.Module):
 	"""
-	最後の次元（例: 時系列長）が異なる2つのテンソルに対して、
-	短い方を末尾にゼロパディングして長さをそろえる。
+	Stoller et al. (2018) の原論文を忠実に再現した Wave-U-Net。
 
-	Args:
-		tensor1, tensor2 (torch.Tensor): 任意の次元数のテンソル
-
-	Returns:
-		padded_tensor1, padded_tensor2 (torch.Tensor)
+	特徴:
+	- 1D 畳み込みのみを使用 (Conv1d)
+	- ダウンサンプリング: デシメーション (間引き)
+	- アップサンプリング: 線形補間 (Linear Interpolation)
+	- フィルタ数: 層ごとに 24 ずつ線形に増加 (24, 48, 72, ..., 288)
+	- カーネルサイズ: エンコーダーは 15、デコーダーは 5
 	"""
-	len1 = tensor1.size(-1)
-	len2 = tensor2.size(-1)
-	max_len = max(len1, len2)
 
-	pad1 = [0, max_len - len1]  # 最後の次元だけパディング
-	pad2 = [0, max_len - len2]
+	def __init__(self, num_inputs=1, num_outputs=1, num_layers=3, initial_filter_size=24):
+		super(Wave_UNet, self).__init__()
+		self.num_layers = num_layers
 
-	padded_tensor1 = F.pad(tensor1, pad1)
-	padded_tensor2 = F.pad(tensor2, pad2)
+		self.encoder_blocks = nn.ModuleList()
+		self.decoder_blocks = nn.ModuleList()
 
-	return padded_tensor1, padded_tensor2
+		# --- エンコーダー (Downsampling Path) ---
+		# 論文パラメータ: Kernel=15, Filters = i * initial_filter_size
+		in_ch = num_inputs
+		for i in range(num_layers):
+			out_ch = initial_filter_size * (i + 1)
+			self.encoder_blocks.append(
+				nn.Sequential(
+					nn.Conv1d(in_ch, out_ch, kernel_size=15, padding=7),  # 'same' padding
+					nn.LeakyReLU(0.2, inplace=True)
+				)
+			)
+			in_ch = out_ch
 
-
-class conv_block(nn.Module):
-	def __init__(self, ch_in, ch_out):
-		super(conv_block, self).__init__()
-		self.conv = nn.Sequential(
-			nn.Conv2d(ch_in, ch_out, kernel_size=3, stride=1, padding=1, bias=True),
-			nn.BatchNorm2d(ch_out),
-			nn.ReLU(inplace=True),
-			nn.Conv2d(ch_out, ch_out, kernel_size=3, stride=1, padding=1, bias=True),
-			nn.BatchNorm2d(ch_out),
-			nn.ReLU(inplace=True),
-			nn.Conv2d(ch_out, ch_out, kernel_size=3, stride=1, padding=1, bias=True),
-			nn.BatchNorm2d(ch_out),
-			nn.ReLU(inplace=True)
+		# --- ボトルネック (Middle Layer) ---
+		# 論文パラメータ: Filters = (L+1) * initial_filter_size
+		self.bottleneck = nn.Sequential(
+			nn.Conv1d(in_ch, in_ch + initial_filter_size, kernel_size=15, padding=7),
+			nn.LeakyReLU(0.2, inplace=True)
 		)
+		in_ch = in_ch + initial_filter_size
+
+		# --- デコーダー (Upsampling Path) ---
+		# 論文パラメータ: Kernel=5, フィルタ数は減少
+		for i in range(num_layers - 1, -1, -1):
+			skip_ch = initial_filter_size * (i + 1)
+			out_ch = initial_filter_size * (i + 1)
+			self.decoder_blocks.append(
+				nn.Sequential(
+					nn.Conv1d(in_ch + skip_ch, out_ch, kernel_size=5, padding=2),
+					nn.LeakyReLU(0.2, inplace=True)
+				)
+			)
+			in_ch = out_ch
+
+		# --- 出力層 ---
+		# 1x1 畳み込みで波形を生成
+		self.out_conv = nn.Conv1d(in_ch, num_outputs, kernel_size=1)
 
 	def forward(self, x):
-		x = self.conv(x)
-		return x
+		"""
+		Args:
+			x (torch.Tensor): [Batch, Channels, Length] の時間波形
+		"""
+		skips = []
+
+		# エンコーダー: 畳み込み + スキップ保存 + デシメーション
+		for i in range(self.num_layers):
+			x = self.encoder_blocks[i](x)
+			skips.append(x)
+			# Decimation (2サンプルごとに1つ取得)
+			x = x[:, :, ::2]
+
+		# 中間層
+		x = self.bottleneck(x)
+
+		# デコーダー: アップサンプリング + 結合 + 畳み込み
+		for i in range(self.num_layers):
+			# 線形補間によるアップサンプリング (倍精度)
+			x = F.interpolate(x, scale_factor=2, mode='linear', align_corners=True)
+
+			# 対応する階層のスキップ結合を取り出す
+			skip = skips.pop()
+
+			# 入力長が奇数の場合に備え、サイズを合わせてパディング (境界問題への対応)
+			if x.shape[-1] != skip.shape[-1]:
+				x = F.pad(x, (0, skip.shape[-1] - x.shape[-1]))
+
+			# チャンネル次元で結合
+			x = torch.cat([x, skip], dim=1)
+			x = self.decoder_blocks[i](x)
+
+		# 最終出力
+		x = self.out_conv(x)
+
+		# 波形出力のため、一般的に Tanh で [-1, 1] に制限
+		return torch.tanh(x)
 
 
-class up_conv(nn.Module):
-	def __init__(self, ch_in, ch_out):
-		super(up_conv, self).__init__()
-		self.up = nn.Sequential(
-			nn.Upsample(scale_factor=2),
-			nn.Conv2d(ch_in, ch_out, kernel_size=3, stride=1, padding=1, bias=True),
-			nn.BatchNorm2d(ch_out),
-			nn.ReLU(inplace=True)
-		)
+def main():
+	# パラメータ設定 (16kHz, 1.024s分の音声)
+	batch = 16
+	channels = 1
+	length = 16000 * 12  # 2^14
 
-	def forward(self, x):
-		x = self.up(x)
-		return x
+	model = Wave_UNet(num_inputs=channels, num_outputs=1).to(device)
 
+	# ダミーデータでの動作確認
+	x = torch.randn(batch, channels, length).to(device)
 
-class U_Net(nn.Module):
-	def __init__(self, input_ch=1, output_ch=1):
-		super(U_Net, self).__init__()
-		self.encoder_dim = 512
-		self.sampling_rate = 16000
-		self.win = 4
-		self.win = int(self.sampling_rate * self.win / 1000)
-		self.stride = self.win // 2  # 畳み込み処理におけるフィルタが移動する幅
+	print("\n--- Wave-U-Net (Original Reproduction) Summary ---")
+	summary(model, input_size=(batch, channels, length), device=device)
 
-		self.Maxpool = nn.MaxPool2d(kernel_size=2, stride=2)
-
-		# self.encoder = nn.Conv1d(in_channels=input_ch, out_channels=)
-		self.encoder = nn.Conv1d(in_channels=input_ch,  # 入力データの次元数 #=1もともとのやつ
-		                         out_channels=self.encoder_dim,  # 出力データの次元数
-		                         kernel_size=self.win,  # 畳み込みのサイズ(波形領域なので窓長なの?)
-		                         bias=False,  # バイアスの有無(出力に学習可能なバイアスの追加)
-		                         stride=self.stride)  # 畳み込み処理の移動幅
-
-		self.Conv1 = conv_block(ch_in=input_ch, ch_out=64)
-		self.Conv2 = conv_block(ch_in=64, ch_out=128)
-		self.Conv3 = conv_block(ch_in=128, ch_out=256)
-
-		self.Up3 = up_conv(ch_in=256, ch_out=128)
-		self.Up_conv3 = conv_block(ch_in=256, ch_out=128)
-
-		self.Up2 = up_conv(ch_in=128, ch_out=64)
-		self.Up_conv2 = conv_block(ch_in=128, ch_out=64)
-
-		self.Conv_1x1 = nn.Conv2d(64, output_ch, kernel_size=1, stride=1, padding=0)
-
-		self.decoder = nn.ConvTranspose1d(in_channels=self.encoder_dim,  # 入力次元数
-		                                  out_channels=output_ch,  # 出力次元数 1もともとのやつ
-		                                  kernel_size=self.win,  # カーネルサイズ
-		                                  bias=False,
-		                                  stride=self.stride)  # 畳み込み処理の移動幅
-
-	def forward(self, x):
-		# encoding path
-		# print("x: ", x.shape)
-		x = self.encoder(x)
-		# print("encoder out: ", x.shape)
-		# x = x.unsqueeze(dim=0)
-		x = x.unsqueeze(dim=1)
-		x1 = self.Conv1(x)
-
-		x2 = self.Maxpool(x1)
-		x2 = self.Conv2(x2)
-
-		x3 = self.Maxpool(x2)
-		x3 = self.Conv3(x3)
-
-		d3 = self.Up3(x3)
-		x2, d3 = padding_tensor(x2, d3)
-		d3 = torch.cat((x2, d3), dim=1)
-		d3 = self.Up_conv3(d3)
-
-		d2 = self.Up2(d3)
-		x1, d2 = padding_tensor(x1, d2)
-		d2 = torch.cat((x1, d2), dim=1)
-		d2 = self.Up_conv2(d2)
-
-		d1 = self.Conv_1x1(d2)
-		d1 = torch.sigmoid(d1)
-		out = x * d1
-		# print("out: ", out.shape)
-		out = out.squeeze()
-		out = self.decoder(out)
-
-		return out
-
-
-def print_model_summary(model, batch, num_mic, length):
-	# サンプル入力データを作成
-	x = torch.randn(batch, num_mic, length).to(device)
-
-	# モデルのサマリーを表示
-	print("\nURelNet Model Summary:")
-	summary(model, input_data=x)
-
-
-def model_check():
-	print("main")
-	# サンプルデータの作成（入力サイズを縮小）
-	batch = const.BATCHSIZE
-	num_mic = 1  # 入力サイズを縮小
-	length = 128000  # 入力サイズを縮小
-
-	# ランダムな入力画像を作成
-	x = torch.randn(batch, num_mic, length).to(device)
-
-	# モデルの初期化とデバイスへの移動
-	model = U_Net().to(device)
-
-	# モデルのサマリーを表示
-	print_model_summary(model, batch, num_mic, length)
-
-	# フォワードパス
 	output = model(x)
-	print(f"\nInput shape: {x.shape}")
+	print(f"\nInput shape:  {x.shape}")
 	print(f"Output shape: {output.shape}")
-
-	# メモリ使用量の表示
-	if torch.cuda.is_available():
-		print(f"\nGPU Memory Usage:")
-		print(f"Allocated: {torch.cuda.memory_allocated(device) / 1024 ** 2:.2f} MB")
-		print(f"Cached: {torch.cuda.memory_reserved(device) / 1024 ** 2:.2f} MB")
 
 
 if __name__ == '__main__':
-	model_check()
+	main()
