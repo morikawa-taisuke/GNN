@@ -53,7 +53,7 @@ class Wave_UGNN(nn.Module):
 	原論文再現版 Wave-U-Net + GNNボトルネック
 	"""
 
-	def __init__(self, num_inputs=1, num_outputs=1, num_layers=12, initial_filter_size=24, gnn_type="GCN"):
+	def __init__(self, num_inputs=1, num_outputs=1, num_layers=12, initial_filter_size=24, gnn_type="GCN", graph_config=None):
 		super(Wave_UGNN, self).__init__()
 		self.num_layers = num_layers
 
@@ -77,8 +77,8 @@ class Wave_UGNN(nn.Module):
 		self.gnn = GNN_Bottleneck(self.bottleneck_dim, 256, self.bottleneck_dim, gnn_type=gnn_type)
 
 		# グラフ構築用
-		config = GraphConfig(edge_selection=EdgeSelectionType.KNN, num_edges=8)
-		self.graph_builder = GraphBuilder(config)
+		self.graph_builder = GraphBuilder(graph_config)
+
 
 		# --- デコーダー (原論文再現: Kernel=5) ---
 		for i in range(num_layers - 1, -1, -1):
@@ -97,20 +97,34 @@ class Wave_UGNN(nn.Module):
 	def forward(self, x):
 		skips = []
 
+		# print(x.shape)
+		# exit()
 		# エンコーダー: 畳み込み + デシメーション
 		for i in range(self.num_layers):
 			x = self.encoder_blocks[i](x)
 			skips.append(x)
 			x = x[:, :, ::2]  # Decimation
-
+		# print(x.shape)
 		# --- GNN ボトルネック処理 ---
-		batch_size, channels, length = x.size()
-		x_nodes = x.permute(0, 2, 1).reshape(-1, channels)  # [B*L, C]
+		# x = x.unsqueeze(1)  # [B, C, L] -> [B, 1, C, L]   3次元から4次元に変換 (1) 非対応
+		x = x.unsqueeze(2)  # [B, C, L] -> [B, C, 1, L] 3次元から4次元に変換   (2)
+		# print(x.shape)
+		batch_size, num_mic, channels, length = x.size()  # 形状の取得
 
-		edge_index = self.graph_builder.create_batch_graph(x_nodes, batch_size, length)
-		x_gnn = self.gnn(x_nodes, edge_index)
+		# x_nodes = x.permute(0, 2, 1).reshape(-1, channels)  # [B*L, C]
+		x_nodes = x.view(batch_size, num_mic, -1).permute(0, 2, 1).reshape(-1, num_mic)   # ノード用にリシェイプ
+		# print(x_nodes.shape)
+		edge_index = self.graph_builder.create_batch_graph(x_features_4d=x) # グラフ構築 (入力は4次元の特徴量)
+		# print(edge_index.shape)
+		x_gnn = self.gnn(x_nodes, edge_index)   # GNN処理
 
-		x = x_gnn.view(batch_size, length, channels).permute(0, 2, 1)
+		# x = x_gnn.view(batch_size, length, channels).permute(0, 2, 1)   # 元の形状に戻す
+		x = x_gnn.view(batch_size, channels, length, num_mic).permute(0, 3, 1, 2)  # 元の形状に戻す
+		# print("||||||||||||||||||||||||||"*50)
+		# print(x.shape)
+		# exit()
+		# x = x.squeeze(1)  # [B, 1, C, L] -> [B, C, L]   4次元から3次元に変換 (1) 非対応
+		x = x.squeeze(2)  # [B, C, 1, L] -> [B, C, L]   4次元から3次元に変換 (2)
 
 		# デコーダー: 線形補間アップサンプリング + スキップ結合
 		for i in range(self.num_layers):
