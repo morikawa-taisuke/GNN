@@ -3,4 +3,12 @@ name = "gnn"
 version = "0.1.0"
 description = "Add your description here"
 requires-python = ">=3.12"
-dependencies = []
+dependencies = [
+    "matplotlib>=3.10.8",
+    "numpy>=2.4.0",
+    "pandas>=2.3.3",
+    "pystoi>=0.4.1",
+    "tensorboard>=2.20.0",
+    "torch-geometric>=2.7.0",
+    "tqdm>=4.67.1",
+]
