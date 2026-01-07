@@ -194,7 +194,7 @@ def train(model: nn.Module,
 				estimate_data = model(mix_data)
 
 				estimate_data, target_data = padding_tensor(estimate_data, target_data)
-				estimate_data = estimate_data.unsqueeze(dim=1)  # (B, 1, length)
+				# estimate_data = estimate_data.unsqueeze(dim=1)  # (B, 1, length)
 				model_loss = loss_func(estimate_data, target_data)
 				val_loss += model_loss.item()
 				progress_bar_val.set_postfix({"loss": model_loss.item()})
@@ -279,10 +279,10 @@ if __name__ == "__main__":
 	num_mic = 1  # マイクの数
 	num_node = 32  # ノードの数
 	model_list = [
-		# "UNet",
+		"UNet",
 		# "ConvTasNet",
-		"GCN",
-		"GAT",
+		# "GCN",
+		# "GAT",
 	]  # モデルの種類
 	wave_types = [
 		"noise_only",
