@@ -106,8 +106,8 @@ class Wave_UGNN(nn.Module):
 			x = x[:, :, ::2]  # Decimation
 		# print(x.shape)
 		# --- GNN ボトルネック処理 ---
-		# x = x.unsqueeze(1)  # [B, C, L] -> [B, 1, C, L]   3次元から4次元に変換 (1) 非対応
-		x = x.unsqueeze(2)  # [B, C, L] -> [B, C, 1, L] 3次元から4次元に変換   (2)
+		x = x.unsqueeze(1)  # [B, C, L] -> [B, 1, C, L]   3次元から4次元に変換 (1) 非対応
+		# x = x.unsqueeze(2)  # [B, C, L] -> [B, C, 1, L] 3次元から4次元に変換   (2)
 		# print(x.shape)
 		batch_size, num_mic, channels, length = x.size()  # 形状の取得
 
@@ -123,8 +123,8 @@ class Wave_UGNN(nn.Module):
 		# print("||||||||||||||||||||||||||"*50)
 		# print(x.shape)
 		# exit()
-		# x = x.squeeze(1)  # [B, 1, C, L] -> [B, C, L]   4次元から3次元に変換 (1) 非対応
-		x = x.squeeze(2)  # [B, C, 1, L] -> [B, C, L]   4次元から3次元に変換 (2)
+		x = x.squeeze(1)  # [B, 1, C, L] -> [B, C, L]   4次元から3次元に変換 (1) 非対応
+		# x = x.squeeze(2)  # [B, C, 1, L] -> [B, C, L]   4次元から3次元に変換 (2)
 
 		# デコーダー: 線形補間アップサンプリング + スキップ結合
 		for i in range(self.num_layers):
