@@ -22,7 +22,7 @@ DATASET_DIR = os.path.join(SAUND_DATA_DIR, "dataset")
 RESULT_DIR = os.path.join(SAUND_DATA_DIR, "RESULT")
 OUTPUT_WAV_DIR = os.path.join(RESULT_DIR, "output_wav")
 LOG_DIR = os.path.join(RESULT_DIR, "log")
-PTH_DIR = os.path.join(RESULT_DIR, "pth")
+PTH_DIR = os.path.join(RESULT_DIR, "checkpoint")
 EVALUATION_DIR = os.path.join(RESULT_DIR, "evaluation")
 
 

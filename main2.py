@@ -13,7 +13,7 @@ from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
 from tqdm.contrib import tenumerate
 
-from All_evaluation import main as evaluation
+# from All_evaluation import main as evaluation
 from CsvDataset import CsvDataset, CsvInferenceDataset
 from models.ConvTasNet_models import enhance_ConvTasNet
 from models.GNN import UGNN
@@ -303,9 +303,9 @@ if __name__ == "__main__":
         "ConvTasNet"
 	]  # モデルの種類  "UGCN", "UGAT", "ConvTasNet", "UNet"
 	wave_types = [
-		"noise_only",
-		"reverbe_only",
-		"noise_reverbe",
+		# "noise_only",
+		"reverb_only",
+		"noise_reverb",
 	]  # 入力信号の種類 (noise_only, reverbe_only, noise_reverbe)
 	node_selection = NodeSelectionType.TEMPORAL  # ノード選択の方法 (ALL, TEMPORAL)
 	edge_selection = EdgeSelectionType.RANDOM  # エッジ選択の方法 (RAMDOM, KNN)
@@ -335,7 +335,7 @@ if __name__ == "__main__":
 			raise ValueError(f"Unknown model type: {model_type}")
 
 
-		dir_name = "DEMAND_DEMAND"
+		dir_name = "Random_Dataset_VCTK_DEMAND_1ch"
 		for wave_type in wave_types:
 			out_name = f"{model_type}_{wave_type}"	# 出力名
 			# out_name = f"new_{model_type}_{wave_type}_{num_node}node_{node_selection.value}_{edge_selection.value}"  # 出力名
@@ -346,7 +346,7 @@ if __name__ == "__main__":
 				  wave_type=wave_type,
 				  out_path=f"{const.PTH_DIR}/{dir_name}/{model_type}/{out_name}.pth",
 				  loss_type="SISDR",
-				  batchsize=8, checkpoint_path=None, train_count=500, earlystopping_threshold=10, accumulation_steps=2)
+				  batchsize=4, checkpoint_path=None, train_count=500, earlystopping_threshold=10, accumulation_steps=4)
 
 			test(model=model,
 				 test_csv=f"{const.MIX_DATA_DIR}/{dir_name}/test.csv",
@@ -354,8 +354,8 @@ if __name__ == "__main__":
 				 out_dir=f"{const.OUTPUT_WAV_DIR}/{dir_name}/{model_type}/{out_name}",
 				 model_path=f"{const.PTH_DIR}/{dir_name}/{model_type}/{out_name}.pth")
 
-			evaluation(
-				target_dir=f"{const.MIX_DATA_DIR}/{dir_name}/test/clean",
-				estimation_dir=f"{const.OUTPUT_WAV_DIR}/{dir_name}/{model_type}/{out_name}",
-				out_path=f"{const.EVALUATION_DIR}/{dir_name}/{model_type}/{out_name}.csv",
-			)
+			# evaluation(
+			# 	target_dir=f"{const.MIX_DATA_DIR}/{dir_name}/test/clean",
+			# 	estimation_dir=f"{const.OUTPUT_WAV_DIR}/{dir_name}/{model_type}/{out_name}",
+			# 	out_path=f"{const.EVALUATION_DIR}/{dir_name}/{model_type}/{out_name}.csv",
+			# )
