@@ -1,20 +1,8 @@
 from __future__ import print_function
 
-import time             # 時間
-from librosa.core import stft, istft
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from torch.utils.data import DataLoader
-import numpy as np
-from tqdm.contrib import tenumerate
-from tqdm import tqdm
-from torch.utils.tensorboard import SummaryWriter
-from torch.autograd import Variable
-from itertools import permutations
-from torch.nn.utils import weight_norm
-import scipy.signal as sp
-import scipy as scipy
 from torchinfo import summary
 import os
 from pathlib import Path
