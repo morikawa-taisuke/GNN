@@ -73,7 +73,7 @@ class Wave_UGNN(nn.Module):
 			in_ch = out_ch
 
 		# --- ボトルネック (ここをGNNに置換) ---
-		self.bottleneck_dim = in_ch
+		self.bottleneck_dim = 1
 		self.gnn = GNN_Bottleneck(self.bottleneck_dim, 256, self.bottleneck_dim, gnn_type=gnn_type)
 
 		# グラフ構築用
@@ -112,7 +112,8 @@ class Wave_UGNN(nn.Module):
 		batch_size, num_mic, channels, length = x.size()  # 形状の取得
 
 		# x_nodes = x.permute(0, 2, 1).reshape(-1, channels)  # [B*L, C]
-		x_nodes = x.view(batch_size, num_mic, -1).permute(0, 2, 1).reshape(-1, num_mic)   # ノード用にリシェイプ
+		# .view() を .reshape() に置き換える
+		x_nodes = x.reshape(batch_size, num_mic, -1).permute(0, 2, 1).reshape(-1, num_mic)   # ノード用にリシェイプ
 		# print(x_nodes.shape)
 		edge_index = self.graph_builder.create_batch_graph(x_features_4d=x) # グラフ構築 (入力は4次元の特徴量)
 		# print(edge_index.shape)

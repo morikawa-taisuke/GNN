@@ -186,7 +186,7 @@ class GraphBuilder:
 			# 特徴量を KNN/RANDOM が期待するフラットな形式 [B*N, C] に変形
 			# (SpeqGNN.py 側でも GNN のために同じ変形を行いますが、
 			#  GraphBuilder の責務としてここでも変形を行います)
-			x_nodes_flat = x_features_4d.view(batch_size, channels, -1).permute(0, 2, 1).reshape(-1, channels)
+			x_nodes_flat = x_features_4d.reshape(batch_size, channels, -1).permute(0, 2, 1).reshape(-1, channels)
 
 			edge_indices = []
 			offset = 0
