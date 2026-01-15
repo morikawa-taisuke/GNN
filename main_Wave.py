@@ -279,10 +279,10 @@ if __name__ == "__main__":
 	num_mic = 1  # マイクの数
 	num_node = 32  # ノードの数
 	model_list = [
-		"UNet",
+		# "UNet",
 		# "ConvTasNet",
-		# "GCN",
-		# "GAT",
+		"GCN",
+		"GAT",
 	]  # モデルの種類
 	wave_types = [
 		"noise_only",
@@ -313,7 +313,7 @@ if __name__ == "__main__":
 
 		dir_name = "Random_Dataset_VCTK_DEMAND_1ch"  # データセットのディレクトリ名
 		loss_type = "SISDR"  # 損失関数の種類 ("SISDR", "wave_MSE", "stft_MSE")
-		model_type = f"Wave{model_type}"
+		model_type = f"Wave_{model_type}"
 		for wave_type in wave_types:
 			out_name = f"{model_type}_{wave_type}_{num_node}node_{node_selection.value}_{edge_selection.value}"  # 出力名
 			# out_name = f"{model_type}_{wave_type}"  # 出力名
@@ -324,7 +324,7 @@ if __name__ == "__main__":
 			      wave_type=wave_type,
 			      out_path=f"{const.PTH_DIR}/{dir_name}/{model_type}/{out_name}.pth",
 			      loss_type=loss_type,
-			      batchsize=4, checkpoint_path=None, train_count=500, earlystopping_threshold=10, accumulation_steps=4)
+			      batchsize=2, checkpoint_path=None, train_count=500, earlystopping_threshold=10, accumulation_steps=8)
 
 			test(model=model,
 			     test_csv=f"{const.MIX_DATA_DIR}/{dir_name}/test.csv",
