@@ -5,7 +5,8 @@ from torch_geometric.nn import GCNConv, GATConv
 from torch_geometric.nn import knn_graph
 from torchinfo import summary
 
-from models.graph_utils import GraphBuilder, GraphConfig, NodeSelectionType, EdgeSelectionType
+# from models.graph_utils import GraphBuilder, GraphConfig, NodeSelectionType, EdgeSelectionType
+from models.legacy_graph_utils import GraphBuilder, GraphConfig, NodeSelectionType, EdgeSelectionType
 
 from mymodule import confirmation_GPU
 
@@ -171,6 +172,7 @@ class UGNN(nn.Module):
         # ボトルネックのGNN処理
         batch_size, channels, length = x4.size()
         x4_nodes = x4.permute(0, 2, 1).reshape(-1, channels)
+        # print("x4_nodes.shape:", x4_nodes.shape)
 
         # k-NNグラフの作成
         edge_index = self.graph_builder.create_batch_graph(x4_nodes, batch_size, length)
