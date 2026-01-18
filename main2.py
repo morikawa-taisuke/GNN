@@ -14,7 +14,6 @@ from tqdm import tqdm
 from tqdm.contrib import tenumerate
 
 from All_evaluation import main as evaluation
-from evaluation import CSV_eval
 from CsvDataset import CsvDataset, CsvInferenceDataset
 from models.ConvTasNet_models import enhance_ConvTasNet
 from models.GNN import UGNN
@@ -129,7 +128,7 @@ def train(model: nn.Module,
 		start_epoch = 1
 
 	""" 学習の設定を出力 """
-	print("========================================")
+	print("====================")
 	print("device: ", device)
 	print("out_path: ", out_path)
 	print("dataset: ", train_csv)
@@ -218,10 +217,6 @@ def train(model: nn.Module,
 				target_data = target_data.to(device)
 
 				estimate_data = model(mix_data)
-				# print("estimation: ", estimate_data.shape)
-				# print("target: ", target_data.shape)
-				target_data = target_data.squeeze(0)
-
 				estimate_data, target_data = padding_tensor(estimate_data, target_data)
 				model_loss = loss_func(estimate_data, target_data)
 				val_loss += model_loss.item()
