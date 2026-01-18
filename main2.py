@@ -21,6 +21,7 @@ from models.GNN_encoder import GNNEncoder
 from models.graph_utils import GraphConfig, NodeSelectionType, EdgeSelectionType
 from models.wave_unet import U_Net
 from mymodule import my_func, const, LossFunction, confirmation_GPU
+# from evaluation import CSV_eval
 
 # CUDAのメモリ管理設定
 # os.environ['PYTORCH_CUDA_ALLOC_CONF'] = 'expandable_segments:True'
@@ -298,17 +299,17 @@ def test(model: nn.Module, test_csv: str, wave_type: str, out_dir: str, model_pa
 if __name__ == "__main__":
 	"""モデルの設定"""
 	num_mic = 1  # マイクの数
-	num_node = 16  # ノードの数
+	num_node = 32  # ノードの数
 	model_list = [
-        "ConvTasNet"
+        "UGCN"
 	]  # モデルの種類  "UGCN", "UGAT", "ConvTasNet", "UNet"
 	wave_types = [
 		# "noise_only",
 		"reverb_only",
 		"noise_reverb",
-	]  # 入力信号の種類 (noise_only, reverbe_only, noise_reverbe)
+	]  # 入力信号の種類 (noise_only, reverb_only, noise_reverb)
 	node_selection = NodeSelectionType.TEMPORAL  # ノード選択の方法 (ALL, TEMPORAL)
-	edge_selection = EdgeSelectionType.RANDOM  # エッジ選択の方法 (RAMDOM, KNN)
+	edge_selection = EdgeSelectionType.KNN  # エッジ選択の方法 (RANDOM, KNN)
 
 	graph_config = GraphConfig(
 		num_edges=num_node,
@@ -335,10 +336,10 @@ if __name__ == "__main__":
 			raise ValueError(f"Unknown model type: {model_type}")
 
 
-		dir_name = "Random_Dataset_VCTK_DEMAND_1ch"
+		dir_name = "DEMAND_hoth_10dB_500msec"
 		for wave_type in wave_types:
-			out_name = f"{model_type}_{wave_type}"	# 出力名
-			# out_name = f"new_{model_type}_{wave_type}_{num_node}node_{node_selection.value}_{edge_selection.value}"  # 出力名
+			# out_name = f"{model_type}_{wave_type}"	# 出力名
+			out_name = f"{model_type}_{wave_type}_{num_node}node_{node_selection.value}_{edge_selection.value}"  # 出力名
 			# C:\Users\kataoka-lab\Desktop\sound_data\sample_data\speech\DEMAND\clean\train
 			train(model=model,
 				  train_csv=f"{const.MIX_DATA_DIR}/{dir_name}/train.csv",
@@ -346,7 +347,8 @@ if __name__ == "__main__":
 				  wave_type=wave_type,
 				  out_path=f"{const.PTH_DIR}/{dir_name}/{model_type}/{out_name}.pth",
 				  loss_type="SISDR",
-				  batchsize=4, checkpoint_path=None, train_count=500, earlystopping_threshold=10, accumulation_steps=4)
+				  batchsize=16, checkpoint_path=None, train_count=500, earlystopping_threshold=10, accumulation_steps=1)
+
 
 			test(model=model,
 				 test_csv=f"{const.MIX_DATA_DIR}/{dir_name}/test.csv",
@@ -359,3 +361,9 @@ if __name__ == "__main__":
 			# 	estimation_dir=f"{const.OUTPUT_WAV_DIR}/{dir_name}/{model_type}/{out_name}",
 			# 	out_path=f"{const.EVALUATION_DIR}/{dir_name}/{model_type}/{out_name}.csv",
 			# )
+
+			# CSV_eval.main(input_csv_path=f"{const.MIX_DATA_DIR}/{dir_name}/test.csv",
+			# 			  target_column="clean",
+			# 			  estimation_column=wave_type,
+			# 			  estimation_dir=f"{const.OUTPUT_WAV_DIR}/{dir_name}/{model_type}/{out_name}",
+			# 			  out_path=f"{const.EVALUATION_DIR}/{dir_name}/{model_type}/{out_name}.csv")
