@@ -308,14 +308,14 @@ if __name__ == "__main__":
 	num_mic = 1  # マイクの数
 	num_node = 16  # ノードの数
 	model_list = [
-        "UNet"
+        "UGCN", "UGAT"
 	]  # モデルの種類  "UGCN", "UGAT", "ConvTasNet", "UNet"
 	wave_types = [
 		"noise_only",
 		"reverb_only",
 		"noise_reverb",
 	]  # 入力信号の種類 (noise_only, reverbe_only, noise_reverbe)
-	node_selection = NodeSelectionType.TEMPORAL  # ノード選択の方法 (ALL, TEMPORAL)
+	node_selection = NodeSelectionType.ALL  # ノード選択の方法 (ALL, TEMPORAL)
 	edge_selection = EdgeSelectionType.RANDOM  # エッジ選択の方法 (RAMDOM, KNN)
 
 	graph_config = GraphConfig(
@@ -343,10 +343,10 @@ if __name__ == "__main__":
 			raise ValueError(f"Unknown model type: {model_type}")
 
 
-		dir_name = "DEMAND_DEMAND"
+		dir_name = "VCTK_DEMAND_1ch"
 		for wave_type in wave_types:
-			out_name = f"{model_type}_{wave_type}"	# 出力名
-			# out_name = f"new_{model_type}_{wave_type}_{num_node}node_{node_selection.value}_{edge_selection.value}"  # 出力名
+			# out_name = f"{model_type}_{wave_type}"	# 出力名
+			out_name = f"wave_{model_type}_{wave_type}_{num_node}node_{node_selection.value}_{edge_selection.value}"  # 出力名
 			# C:\Users\kataoka-lab\Desktop\sound_data\sample_data\speech\DEMAND\clean\train
 			train(model=model,
 				  train_csv=f"{const.MIX_DATA_DIR}/{dir_name}/train.csv",

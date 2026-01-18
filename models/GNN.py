@@ -173,7 +173,7 @@ class UGNN(nn.Module):
         x4_nodes = x4.permute(0, 2, 1).reshape(-1, channels)
 
         # k-NNグラフの作成
-        edge_index = self.graph_builder.create_batch_graph(x4_nodes, batch_size, length)
+        edge_index = self.graph_builder.create_batch_graph(x4_nodes, batch_size)
 
         # GNN処理
         x4_processed = self.gnn(x4_nodes, edge_index)
