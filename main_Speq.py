@@ -328,80 +328,86 @@ if __name__ == "__main__":
 	num_mic = 1  # マイクの数
 	num_node = 32  # ノードの数
 	model_list = [
-		"UNet",
-		# "GCN",
-		# "GAT",
-	]  # モデルの種類
+        "GCN", "GAT",
+	]  # モデルの種類  "UGCN", "UGAT", "ConvTasNet", "UNet"
 	wave_types = [
 		"noise_only",
 		"reverb_only",
 		"noise_reverb",
-	]  # 入力信号の種類 (noise_only, reverbe_only, noise_reverbe)
+	]  # 入力信号の種類 (noise_only, reverb_only, noise_reverb)    # UGAT_all_random_reverb_only
+	node_selection_list = [
+		NodeSelectionType.TEMPORAL,
+		NodeSelectionType.ALL
+	]  # ノード選択の方法 (ALL, TEMPORAL)
+	edge_selection_list = [
+		EdgeSelectionType.RANDOM,
+		EdgeSelectionType.KNN
+	]  # エッジ選択の方法 (RANDOM, KNN)
 
-	node_selection = NodeSelectionType.ALL  # ノード選択の方法 (ALL, TEMPORAL)
-	edge_selection = EdgeSelectionType.GRID  # エッジ選択の方法 (RAMDOM, KNN, GRID)
-
-	graph_config = GraphConfig(
-		num_edges=num_node,
-		node_selection=node_selection,
-		edge_selection=edge_selection,
-		bidirectional=True,
-		temporal_window=4000,  # 時間窓のサイズ
-	)
 	stft_params = {
 		"n_fft": 512,
 		"hop_length": 256,
 		"win_length": 512
 	}
 
-	for model_type in model_list:
-		if model_type == "GCN":
-			model = SpeqGNN(n_channels=num_mic, n_classes=num_mic, gnn_type="GCN", graph_config=graph_config, **stft_params).to(device)
-		elif model_type == "GAT":
-			model = SpeqGNN(n_channels=num_mic, n_classes=num_mic, gnn_type="GAT", graph_config=graph_config, **stft_params).to(device)
-		elif model_type == "GCNEncoder":
-			model = SpeqGNN_encoder(n_channels=num_mic, gnn_type="GCN", num_node=num_node, graph_config=graph_config).to(device)
-		elif model_type == "GATEncoder":
-			model = SpeqGNN_encoder(n_channels=num_mic, gnn_type="GAT", num_node=num_node, graph_config=graph_config).to(device)
-		elif model_type == "ConvTasNet":
-			model = enhance_ConvTasNet().to(device)
-		elif model_type == "UNet":
-			model = U_Net(n_channels=1, n_classes=1, **stft_params).to(device)
-		else:
-			raise ValueError(f"Unknown model type: {model_type}")
+	for node_selection in node_selection_list:
+		for edge_selection in edge_selection_list:
+			graph_config = GraphConfig(
+				num_edges=num_node,
+				node_selection=node_selection,
+				edge_selection=edge_selection,
+				bidirectional=True,
+				temporal_window=4000,  # 時間窓のサイズ
+			)
 
-		dir_name = "Random_Dataset_VCTK_DEMAND_1ch"  # データセットのディレクトリ名
-		loss_type = "SISDR"  # 損失関数の種類 ("SISDR", "wave_MSE", "stft_MSE")
-		model_type = f"Speq{model_type}"
-		for wave_type in wave_types:
-			# out_name = f"new_{model_type}_{wave_type}_{num_node}node_{node_selection.value}_{edge_selection.value}"  # 出力名
-			out_name = f"{model_type}_{wave_type}"  # 出力名
-			out_dir = f"{model_type}_{node_selection.value}_{edge_selection.value}_{wave_type}"  # 出力名
+			for model_type in model_list:
+				if model_type == "GCN":
+					model = SpeqGNN(n_channels=num_mic, n_classes=num_mic, gnn_type="GCN", graph_config=graph_config, **stft_params).to(device)
+				elif model_type == "GAT":
+					model = SpeqGNN(n_channels=num_mic, n_classes=num_mic, gnn_type="GAT", graph_config=graph_config, **stft_params).to(device)
+				elif model_type == "GCNEncoder":
+					model = SpeqGNN_encoder(n_channels=num_mic, gnn_type="GCN", num_node=num_node, graph_config=graph_config).to(device)
+				elif model_type == "GATEncoder":
+					model = SpeqGNN_encoder(n_channels=num_mic, gnn_type="GAT", num_node=num_node, graph_config=graph_config).to(device)
+				elif model_type == "ConvTasNet":
+					model = enhance_ConvTasNet().to(device)
+				elif model_type == "UNet":
+					model = U_Net(n_channels=1, n_classes=1, **stft_params).to(device)
+				else:
+					raise ValueError(f"Unknown model type: {model_type}")
 
-			# C:\Users\kataoka-lab\Desktop\sound_data\sample_data\speech\DEMAND\clean\train
-			# train(model=model,
-			#       train_csv=f"{const.MIX_DATA_DIR}/{dir_name}/train.csv",
-			#       val_csv=f"{const.MIX_DATA_DIR}/{dir_name}/val.csv",
-			#       wave_type=wave_type,
-			#       out_path=f"{const.PTH_DIR}/{dir_name}/{model_type}/{out_name}.pth",
-			#       loss_type=loss_type,
-			#       batchsize=4, checkpoint_path=None, train_count=500, earlystopping_threshold=10, accumulation_steps=4)
+				dir_name = "Random_Dataset_VCTK_DEMAND_1ch"  # データセットのディレクトリ名
+				loss_type = "SISDR"  # 損失関数の種類 ("SISDR", "wave_MSE", "stft_MSE")
+				model_type = f"Speq{model_type}"
+				for wave_type in wave_types:
+					out_name = f"{model_type}_{wave_type}_{num_node}node_{node_selection.value}_{edge_selection.value}"  # 出力名
+					# out_name = f"{model_type}_{wave_type}"  # 出力名
+					out_dir = f"{model_type}_{node_selection.value}_{edge_selection.value}_{wave_type}"  # 出力名
 
-			test(model=model,
-			     test_csv=f"{const.MIX_DATA_DIR}/{dir_name}/test.csv",
-			     wave_type=wave_type,
-			     out_dir=f"{const.OUTPUT_WAV_DIR}/{dir_name}/{model_type}/{out_name}",
-			     model_path=f"{const.PTH_DIR}/{dir_name}/{model_type}/{out_name}.pth",
-				 out_name=out_dir)
-			#
-			# evaluation(
-			# 	target_dir=f"{const.MIX_DATA_DIR}/{dir_name}/test/clean",
-			# 	estimation_dir=f"{const.OUTPUT_WAV_DIR}/{dir_name}/{model_type}/{out_name}",
-			# 	out_path=f"{const.EVALUATION_DIR}/{dir_name}/{model_type}/{out_name}.csv",
-			# )
+					# C:\Users\kataoka-lab\Desktop\sound_data\sample_data\speech\DEMAND\clean\train
+					# train(model=model,
+					#       train_csv=f"{const.MIX_DATA_DIR}/{dir_name}/train.csv",
+					#       val_csv=f"{const.MIX_DATA_DIR}/{dir_name}/val.csv",
+					#       wave_type=wave_type,
+					#       out_path=f"{const.PTH_DIR}/{dir_name}/{model_type}/{out_name}.pth",
+					#       loss_type=loss_type,
+					#       batchsize=4, checkpoint_path=None, train_count=500, earlystopping_threshold=10, accumulation_steps=4)
 
-			# CSV_eval.main(input_csv_path=f"{const.MIX_DATA_DIR}/{dir_name}/test.csv",
-			#               target_column="clean",
-			#               estimation_column=wave_type,
-			#               estimation_dir=f"{const.OUTPUT_WAV_DIR}/{dir_name}/{model_type}/{out_name}",
-			#               out_path=f"{const.EVALUATION_DIR}/{dir_name}/{model_type}/{out_name}_CSV.csv")
+					test(model=model,
+						test_csv=f"{const.MIX_DATA_DIR}/{dir_name}/test.csv",
+						wave_type=wave_type,
+						out_dir=f"{const.OUTPUT_WAV_DIR}/{dir_name}/{model_type}/{out_name}",
+						model_path=f"{const.PTH_DIR}/{dir_name}/{model_type}/{out_name}.pth",
+						out_name=out_dir)
+					#
+					# evaluation(
+					# 	target_dir=f"{const.MIX_DATA_DIR}/{dir_name}/test/clean",
+					# 	estimation_dir=f"{const.OUTPUT_WAV_DIR}/{dir_name}/{model_type}/{out_name}",
+					# 	out_path=f"{const.EVALUATION_DIR}/{dir_name}/{model_type}/{out_name}.csv",
+					# )
+
+					# CSV_eval.main(input_csv_path=f"{const.MIX_DATA_DIR}/{dir_name}/test.csv",
+					#               target_column="clean",
+					#               estimation_column=wave_type,
+					#               estimation_dir=f"{const.OUTPUT_WAV_DIR}/{dir_name}/{model_type}/{out_name}",
+					#               out_path=f"{const.EVALUATION_DIR}/{dir_name}/{model_type}/{out_name}_CSV.csv")

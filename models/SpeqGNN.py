@@ -197,7 +197,7 @@ class SpeqGNN(nn.Module):
 		self.up3 = Up(128, 64)
 		self.outc = nn.Conv2d(64, n_classes, kernel_size=1, stride=1, padding=0)
 
-	def forward(self, x_magnitude, complex_spec_input, original_length=None, export_name="graph_data.npz"):
+	def forward(self, x_magnitude, complex_spec_input, original_length=None, export_name="graph_data.npz", out_dir=None):
 		"""
 		順伝播
 		Args:
@@ -234,7 +234,7 @@ class SpeqGNN(nn.Module):
 		""" ↓↓↓ 解析後 """
 		# GNN処理
 		if self.gnn_type.upper() == "GAT":
-			x4_processed_flat, att_list = self.gnn(x4_reshaped, edge_index, return_attention=True)
+			x4_processed_flat, att_list = self.gnn(x4_reshaped, edge_index)
 		else:
 			x4_processed_flat = self.gnn(x4_reshaped, edge_index)
 			att_list = None
@@ -245,7 +245,7 @@ class SpeqGNN(nn.Module):
 		H, W = height_bottleneck, width_bottleneck
 		f_idx, t_idx = torch.meshgrid(torch.arange(H), torch.arange(W), indexing='ij')
 		coords = torch.stack([f_idx.flatten(), t_idx.flatten()], dim=1).repeat(batch_size, 1)
-		self._save_graph_data(export_name, edge_index, x4_reshaped, coords, att_list)
+		self._save_graph_data(export_name, edge_index, x4_reshaped, coords, att_list, out_dir=out_dir)
 		""" ↑↑↑ 解析後 """
 
 		x4_processed = x4_processed_flat.view(batch_size, height_bottleneck, width_bottleneck,channels_bottleneck).permute(0, 3, 1, 2)  # 元の形状に戻す
