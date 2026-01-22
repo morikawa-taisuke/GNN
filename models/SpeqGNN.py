@@ -1,5 +1,5 @@
 import os
-
+import numpy as np
 import torch
 import torch.nn.functional as F
 from torch import nn
@@ -7,7 +7,7 @@ from torch_geometric.nn import GCNConv, GATConv
 from torchinfo import summary
 
 from models.graph_utils import GraphBuilder, GraphConfig, NodeSelectionType, EdgeSelectionType
-from mymodule import confirmation_GPU
+from mymodule import confirmation_GPU, const
 
 # PyTorchのCUDAメモリ管理設定。セグメントを拡張可能にすることで、断片化によるメモリ不足エラーを緩和します。
 os.environ['PYTORCH_CUDA_ALLOC_CONF'] = 'expandable_segments:True'
@@ -109,13 +109,33 @@ class GAT(nn.Module):
 
 	def forward(self, x, edge_index):
 		""" 順伝播 """
+		# アテンションを格納するリスト
+		att_weights = []
+		""" ↓↓↓ 解析前 """
+		# x = F.dropout(x, p=self.dropout_rate, training=self.training)
+		# x = F.elu(self.conv1(x, edge_index))
+		# x = F.dropout(x, p=self.dropout_rate, training=self.training)
+		# x = F.elu(self.conv2(x, edge_index))
+		# x = F.dropout(x, p=self.dropout_rate, training=self.training)
+		# x = self.conv3(x, edge_index)
+		""" ↑↑↑ 解析前 """
+
 		x = F.dropout(x, p=self.dropout_rate, training=self.training)
-		x = F.elu(self.conv1(x, edge_index))
+		# 1層目
+		x, (ei1, alpha1) = self.conv1(x, edge_index, return_attention_weights=True)
+		att_weights.append(alpha1)
+		x = F.elu(x)
 		x = F.dropout(x, p=self.dropout_rate, training=self.training)
-		x = F.elu(self.conv2(x, edge_index))
+		# 2層目
+		x, (ei2, alpha2) = self.conv2(x, edge_index, return_attention_weights=True)
+		att_weights.append(alpha2)
+		x = F.elu(x)
 		x = F.dropout(x, p=self.dropout_rate, training=self.training)
-		x = self.conv3(x, edge_index)
-		return x
+		# 3層目
+		x, (ei3, alpha3) = self.conv3(x, edge_index, return_attention_weights=True)
+		att_weights.append(alpha3)
+
+		return x, att_weights  # 特徴量とアテンションのリストを返す
 
 
 class SpeqGNN(nn.Module):
@@ -177,7 +197,7 @@ class SpeqGNN(nn.Module):
 		self.up3 = Up(128, 64)
 		self.outc = nn.Conv2d(64, n_classes, kernel_size=1, stride=1, padding=0)
 
-	def forward(self, x_magnitude, complex_spec_input, original_length=None):
+	def forward(self, x_magnitude, complex_spec_input, original_length=None, export_name="graph_data.npz"):
 		"""
 		順伝播
 		Args:
@@ -210,7 +230,23 @@ class SpeqGNN(nn.Module):
 		# print(x4.shape, x4_reshaped.shape)
 
 		# GNNによるノード特徴の更新
-		x4_processed_flat = self.gnn(x4_reshaped, edge_index)   # GNN処理
+		# x4_processed_flat = self.gnn(x4_reshaped, edge_index)   # GNN処理   # 解析前
+		""" ↓↓↓ 解析後 """
+		# GNN処理
+		if self.gnn_type.upper() == "GAT":
+			x4_processed_flat, att_list = self.gnn(x4_reshaped, edge_index, return_attention=True)
+		else:
+			x4_processed_flat = self.gnn(x4_reshaped, edge_index)
+			att_list = None
+
+		# --- 解析用データの保存 ---
+		# (Freq, Time) の座標を作成
+		# H: 周波数, W: 時間
+		H, W = height_bottleneck, width_bottleneck
+		f_idx, t_idx = torch.meshgrid(torch.arange(H), torch.arange(W), indexing='ij')
+		coords = torch.stack([f_idx.flatten(), t_idx.flatten()], dim=1).repeat(batch_size, 1)
+		self._save_graph_data(export_name, edge_index, x4_reshaped, coords, att_list)
+		""" ↑↑↑ 解析後 """
 
 		x4_processed = x4_processed_flat.view(batch_size, height_bottleneck, width_bottleneck,channels_bottleneck).permute(0, 3, 1, 2)  # 元の形状に戻す
 
@@ -255,6 +291,38 @@ class SpeqGNN(nn.Module):
 		                              length=original_length)
 		return output_waveform
 
+
+	def _save_graph_data(self, name, edge_index, features, coords, attention, out_dir=None):
+		""" .npz形式でグラフ構造を保存する（上書き防止版） """
+
+		# 保存先ディレクトリ
+		save_dir = f"{const.RESULT_DIR}/graphs_analysis/{out_dir}"
+		os.makedirs(save_dir, exist_ok=True)
+
+		# 1. データの準備
+		save_dict = {
+			'edge_index': edge_index.cpu().detach().numpy(),
+			'node_features': features.cpu().detach().numpy(),
+			'node_coords': coords.cpu().detach().numpy(),
+		}
+
+		if attention is not None:
+			for i, att in enumerate(attention):
+				save_dict[f'attention_layer_{i}'] = att.cpu().detach().numpy()
+
+		# 2. ファイル名が重複しないようにチェック
+		# 音声ファイル名をベースにした名前（name）を受け取る前提
+		save_path = os.path.join(save_dir, f"{name}.npz")
+
+		# もし同名のファイルが存在する場合は、末尾に _1, _2... を付ける（念のため）
+		counter = 1
+		base_path = save_path.replace(".npz", "")
+		while os.path.exists(save_path):
+			save_path = f"{base_path}_{counter}.npz"
+			counter += 1
+
+		np.savez_compressed(save_path, **save_dict)
+	# print(f"Graph structure saved to: {save_path}") # 大量に処理する場合はコメントアウト推奨
 
 def print_model_summary(model, batch_size, channels, length):
 	# --- STFTパラメータ (モデルの設計に合わせて調整してください) ---

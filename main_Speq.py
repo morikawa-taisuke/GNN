@@ -262,7 +262,7 @@ def train(model: nn.Module,
 	print(f"time：{str(time_h)}h")  # 出力
 
 
-def test(model: nn.Module, test_csv: str, wave_type: str, out_dir: str, model_path: str, prm: int = const.SR):
+def test(model: nn.Module, test_csv: str, wave_type: str, out_dir: str, model_path: str, prm: int = const.SR, out_name: str = "output"):
 	# ディレクトリを作成
 	my_func.make_dir(out_dir)
 	model_path = Path(model_path)  # path型に変換
@@ -295,8 +295,9 @@ def test(model: nn.Module, test_csv: str, wave_type: str, out_dir: str, model_pa
 		)
 		mix_magnitude = torch.abs(mix_complex).unsqueeze(1)
 
-		separate = model(mix_magnitude, mix_complex, original_length)  # モデルの適用
+		separate = model(mix_magnitude, mix_complex, original_length, export_name=mix_name[0], out_dir=out_name)  # モデルの適用
 		# print(f"Initial separate shape: {separate.shape}") # デバッグ用
+		continue
 
 		separate = separate.cpu()
 		separate = separate.detach().numpy()
@@ -327,10 +328,12 @@ if __name__ == "__main__":
 	num_mic = 1  # マイクの数
 	num_node = 32  # ノードの数
 	model_list = [
-		"GAT"
-	]  # モデルの種類  "UGCN", "UGCN2", "UGAT", "UGAT2", "ConvTasNet", "UNet"
+		"UNet",
+		# "GCN",
+		# "GAT",
+	]  # モデルの種類
 	wave_types = [
-		# "noise_only",
+		"noise_only",
 		"reverb_only",
 		"noise_reverb",
 	]  # 入力信号の種類 (noise_only, reverbe_only, noise_reverbe)
@@ -367,26 +370,29 @@ if __name__ == "__main__":
 		else:
 			raise ValueError(f"Unknown model type: {model_type}")
 
-		dir_name = "DEMAND_hoth_10dB_500msec"  # データセットのディレクトリ名
+		dir_name = "Random_Dataset_VCTK_DEMAND_1ch"  # データセットのディレクトリ名
 		loss_type = "SISDR"  # 損失関数の種類 ("SISDR", "wave_MSE", "stft_MSE")
 		model_type = f"Speq{model_type}"
 		for wave_type in wave_types:
-			out_name = f"new_{model_type}_{wave_type}_{num_node}node_{node_selection.value}_{edge_selection.value}"  # 出力名
-			# out_name = f"{model_type}_{wave_type}"  # 出力名
+			# out_name = f"new_{model_type}_{wave_type}_{num_node}node_{node_selection.value}_{edge_selection.value}"  # 出力名
+			out_name = f"{model_type}_{wave_type}"  # 出力名
+			out_dir = f"{model_type}_{node_selection.value}_{edge_selection.value}_{wave_type}"  # 出力名
+
 			# C:\Users\kataoka-lab\Desktop\sound_data\sample_data\speech\DEMAND\clean\train
-			train(model=model,
-			      train_csv=f"{const.MIX_DATA_DIR}/{dir_name}/train.csv",
-			      val_csv=f"{const.MIX_DATA_DIR}/{dir_name}/val.csv",
-			      wave_type=wave_type,
-			      out_path=f"{const.PTH_DIR}/{dir_name}/{model_type}/{out_name}.pth",
-			      loss_type=loss_type,
-			      batchsize=16, checkpoint_path=None, train_count=500, earlystopping_threshold=10, accumulation_steps=1)
+			# train(model=model,
+			#       train_csv=f"{const.MIX_DATA_DIR}/{dir_name}/train.csv",
+			#       val_csv=f"{const.MIX_DATA_DIR}/{dir_name}/val.csv",
+			#       wave_type=wave_type,
+			#       out_path=f"{const.PTH_DIR}/{dir_name}/{model_type}/{out_name}.pth",
+			#       loss_type=loss_type,
+			#       batchsize=4, checkpoint_path=None, train_count=500, earlystopping_threshold=10, accumulation_steps=4)
 
 			test(model=model,
 			     test_csv=f"{const.MIX_DATA_DIR}/{dir_name}/test.csv",
 			     wave_type=wave_type,
 			     out_dir=f"{const.OUTPUT_WAV_DIR}/{dir_name}/{model_type}/{out_name}",
-			     model_path=f"{const.PTH_DIR}/{dir_name}/{model_type}/{out_name}.pth")
+			     model_path=f"{const.PTH_DIR}/{dir_name}/{model_type}/{out_name}.pth",
+				 out_name=out_dir)
 			#
 			# evaluation(
 			# 	target_dir=f"{const.MIX_DATA_DIR}/{dir_name}/test/clean",
@@ -394,8 +400,8 @@ if __name__ == "__main__":
 			# 	out_path=f"{const.EVALUATION_DIR}/{dir_name}/{model_type}/{out_name}.csv",
 			# )
 
-			CSV_eval.main(input_csv_path=f"{const.MIX_DATA_DIR}/{dir_name}/test.csv",
-			              target_column="clean",
-			              estimation_column=wave_type,
-			              estimation_dir=f"{const.OUTPUT_WAV_DIR}/{dir_name}/{model_type}/{out_name}",
-			              out_path=f"{const.EVALUATION_DIR}/{dir_name}/{model_type}/{out_name}_CSV.csv")
+			# CSV_eval.main(input_csv_path=f"{const.MIX_DATA_DIR}/{dir_name}/test.csv",
+			#               target_column="clean",
+			#               estimation_column=wave_type,
+			#               estimation_dir=f"{const.OUTPUT_WAV_DIR}/{dir_name}/{model_type}/{out_name}",
+			#               out_path=f"{const.EVALUATION_DIR}/{dir_name}/{model_type}/{out_name}_CSV.csv")
