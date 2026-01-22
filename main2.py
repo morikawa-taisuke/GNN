@@ -250,7 +250,7 @@ def train(model: nn.Module,
 	print(f"time：{str(time_h)}h")  # 出力
 
 
-def test(model: nn.Module, test_csv: str, wave_type: str, out_dir: str, model_path: str, prm: int = const.SR):
+def test(model: nn.Module, test_csv: str, wave_type: str, out_dir: str, model_path: str, prm: int = const.SR, out_name: str = "output"):
 	# ディレクトリを作成
 	my_func.make_dir(out_dir)
 	model_path = Path(model_path)  # path型に変換
@@ -269,7 +269,8 @@ def test(model: nn.Module, test_csv: str, wave_type: str, out_dir: str, model_pa
 		mix_data = mix_data.to(device)  # データをGPUに移動
 		mix_data = mix_data.to(torch.float32)  # データの型を変換 int16→float32
 
-		separate = model(mix_data)  # モデルの適用
+		separate = model(mix_data, export_name=mix_name[0], out_dir=out_name)  # モデルの適用
+		continue
 		# print(f"Initial separate shape: {separate.shape}") # デバッグ用
 
 		separate = separate.cpu()
@@ -304,18 +305,21 @@ if __name__ == "__main__":
         "UGCN", "UGAT",
 	]  # モデルの種類  "UGCN", "UGAT", "ConvTasNet", "UNet"
 	wave_types = [
-		# "noise_only",
+		"noise_only",
 		"reverb_only",
 		"noise_reverb",
-	]  # 入力信号の種類 (noise_only, reverb_only, noise_reverb)
-	node_selection_list = [NodeSelectionType.ALL, ]  # ノード選択の方法 (ALL, TEMPORAL)
-	edge_selection_list = [EdgeSelectionType.RANDOM, ]  # エッジ選択の方法 (RANDOM, KNN)
-	# GAT, all, randomはやっていない
+	]  # 入力信号の種類 (noise_only, reverb_only, noise_reverb)    # UGAT_all_random_reverb_only
+	node_selection_list = [
+		NodeSelectionType.TEMPORAL,
+		NodeSelectionType.ALL
+	]  # ノード選択の方法 (ALL, TEMPORAL)
+	edge_selection_list = [
+		EdgeSelectionType.RANDOM,
+		EdgeSelectionType.KNN
+	]  # エッジ選択の方法 (RANDOM, KNN)
 
 	for node_selection in node_selection_list:
 		for edge_selection in edge_selection_list:
-			# if node_selection == NodeSelectionType.ALL and edge_selection == EdgeSelectionType.RANDOM:
-			# 	continue
 			graph_config = GraphConfig(
 				num_edges=num_node,
 				node_selection=node_selection,
@@ -341,25 +345,27 @@ if __name__ == "__main__":
 					raise ValueError(f"Unknown model type: {model_type}")
 
 
-				dir_name = "Random_Dataset_VCTK_DEMAND_1ch"
+				dir_name = "DEMAND_hoth_10dB_500msec"
 				for wave_type in wave_types:
 					# out_name = f"{model_type}_{wave_type}"	# 出力名
 					out_name = f"{model_type}_{wave_type}_{num_node}node_{node_selection.value}_{edge_selection.value}"  # 出力名
+					out_dir = f"{model_type}_{node_selection.value}_{edge_selection.value}_{wave_type}"  # 出力名
 					# C:\Users\kataoka-lab\Desktop\sound_data\sample_data\speech\DEMAND\clean\train
-					train(model=model,
-						  train_csv=f"{const.MIX_DATA_DIR}/{dir_name}/train.csv",
-						  val_csv=f"{const.MIX_DATA_DIR}/{dir_name}/val.csv",
-						  wave_type=wave_type,
-						  out_path=f"{const.PTH_DIR}/{dir_name}/{model_type}/{out_name}.pth",
-						  loss_type="SISDR",
-						  batchsize=8, checkpoint_path=None, train_count=500, earlystopping_threshold=10, accumulation_steps=2)
+					# train(model=model,
+					# 	  train_csv=f"{const.MIX_DATA_DIR}/{dir_name}/train.csv",
+					# 	  val_csv=f"{const.MIX_DATA_DIR}/{dir_name}/val.csv",
+					# 	  wave_type=wave_type,
+					# 	  out_path=f"{const.PTH_DIR}/{dir_name}/{model_type}/{out_name}.pth",
+					# 	  loss_type="SISDR",
+					# 	  batchsize=8, checkpoint_path=None, train_count=500, earlystopping_threshold=10, accumulation_steps=2)
 
 
 					test(model=model,
 						 test_csv=f"{const.MIX_DATA_DIR}/{dir_name}/test.csv",
 						 wave_type=wave_type,
 						 out_dir=f"{const.OUTPUT_WAV_DIR}/{dir_name}/{model_type}/{out_name}",
-						 model_path=f"{const.PTH_DIR}/{dir_name}/{model_type}/{out_name}.pth")
+						 model_path=f"{const.PTH_DIR}/{dir_name}/{model_type}/{out_name}.pth",
+						 out_name=out_dir)
 
 					# evaluation(
 					# 	target_dir=f"{const.MIX_DATA_DIR}/{dir_name}/test/clean",
@@ -367,8 +373,8 @@ if __name__ == "__main__":
 					# 	out_path=f"{const.EVALUATION_DIR}/{dir_name}/{model_type}/{out_name}.csv",
 					# )
 
-					CSV_eval.main(input_csv_path=f"{const.MIX_DATA_DIR}/{dir_name}/test.csv",
-								  target_column="clean",
-								  estimation_column=wave_type,
-								  estimation_dir=f"{const.OUTPUT_WAV_DIR}/{dir_name}/{model_type}/{out_name}",
-								  out_path=f"{const.EVALUATION_DIR}/{dir_name}/{model_type}/{out_name}.csv")
+					# CSV_eval.main(input_csv_path=f"{const.MIX_DATA_DIR}/{dir_name}/test.csv",
+					# 			  target_column="clean",
+					# 			  estimation_column=wave_type,
+					# 			  estimation_dir=f"{const.OUTPUT_WAV_DIR}/{dir_name}/{model_type}/{out_name}",
+					# 			  out_path=f"{const.EVALUATION_DIR}/{dir_name}/{model_type}/{out_name}.csv")
