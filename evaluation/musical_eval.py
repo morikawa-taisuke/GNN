@@ -1,72 +1,152 @@
+import os
+import glob
 import numpy as np
 import librosa
 import pandas as pd
 from scipy.stats import kurtosis
 from skimage import measure
+from sympy.physics.units.definitions.unit_definitions import oersted
+from tqdm import tqdm
+import re
 
 
-def analyze_musical_noise(clean_path, enhanced_path, sr=16000):
-	# 1. 音声の読み込みとSTFT
-	y_clean, _ = librosa.load(clean_path, sr=sr)
-	y_est, _ = librosa.load(enhanced_path, sr=sr)
+def get_file_id(filename):
+	"""
+	ファイル名から '話者番号_発話番号' を抽出してキーを返す
+	例: '0001_001_...' -> '0001_001'
+	"""
+	parts = filename.split('_')
+	if len(parts) >= 2:
+		return f"{parts[0]}_{parts[1]}"
+	return None
 
-	# 長さを揃える
-	min_len = min(len(y_clean), len(y_est))
-	y_clean, y_est = y_clean[:min_len], y_est[:min_len]
 
+def parse_metadata(filename):
+	"""
+	ファイル名から分析に役立つメタデータを抽出する
+	"""
+	parts = filename.split('_')
+	# 命名規則に基づきインデックスで取得（多少の形式ズレにも耐えられるよう考慮）
+	metadata = {
+		'NoiseType': parts[2] if len(parts) > 2 else 'unknown',
+		'SNR': parts[4] if len(parts) > 4 else 'unknown',
+	}
+	return metadata
+
+
+def get_musical_noise_metrics(y_clean, y_est, sr=16000):
+	"""帯域別の指標計算（前回のロジックを継承）"""
 	S_clean = np.abs(librosa.stft(y_clean, n_fft=512, hop_length=160))
 	S_est = np.abs(librosa.stft(y_est, n_fft=512, hop_length=160))
-
-	# 誤差スペクトログラム: |S_clean - S_est|
 	error_spec = np.abs(S_clean - S_est)
 
-	# 2. 帯域の定義 (Hz -> index)
 	freqs = librosa.fft_frequencies(sr=sr, n_fft=512)
-	bands = {
-		'Low': (0, 1000),
-		'Mid': (1000, 4000),
-		'High': (4000, sr // 2)
-	}
+	bands = {'Low': (0, 1000), 'Mid': (1000, 4000), 'High': (4000, sr // 2)}
 
-	results = []
-
-	for band_name, (f_min, f_max) in bands.items():
-		# 該当する周波数インデックスを取得
+	band_results = {}
+	for name, (f_min, f_max) in bands.items():
 		idx = np.where((freqs >= f_min) & (freqs < f_max))[0]
 		if len(idx) == 0: continue
 
-		b_error = error_spec[idx, :]
+		b_err = error_spec[idx, :]
+		kurt = kurtosis(b_err.flatten())
+		thresh = np.mean(b_err) + 2 * np.std(b_err)
+		islands = measure.label((b_err > thresh).astype(int), connectivity=2).max()
+		flux_var = np.var(np.diff(b_err, axis=1) ** 2)
 
-		# --- 指標1: 尖度 (Kurtosis) ---
-		# 誤差が特定の点に集中しているほど高くなる
-		kurt_val = kurtosis(b_error.flatten())
+		band_results[name] = {
+			'Kurtosis': kurt,
+			'IslandCount': islands,
+			'FluxVar': flux_var
+		}
+	return band_results
 
-		# --- 指標2: 孤立成分の数 (Island Count) ---
-		# 誤差の平均より一定以上高い要素を「ノイズの種」とする
-		threshold = np.mean(b_error) + 2 * np.std(b_error)
-		binary_error = (b_error > threshold).astype(int)
-		labels = measure.label(binary_error, connectivity=2)
-		island_count = labels.max()  # 孤立した塊の数
 
-		# --- 指標3: 時間的ガタつき (Spectral Flux Variance) ---
-		# フレーム間の誤差の変動の激しさを測る
-		flux = np.diff(b_error, axis=1) ** 2
-		flux_var = np.var(flux)
+def batch_analyze_with_id_matching(clean_dir, model_dirs, output_csv="detailed_analysis.csv"):
+	"""
+	ID（話者_発話）でマッチングして一括解析
+	"""
+	# 1. クリーン音声のリストを作成 (IDをキーにする)
+	clean_files = glob.glob(os.path.join(clean_dir, "*.wav"))
+	clean_map = {get_file_id(os.path.basename(f)): f for f in clean_files if get_file_id(os.path.basename(f))}
 
-		# --- 指標4: 平均誤差 (RMSE) ---
-		rmse = np.sqrt(np.mean(b_error ** 2))
+	all_results = []
 
-		results.append({
-			'Band': band_name,
-			'RMSE': rmse,
-			'Kurtosis': kurt_val,
-			'IslandCount': island_count,
-			'FluxVariance': flux_var
-		})
+	# 2. 各モデルディレクトリを走査
+	for model_name, m_dir in model_dirs.items():
+		print(f"Analyzing model: {model_name}...")
+		est_files = glob.glob(os.path.join(m_dir, "*.wav"))
 
-	return results
+		for est_path in tqdm(est_files):
+			filename = os.path.basename(est_path)
+			file_id = get_file_id(filename)
 
-# 使用例
-# data = analyze_musical_noise('clean.wav', 'enhanced.wav')
-# df = pd.DataFrame(data)
-# df.to_csv('analysis_results.csv', index=False)
+			# クリーン音声とのマッチング確認
+			if file_id not in clean_map:
+				continue
+
+			clean_path = clean_map[file_id]
+			meta = parse_metadata(filename)
+
+			# 音声読み込み
+			y_clean, sr = librosa.load(clean_path, sr=16000)
+			y_est, _ = librosa.load(est_path, sr=sr)
+
+			# 長さ調整
+			min_l = min(len(y_clean), len(y_est))
+			metrics = get_musical_noise_metrics(y_clean[:min_l], y_est[:min_l], sr)
+
+			# 帯域ごとの結果を保存
+			for band, values in metrics.items():
+				row = {
+					'FileID': file_id,
+					'Model': model_name,
+					'Band': band,
+					'NoiseType': meta['NoiseType'],
+					'SNR': meta['SNR']
+				}
+				row.update(values)
+				all_results.append(row)
+
+	# 3. CSV出力
+	if not all_results:
+		print("\n[エラー] 解析結果が空です。以下の点を確認してください：")
+		print(f"  - clean_dir のパスが正しいか: {clean_dir}")
+		print(f"  - model_dirs のパスが正しいか: {list(model_dirs.values())}")
+		print("  - ファイル名の命名規則（話者番号_発話番号）が一致しているか")
+		return pd.DataFrame()  # 空のDFを返す
+
+	df = pd.DataFrame(all_results)
+	df.to_csv(output_csv, index=False)
+
+	print(f"\n--- Analysis Complete ({len(df)} rows processed) ---")
+
+	# 列が存在するか確認してから集計する
+	if 'Model' in df.columns and 'Band' in df.columns:
+		summary = df.groupby(['Model', 'Band'])[['Kurtosis', 'IslandCount', 'FluxVar']].mean()
+		print(summary)
+	else:
+		print("警告: 必要な列が生成されませんでした。")
+
+	return df
+
+
+# 設定例
+if __name__ == "__main__":
+	# 実際のパスに合わせて書き換えてください
+	edge_aria = "temporal"   # all, temporal
+	edge_select = "knn" # knn, random
+
+	wave_type_list = ['noise_only', 'reverb_only', 'noise_reverb']
+
+	for wave_type in wave_type_list:
+		target_model_dirs = {
+			'GCN': f'/Users/a/Documents/sound_data/RESULT/output_wav/Random_Dataset_VCTK_DEMAND_1ch/AAA_SpeqGCN/AAA_SpeqGCN_{wave_type}_32node_{edge_aria}_{edge_select}',
+			'GAT': f'/Users/a/Documents/sound_data/RESULT/output_wav/Random_Dataset_VCTK_DEMAND_1ch/AAA_SpeqGAT/AAA_SpeqGAT_{wave_type}_32node_{edge_aria}_{edge_select}'
+		}
+
+		df = batch_analyze_with_id_matching(
+			clean_dir='/Users/a/Documents/sound_data/mix_data/Random_Dataset_1ch/clean',
+			model_dirs=target_model_dirs,
+			output_csv=f"{wave_type}_{edge_aria}_{edge_select}.csv"
+		)
