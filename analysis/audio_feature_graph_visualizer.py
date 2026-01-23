@@ -1,3 +1,11 @@
+"""
+このモジュールは、オーディオデータをk-NNグラフとして可視化し、グラフデータをCSVなどの転送可能な形式で保存するためのツールを提供します。
+1次元畳み込みによる前処理、k-近傍グラフの作成、matplotlibとnetworkxを用いたグラフの可視化が含まれます。
+
+クラス:
+    AudioGraphVisualizer: オーディオデータの処理、k-NNグラフの作成、ノードとエッジのCSV形式での保存、およびグラフの可視化を行うクラス。
+"""
+
 import matplotlib.pyplot as plt
 import networkx as nx
 import numpy as np

@@ -1,3 +1,17 @@
+"""
+グラフ構造の解析（教師データと推論データのノードの誤差，エッジの構造）
+
+このモジュールは、グラフデータを含むHDF5ファイルを処理し、
+ノイズの多いグラフにおける平均絶対誤差値や入度カウントなど、
+ノードレベルの属性間の統計的関係を計算・可視化します。
+
+クラス:
+    なし
+
+関数:
+    load_data_from_hdf5
+    analyze_hdf5_correlation_noisy_graph
+"""
 # analyze_hdf5_correlation_noisy_graph.py
 import h5py
 import numpy as np

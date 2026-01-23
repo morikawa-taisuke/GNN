@@ -1,3 +1,12 @@
+"""
+あるモデルにおけるノイズの種類・残響時間・信号対雑音比ごとの性能をプロット
+
+分析内容：
+1. `estimation_name`列からのノイズタイプ、SNR、残響時間の抽出。
+2. CSVデータの前処理（分類と数値データ変換を含む）。
+3. ノイズタイプ、SNR、残響時間がSISDRスコアに及ぼす影響の可視化。
+"""
+
 import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
