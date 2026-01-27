@@ -1,3 +1,18 @@
+"""
+ミュージカルノイズの発生に関する性能評価をするプログラム
+
+このモジュールは、特定の命名規則とメタデータを用いてオーディオファイルからメトリクスを照合、分析、抽出する機能を提供します。
+音楽ノイズメトリクスの計算、バッチディレクトリの処理、CSV出力の生成を行います。
+
+本モジュールは、クリーンなオーディオおよびモデル生成オーディオ出力を処理し、オーディオ分析に基づくメトリクスの計算と結果の要約を目的としています。
+
+機能:
+- get_file_id: 命名規則に基づきファイル名から一意の識別子を抽出します。
+- parse_metadata: 指定されたファイル名から分析に有用なメタデータフィールドを抽出します。
+- get_musical_noise_metrics: クリーン音声ファイルと推定音声ファイルに基づき、
+  帯域特異的な音楽的ノイズ指標を計算します。
+- batch_analyze_with_id_matching: クリーン音声ディレクトリとモデル音声ディレクトリ間でファイルを照合し、
+  バッチ分析を実行し、結果をCSVファイルに出力します。"""
 import os
 import glob
 import numpy as np
@@ -134,19 +149,21 @@ def batch_analyze_with_id_matching(clean_dir, model_dirs, output_csv="detailed_a
 # 設定例
 if __name__ == "__main__":
 	# 実際のパスに合わせて書き換えてください
-	edge_aria = "temporal"   # all, temporal
-	edge_select = "knn" # knn, random
+	edge_aria_list = ["temporal", "all"]   # all, temporal
+	edge_select_list = ["knn", "random"] # knn, random
 
 	wave_type_list = ['noise_only', 'reverb_only', 'noise_reverb']
 
-	for wave_type in wave_type_list:
-		target_model_dirs = {
-			'GCN': f'/Users/a/Documents/sound_data/RESULT/output_wav/Random_Dataset_VCTK_DEMAND_1ch/AAA_SpeqGCN/AAA_SpeqGCN_{wave_type}_32node_{edge_aria}_{edge_select}',
-			'GAT': f'/Users/a/Documents/sound_data/RESULT/output_wav/Random_Dataset_VCTK_DEMAND_1ch/AAA_SpeqGAT/AAA_SpeqGAT_{wave_type}_32node_{edge_aria}_{edge_select}'
-		}
+	for edge_aria in edge_aria_list:
+		for edge_select in edge_select_list:
+			for wave_type in wave_type_list:
+				target_model_dirs = {
+					'GCN': f'/Users/a/Documents/sound_data/RESULT/output_wav/Random_Dataset_VCTK_DEMAND_1ch/SpeqGCN/SpeqGCN_{wave_type}_32node_{edge_aria}_{edge_select}',
+					'GAT': f'/Users/a/Documents/sound_data/RESULT/output_wav/Random_Dataset_VCTK_DEMAND_1ch/SpeqGAT/SpeqGAT_{wave_type}_32node_{edge_aria}_{edge_select}'
+				}
 
-		df = batch_analyze_with_id_matching(
-			clean_dir='/Users/a/Documents/sound_data/mix_data/Random_Dataset_1ch/clean',
-			model_dirs=target_model_dirs,
-			output_csv=f"{wave_type}_{edge_aria}_{edge_select}.csv"
-		)
+				df = batch_analyze_with_id_matching(
+					clean_dir='/Users/a/Documents/sound_data/mix_data/Random_Dataset_1ch/clean',
+					model_dirs=target_model_dirs,
+					output_csv=f"SpeqGNN_{wave_type}_{edge_aria}_{edge_select}.csv"
+				)
