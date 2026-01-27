@@ -1,16 +1,15 @@
-import numpy as np
-import os
 import csv
-import argparse
-from tqdm import tqdm
+import os
 from concurrent.futures import ProcessPoolExecutor, as_completed
 
+import numpy as np
 # 評価ライブラリ
 from pesq import pesq
 from pystoi import stoi
+from tqdm import tqdm
+
 # SI-SDRは既存のモジュールまたは計算式を使用
 from evaluation.SI_SDR import sisdr_evaluation
-
 from mymodule import my_func, const
 
 
@@ -60,56 +59,87 @@ def process_single_pair(target_file, estimation_file, fs, pesq_mode):
 		return f"Error in {os.path.basename(target_file)}: {str(e)}"
 
 
-def main():
-	parser = argparse.ArgumentParser(description="CPU-based Audio Evaluation using 'pesq' library")
-
-	# パス設定 (既存の構成を継承)
-	dir_name = "DEMAND_DEMAND"
-	model_type = "ConvTasNet"
-	input_csv = f"{const.MIX_DATA_DIR}/{dir_name}/test.csv"
-	estimation_column = "reverb_only"
-	out_name = f"{model_type}_{estimation_column}_cpu"
-
-	parser.add_argument("--input_csv", type=str, default=input_csv)
-	parser.add_argument("--target_column", type=str, default="clean")
-	parser.add_argument("--estimation_column", type=str, default=estimation_column)
-	parser.add_argument("--estimation_dir", type=str, default=f"{const.OUTPUT_WAV_DIR}/{dir_name}/{model_type}/{out_name}")
-	parser.add_argument("--out_path", type=str, default=f"{const.EVALUATION_DIR}/{dir_name}/{model_type}/{out_name}.csv")
+def main(input_csv, target_column, estimation_column, estimation_dir, out_path):
+	# parser.add_argument("--input_csv", type=str, default=input_csv)
+	# parser.add_argument("--target_column", type=str, default="clean")
+	# parser.add_argument("--estimation_column", type=str, default=estimation_column)
+	# parser.add_argument("--estimation_dir", type=str, default=f"{const.OUTPUT_WAV_DIR}/{dir_name}/{model_type}/{out_name}")
+	# parser.add_argument("--out_path", type=str, default=f"{const.EVALUATION_DIR}/{dir_name}/{model_type}/{out_name}.csv")
 
 	# 評価設定
-	parser.add_argument("--fs", type=int, default=16000, help="Sampling rate (16000 or 8000)")
-	parser.add_argument("--mode", type=str, default="wb", choices=["wb", "nb"],
-	                    help="PESQ mode: 'wb' (wideband) or 'nb' (narrowband)")
-	parser.add_argument("--workers", type=int, default=None, help="Number of CPU cores")
-
-	args = parser.parse_args()
+	fs = const.SR
+	mode = "nb" # wb, nb
+	workers = None
 
 	# --- ファイルリストの準備 ---
-	file_pairs = []
-	if not os.path.exists(args.input_csv):
-		print(f"Input CSV not found: {args.input_csv}")
+	"""file_pairs = []
+	if not os.path.exists(input_csv):
+		print(f"Input CSV not found: {input_csv}")
 		return
 
-	with open(args.input_csv, "r", encoding="utf-8") as f:
+	with open(input_csv, "r", encoding="utf-8") as f:
 		reader = csv.DictReader(f)
 		for row in reader:
-			target_file = row[args.target_column]
-			est_filename = os.path.basename(row[args.estimation_column])
-			estimation_file = os.path.join(args.estimation_dir, est_filename)
+			target_file = row[target_column]
+			est_filename = os.path.basename(row[estimation_column])
+			estimation_file = os.path.join(estimation_dir, est_filename)
 
 			if os.path.exists(target_file) and os.path.exists(estimation_file):
 				file_pairs.append((target_file, estimation_file))
 
 	if not file_pairs:
 		print("No valid file pairs found.")
+		return"""
+	file_pairs = []
+	try:
+		with open(input_csv, "r", encoding="utf-8") as f:
+			reader = csv.reader(f)
+			header = next(reader)
+			try:
+				target_idx = header.index(target_column)
+				estimation_idx = header.index(estimation_column)
+			except ValueError as e:
+				print(f"❌ エラー: CSVヘッダーに指定された列が見つかりません '{header}': {e}")
+				return
+
+			for row in reader:
+				if len(row) > max(target_idx, estimation_idx):
+					target_file = row[target_idx]
+					# estimationファイルはファイル名だけ取得
+					estimation_filename_in_csv = row[estimation_idx]
+
+					if target_file and estimation_filename_in_csv:
+						# estimationファイルのフルパスを生成
+						estimation_base_name = os.path.basename(estimation_filename_in_csv)
+						# print(estimation_filename_in_csv)
+						# print(estimation_base_name)
+						# exit()
+						estimation_file = os.path.join(estimation_dir, estimation_base_name)
+
+						if os.path.exists(target_file) and os.path.exists(estimation_file):
+							file_pairs.append((target_file, estimation_file))
+						else:
+							print(
+								f"⚠️ 警告: 行をスキップします。ファイルパスが存在しないか、ファイルが見つかりません: target='{target_file}', estimation='{estimation_file}'")
+					else:
+						print(f"⚠️ 警告: CSV内のパスが空です。行をスキップします: {row}")
+				else:
+					print(f"⚠️ 警告: 不正な形式の行をスキップします: {row}")
+
+	except FileNotFoundError:
+		print(f"❌ エラー: 入力CSVファイルが見つかりません: {input_csv}")
+		return
+
+	if not file_pairs:
+		print("評価対象の有効なファイルペアが見つかりませんでした。")
 		return
 
 	# --- 並列実行 ---
 	results = []
-	print(f"Evaluating {len(file_pairs)} files on CPU ({args.fs}Hz, {args.mode})...")
+	print(f"Evaluating {len(file_pairs)} files on CPU ({fs}Hz, {mode})...")
 
-	with ProcessPoolExecutor(max_workers=args.workers) as executor:
-		futures = [executor.submit(process_single_pair, t, e, args.fs, args.mode) for t, e in file_pairs]
+	with ProcessPoolExecutor(max_workers=workers) as executor:
+		futures = [executor.submit(process_single_pair, t, e, fs, mode) for t, e in file_pairs]
 		for future in tqdm(as_completed(futures), total=len(futures), desc="Processing"):
 			res = future.result()
 			if isinstance(res, list):
@@ -124,19 +154,45 @@ def main():
 	aves = np.mean(res_np, axis=0)
 	vars = np.var(res_np, axis=0)
 
-	os.makedirs(os.path.dirname(args.out_path), exist_ok=True)
-	with open(args.out_path, "w", encoding="utf-8", newline="") as f:
+	os.makedirs(os.path.dirname(out_path), exist_ok=True)
+	with open(out_path, "w", encoding="utf-8", newline="") as f:
 		writer = csv.writer(f)
-		writer.writerow(["PESQ_Mode", args.mode, "Sampling_Rate", args.fs])
+		writer.writerow(["PESQ_Mode", mode, "Sampling_Rate", fs])
 		writer.writerow(["target_name", "estimation_name", "pesq", "stoi", "sisdr"])
 		writer.writerows(results)
 		writer.writerow([])
 		writer.writerow(["average", "", *aves])
 		writer.writerow(["variance", "", *vars])
 
-	print(f"\nSaved to: {args.out_path}")
+	print(f"\nSaved to: {out_path}")
 	print(f"Ave: PESQ={aves[0]:.3f}, STOI={aves[1]:.3f}, SI-SDR={aves[2]:.3f}")
 
 
 if __name__ == "__main__":
-	main()
+	# 実際のパスに合わせて書き換えてください
+	model_list = [
+		"UGCN",
+		"UGAT",
+		"SpeqGCN",
+		"SpeqGAT"
+	]
+	edge_aria_list = ["temporal", "all"]  # all, temporal
+	edge_select_list = ["knn", "random"]  # knn, random
+	wave_type_list = ['noise_only', 'reverb_only', 'noise_reverb']
+	dir_name = "Random_Dataset_VCTK_DEMAND_1ch"
+	num_node = 32
+
+	for model_type in model_list:
+		for edge_aria in edge_aria_list:
+			for edge_select in edge_select_list:
+				for wave_type in wave_type_list:
+					out_name = f"{model_type}_{wave_type}_{num_node}node_{edge_aria}_{edge_select}"  # 出力名
+					input_csv = f"{const.MIX_DATA_DIR}/{dir_name}/test.csv"
+					# UGAT_noise_only_32node_all_knn
+					estimation_dir = f"{const.OUTPUT_WAV_DIR}/{dir_name}/{model_type}/{out_name}"
+					out_path = f"{const.EVALUATION_DIR}/{dir_name}_nb/{model_type}/{out_name}_nb.csv"
+
+					target_column = "clean"
+					estimation_column = wave_type
+					print(estimation_dir)
+					main(input_csv, target_column, estimation_column, estimation_dir, out_path)
