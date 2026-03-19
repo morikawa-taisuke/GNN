@@ -20,3 +20,6 @@ mymodule/const.py
 /Dataset/config_generate_reverb_dataset.py
 /Dataset/config_format_complete_dataset.py
 /evaluation/analysis/result/
+/analysis/analysis_heatmaps/
+/analysis/analysis_report/
+/check_node/
