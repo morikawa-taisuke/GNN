@@ -58,156 +58,172 @@ def extract_info(name):
 
 	return noise, snr, reverberation_time
 
+if __name__ == "__main__":
+	# --- 1. 元のCSVファイルの読`み込みと前処理 ---
+	print("--- スコアファイルの読み込みと前処理を開始 ---")
+	model_list = [
+		"UGCN",
+		"UGAT",
+		"SpeqGCN",
+		"SpeqGAT"
+	]
+	edge_aria_list = ["temporal", "all"]  # all, temporal
+	edge_select_list = ["knn", "random"]  # knn, random
+	wave_type_list = ['noise_only', 'reverb_only', 'noise_reverb']
+	dir_name = "Random_Dataset_VCTK_DEMAND_1ch"
+	num_node = 32
 
-# --- 1. 元のCSVファイルの読み込みと前処理 ---
-print("--- スコアファイルの読み込みと前処理を開始 ---")
+	for model_type in model_list:
+		for edge_aria in edge_aria_list:
+			for edge_select in edge_select_list:
+				for wave_type in wave_type_list:
+					out_name = f"{model_type}_{wave_type}_{num_node}node_{edge_aria}_{edge_select}"  # 出力名
 
-# 分析対象の元のCSVファイル
-# (train.csv は訓練パス一覧のため、ここでは使用しません)
-original_files = {
-	'noise_only': '/Users/a/Documents/sound_data/RESULT/evalation/SISDR_SpeqGAT_noise_only_32node_temporal_knn_CSV.csv',
-	'noise_reverb': '/Users/a/Documents/sound_data/RESULT/evalation/SISDR_SpeqGAT_noise_reverb_32node_temporal_knn_CSV.csv',
-	'reverb_only': '/Users/a/Documents/sound_data/RESULT/evalation/SISDR_SpeqGAT_reverb_only_32node_temporal_knn_CSV.csv'
-}
+					# 分析対象の元のCSVファイル
+					original_files = {
+						'noise_only': f'/Users/a/Documents/sound_data/RESULT/evalation/{dir_name}/{out_name}.csv',
+						'noise_reverb': f'/Users/a/Documents/sound_data/RESULT/evalation/{dir_name}/{out_name}.csv',
+						'reverb_only': f'/Users/a/Documents/sound_data/RESULT/evalation/{dir_name}/{out_name}.csv'
+					}
 
-all_data = []
-files_processed_count = 0
+					all_data = []
+					files_processed_count = 0
 
-for task_name, filepath in original_files.items():
-	try:
-		# スコアCSVは先頭4行がヘッダー情報のためスキップ
-		df = pd.read_csv(filepath, skiprows=4)
+					for task_name, filepath in original_files.items():
+						try:
+							# スコアCSVは先頭4行がヘッダー情報のためスキップ
+							df = pd.read_csv(filepath, skiprows=4)
 
-		# 'estimation_name' が存在するか確認
-		if 'estimation_name' not in df.columns:
-			print(f"警告: {filepath} に 'estimation_name' カラムがありません。スキップします。")
-			continue
+							# 'estimation_name' が存在するか確認
+							if 'estimation_name' not in df.columns:
+								print(f"警告: {filepath} に 'estimation_name' カラムがありません。スキップします。")
+								continue
 
-		# ファイル名解析を適用
-		df[['Noise', 'SNR', 'ReverberationTime']] = df['estimation_name'].apply(
-			lambda x: pd.Series(extract_info(x))
-		)
+							# ファイル名解析を適用
+							df[['Noise', 'SNR', 'ReverberationTime']] = df['estimation_name'].apply(
+								lambda x: pd.Series(extract_info(x))
+							)
 
-		df['task'] = task_name  # タスク名（実験の種類）をカラムに追加
-		all_data.append(df)
-		files_processed_count += 1
-		print(f"{filepath} を読み込み、解析しました。")
+							df['task'] = task_name  # タスク名（実験の種類）をカラムに追加
+							all_data.append(df)
+							files_processed_count += 1
+							print(f"{filepath} を読み込み、解析しました。")
 
-	except FileNotFoundError:
-		print(f"警告: {filepath} が見つかりません。スキップします。")
-	except Exception as e:
-		print(f"警告: {filepath} の読み込み中にエラーが発生しました: {e}")
+						except FileNotFoundError:
+							print(f"警告: {filepath} が見つかりません。スキップします。")
+						except Exception as e:
+							print(f"警告: {filepath} の読み込み中にエラーが発生しました: {e}")
 
-if files_processed_count == 0:
-	print("エラー: 分析対象のスコアファイルが一つも見つかりませんでした。処理を中断します。")
-else:
-	# データをすべて結合
-	df_combined = pd.concat(all_data, ignore_index=True)
+					if files_processed_count == 0:
+						print("エラー: 分析対象のスコアファイルが一つも見つかりませんでした。処理を中断します。")
+					else:
+						# データをすべて結合
+						df_combined = pd.concat(all_data, ignore_index=True)
 
-	# --- 2. データ前処理 (数値化) ---
+						# --- 2. データ前処理 (数値化) ---
 
-	# SNR (例: '-5db') を数値 (-5) に変換
-	df_combined['SNR_value'] = pd.to_numeric(
-		df_combined['SNR'].str.replace('db', ''),
-		errors='coerce'  # 変換不能な値は NaN (Not a Number) にする
-	)
+						# SNR (例: '-5db') を数値 (-5) に変換
+						df_combined['SNR_value'] = pd.to_numeric(
+							df_combined['SNR'].str.replace('db', ''),
+							errors='coerce'  # 変換不能な値は NaN (Not a Number) にする
+						)
 
-	# ReverberationTime (例: '760msec') を数値 (760) に変換
-	df_combined['Reverb_value'] = pd.to_numeric(
-		df_combined['ReverberationTime'].str.replace('msec', ''),
-		errors='coerce'
-	)
+						# ReverberationTime (例: '760msec') を数値 (760) に変換
+						df_combined['Reverb_value'] = pd.to_numeric(
+							df_combined['ReverberationTime'].str.replace('msec', ''),
+							errors='coerce'
+						)
 
-	# Noise カラムの欠損値 (NaN や None) を 'No_Noise' というカテゴリ名に置き換える
-	df_combined['Noise'] = df_combined['Noise'].fillna('No_Noise')
-	df_combined['Noise'] = df_combined['Noise'].replace('None', 'No_Noise')
+						# Noise カラムの欠損値 (NaN や None) を 'No_Noise' というカテゴリ名に置き換える
+						df_combined['Noise'] = df_combined['Noise'].fillna('No_Noise')
+						df_combined['Noise'] = df_combined['Noise'].replace('None', 'No_Noise')
 
-	print("\n--- 結合・前処理後のデータ確認 ---")
-	print("Combined DataFrame Info:")
-	df_combined.info()
+						print("\n--- 結合・前処理後のデータ確認 ---")
+						print("Combined DataFrame Info:")
+						df_combined.info()
 
-	# --- 3. 分析と可視化 (グラフ作成) ---
+						# --- 3. 分析と可視化 (グラフ作成) ---
 
-	sns.set_style("whitegrid")
+						sns.set_style("whitegrid")
 
-	# --- 分析1: 雑音の種類による性能差 (sisdr) ---
-	print("\n--- 分析1: 雑音の種類による性能差 ---")
+						# --- 分析1: 雑音の種類による性能差 (sisdr) ---
+						print("\n--- 分析1: 雑音の種類による性能差 ---")
 
-	# 'No_Noise' (reverb_onlyタスクなど) を除外したデータで平均値を計算
-	noise_data = df_combined[df_combined['Noise'] != 'No_Noise']
-	if not noise_data.empty:
-		# 平均スコアでソートするための順序を取得
-		noise_order = noise_data.groupby('Noise')['sisdr'].mean().sort_values(ascending=False).index
+						# 'No_Noise' (reverb_onlyタスクなど) を除外したデータで平均値を計算
+						noise_data = df_combined[df_combined['Noise'] != 'No_Noise']
+						if not noise_data.empty:
+							# 平均スコアでソートするための順序を取得
+							noise_order = noise_data.groupby('Noise')['sisdr'].mean().sort_values(ascending=False).index
 
-		plt.figure(figsize=(12, 7))
-		sns.barplot(
-			data=noise_data,
-			x='Noise',
-			y='sisdr',
-			hue='task',  # 'noise_only' か 'noise_reverb' か
-			order=noise_order
-		)
-		plt.title('Noise Type vs. Average SISDR Score (excl. No_Noise)', fontsize=16)
-		plt.xlabel('Noise Type', fontsize=12)
-		plt.ylabel('Average SISDR Score', fontsize=12)
-		plt.xticks(rotation=45, ha='right')
-		plt.legend(title='Task')
-		plt.tight_layout()
-		plt.show()
-		# plt.savefig('noise_vs_sisdr.png')
-		# print("グラフ 'noise_vs_sisdr.png' を保存しました。")
-	else:
-		print("雑音データ（'No_Noise'以外）が見つかりませんでした。")
+							plt.figure(figsize=(12, 7))
+							sns.barplot(
+								data=noise_data,
+								x='Noise',
+								y='sisdr',
+								hue='task',  # 'noise_only' か 'noise_reverb' か
+								order=noise_order
+							)
+							plt.title('Noise Type vs. Average SISDR Score (excl. No_Noise)', fontsize=16)
+							plt.xlabel('Noise Type', fontsize=12)
+							plt.ylabel('Average SISDR Score', fontsize=12)
+							plt.xticks(rotation=45, ha='right')
+							plt.legend(title='Task')
+							plt.tight_layout()
+							# plt.show()
+							plt.savefig(f'./{out_name}/noise_vs_sisdr.png')
+							print("グラフ 'noise_vs_sisdr.png' を保存しました。")
+						else:
+							print("雑音データ（'No_Noise'以外）が見つかりませんでした。")
 
-	# --- 分析2: SNRの大きさによる性能差 (sisdr) ---
-	print("\n--- 分析2: SNRの大きさによる性能差 ---")
+						# --- 分析2: SNRの大きさによる性能差 (sisdr) ---
+						print("\n--- 分析2: SNRの大きさによる性能差 ---")
 
-	# SNRを含むデータ (NaN は除く)
-	snr_data = df_combined.dropna(subset=['SNR_value'])
-	if not snr_data.empty:
-		plt.figure(figsize=(10, 6))
-		sns.lineplot(
-			data=snr_data,
-			x='SNR_value',
-			y='sisdr',
-			hue='task',  # タスクごとに線を描画
-			marker='o'
-		)
-		plt.title('SNR vs. Average SISDR Score', fontsize=16)
-		plt.xlabel('SNR (db)', fontsize=12)
-		plt.ylabel('Average SISDR Score', fontsize=12)
-		plt.legend(title='Task')
-		plt.tight_layout()
-		plt.show()
-		# plt.savefig('snr_vs_sisdr.png')
-		# print("グラフ 'snr_vs_sisdr.png' を保存しました。")
-	else:
-		print("SNRデータが見つかりませんでした。")
+						# SNRを含むデータ (NaN は除く)
+						snr_data = df_combined.dropna(subset=['SNR_value'])
+						if not snr_data.empty:
+							plt.figure(figsize=(10, 6))
+							sns.lineplot(
+								data=snr_data,
+								x='SNR_value',
+								y='sisdr',
+								hue='task',  # タスクごとに線を描画
+								marker='o'
+							)
+							plt.title('SNR vs. Average SISDR Score', fontsize=16)
+							plt.xlabel('SNR (db)', fontsize=12)
+							plt.ylabel('Average SISDR Score', fontsize=12)
+							plt.legend(title='Task')
+							plt.tight_layout()
+							# plt.show()
+							plt.savefig(f'./{out_name}/snr_vs_sisdr.png')
+							print("グラフ 'snr_vs_sisdr.png' を保存しました。")
+						else:
+							print("SNRデータが見つかりませんでした。")
 
-	# --- 分析3: 残響時間による性能差 (sisdr) ---
-	print("\n--- 分析3: 残響時間による性能差 ---")
+						# --- 分析3: 残響時間による性能差 (sisdr) ---
+						print("\n--- 分析3: 残響時間による性能差 ---")
 
-	# 残響時間を含むデータ (NaN は除く)
-	reverb_data = df_combined.dropna(subset=['Reverb_value'])
-	if not reverb_data.empty:
-		plt.figure(figsize=(10, 6))
-		sns.scatterplot(
-			data=reverb_data,
-			x='Reverb_value',
-			y='sisdr',
-			hue='task',  # 'reverb_only' か 'noise_reverb' か
-			alpha=0.7,
-			s=50
-		)
-		plt.title('Reverberation Time vs. SISDR Score', fontsize=16)
-		plt.xlabel('Reverberation Time (msec)', fontsize=12)
-		plt.ylabel('SISDR Score', fontsize=12)
-		plt.legend(title='Task')
-		plt.tight_layout()
-		plt.show()
-		# plt.savefig('reverb_vs_sisdr.png')
-		# print("グラフ 'reverb_vs_sisdr.png' を保存しました。")
-	else:
-		print("残響時間のデータが見つかりませんでした。")
+						# 残響時間を含むデータ (NaN は除く)
+						reverb_data = df_combined.dropna(subset=['Reverb_value'])
+						if not reverb_data.empty:
+							plt.figure(figsize=(10, 6))
+							sns.scatterplot(
+								data=reverb_data,
+								x='Reverb_value',
+								y='sisdr',
+								hue='task',  # 'reverb_only' か 'noise_reverb' か
+								alpha=0.7,
+								s=50
+							)
+							plt.title('Reverberation Time vs. SISDR Score', fontsize=16)
+							plt.xlabel('Reverberation Time (msec)', fontsize=12)
+							plt.ylabel('SISDR Score', fontsize=12)
+							plt.legend(title='Task')
+							plt.tight_layout()
+							# plt.show()
+							plt.savefig(f'./{out_name}/reverb_vs_sisdr.png')
+							print("グラフ 'reverb_vs_sisdr.png' を保存しました。")
+						else:
+							print("残響時間のデータが見つかりませんでした。")
 
-	print("\nすべての分析プログラムが完了しました。")
+						print("\nすべての分析プログラムが完了しました。")

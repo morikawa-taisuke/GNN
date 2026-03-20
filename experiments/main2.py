@@ -305,9 +305,9 @@ if __name__ == "__main__":
         "UGCN", "UGAT",
 	]  # モデルの種類  "UGCN", "UGAT", "ConvTasNet", "UNet"
 	wave_types = [
-		"noise_only",
-		"reverb_only",
-		"noise_reverb",
+		"clean",
+		# "reverb_only",
+		# "noise_reverb",
 	]  # 入力信号の種類 (noise_only, reverb_only, noise_reverb)    # UGAT_all_random_reverb_only
 	node_selection_list = [
 		NodeSelectionType.TEMPORAL,
@@ -345,7 +345,7 @@ if __name__ == "__main__":
 					raise ValueError(f"Unknown model type: {model_type}")
 
 
-				dir_name = "DEMAND_hoth_10dB_500msec"
+				dir_name = "Random_Dataset_VCTK_DEMAND_1ch"
 				for wave_type in wave_types:
 					# out_name = f"{model_type}_{wave_type}"	# 出力名
 					out_name = f"{model_type}_{wave_type}_{num_node}node_{node_selection.value}_{edge_selection.value}"  # 出力名

@@ -2,7 +2,7 @@ import numpy as np
 import os
 import csv
 import argparse
-
+import torch
 from tqdm import tqdm
 
 # 自作モジュール
@@ -78,9 +78,9 @@ def main(input_csv_path, target_column, estimation_column, estimation_dir, out_p
 		f.write("target_name,estimation_name,pesq,stoi,sisdr\n")
 
 	# --- 3. 評価指標の初期化 ---
-	pesq_sum = 0
-	stoi_sum = 0
-	sisdr_sum = 0
+	pesq_scores = []
+	stoi_scores = []
+	sisdr_scores = []
 	evaluated_count = 0
 
 	# --- 4. 各ファイルペアを処理 ---
@@ -103,9 +103,9 @@ def main(input_csv_path, target_column, estimation_column, estimation_dir, out_p
 			stoi_score = stoi_evaluation(target_data, estimation_data)
 			sisdr_score = sisdr_evaluation(target_data, estimation_data)
 
-			pesq_sum += pesq_score
-			stoi_sum += stoi_score
-			sisdr_sum += sisdr_score
+			pesq_scores.append(pesq_score)
+			stoi_scores.append(stoi_score)
+			sisdr_scores.append(sisdr_score.item() if torch.is_tensor(sisdr_score) else sisdr_score)
 			evaluated_count += 1
 
 			with open(out_path, "a", encoding="utf-8", newline="") as f:
@@ -116,19 +116,21 @@ def main(input_csv_path, target_column, estimation_column, estimation_dir, out_p
 			print(f"ファイル処理中にエラーが発生しました {target_file}, {estimation_file}: {e}")
 
 	# --- 5. 平均値を計算して書き込む ---
-	if evaluated_count > 0:
-		pesq_ave = pesq_sum / evaluated_count
-		stoi_ave = stoi_sum / evaluated_count
-		sisdr_ave = sisdr_sum / evaluated_count
+	if len(pesq_scores) > 0:
+		pesq_ave, pesq_var = np.mean(pesq_scores), np.var(pesq_scores)
+		stoi_ave, stoi_var = np.mean(stoi_scores), np.var(stoi_scores)
+		sisdr_ave, sisdr_var = np.mean(sisdr_scores), np.var(sisdr_scores)
 
 		with open(out_path, "a", encoding="utf-8", newline="") as f:
 			writer = csv.writer(f)
-			writer.writerow(["average", "", pesq_ave, stoi_ave, sisdr_ave.item()])
+			writer.writerow(["average", "", pesq_ave, stoi_ave, sisdr_ave])
+			writer.writerow(["variance", "", pesq_var, stoi_var, sisdr_var])
 
-		print("\n--- 平均スコア ---")
-		print(f"PESQ   : {pesq_ave:.3f}")
-		print(f"STOI   : {stoi_ave:.3f}")
-		print(f"SI-SDR : {sisdr_ave:.3f}")
+		print("\n--- スコア統計 ---")
+		print(f"PESQ   : Ave {pesq_ave:.3f}, Var {pesq_var:.3f}")
+		print(f"STOI   : Ave {stoi_ave:.3f}, Var {stoi_var:.3f}")
+		print(f"SI-SDR : Ave {sisdr_ave:.3f}, Var {sisdr_var:.3f}")
+	# ... 後略 ...
 	else:
 		print("評価されたファイルはありませんでした。")
 

@@ -68,7 +68,7 @@ def main(input_csv, target_column, estimation_column, estimation_dir, out_path):
 
 	# 評価設定
 	fs = const.SR
-	mode = "nb" # wb, nb
+	mode = "wb" # wb, nb
 	workers = None
 
 	# --- ファイルリストの準備 ---
@@ -171,8 +171,8 @@ def main(input_csv, target_column, estimation_column, estimation_dir, out_path):
 if __name__ == "__main__":
 	# 実際のパスに合わせて書き換えてください
 	model_list = [
-		"UGCN",
-		"UGAT",
+		# "UGCN",
+		# "UGAT",
 		"SpeqGCN",
 		"SpeqGAT"
 	]
@@ -190,7 +190,7 @@ if __name__ == "__main__":
 					input_csv = f"{const.MIX_DATA_DIR}/{dir_name}/test.csv"
 					# UGAT_noise_only_32node_all_knn
 					estimation_dir = f"{const.OUTPUT_WAV_DIR}/{dir_name}/{model_type}/{out_name}"
-					out_path = f"{const.EVALUATION_DIR}/{dir_name}_nb/{model_type}/{out_name}_nb.csv"
+					out_path = f"{const.EVALUATION_DIR}/{dir_name}/{model_type}/{out_name}.csv"
 
 					target_column = "clean"
 					estimation_column = wave_type
