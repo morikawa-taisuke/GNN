@@ -6,7 +6,7 @@ import torch
 from tqdm import tqdm
 
 # 自作モジュール
-# パスが通っていることを前提としています
+# パスが通ってぁE��ことを前提としてぁE��ぁE
 from evaluation.PESQ import pesq_evaluation
 from evaluation.STOI import stoi_evaluation
 from evaluation.SI_SDR import sisdr_evaluation
@@ -31,17 +31,17 @@ def main(input_csv_path, target_column, estimation_column, estimation_dir, out_p
 				target_idx = header.index(target_column)
 				estimation_idx = header.index(estimation_column)
 			except ValueError as e:
-				print(f"❌ エラー: CSVヘッダーに指定された列が見つかりません '{header}': {e}")
+				print(f"❁Eエラー: CSVヘッダーに持E��された列が見つかりません '{header}': {e}")
 				return
 
 			for row in reader:
 				if len(row) > max(target_idx, estimation_idx):
 					target_file = row[target_idx]
-					# estimationファイルはファイル名だけ取得
+					# estimationファイルはファイル名だけ取征E
 					estimation_filename_in_csv = row[estimation_idx]
 
 					if target_file and estimation_filename_in_csv:
-						# estimationファイルのフルパスを生成
+						# estimationファイルのフルパスを生戁E
 						estimation_base_name = os.path.basename(estimation_filename_in_csv)
 						estimation_file = os.path.join(estimation_dir, estimation_base_name)
 
@@ -49,27 +49,27 @@ def main(input_csv_path, target_column, estimation_column, estimation_dir, out_p
 							file_pairs.append((target_file, estimation_file))
 						else:
 							print(
-								f"⚠️ 警告: 行をスキップします。ファイルパスが存在しないか、ファイルが見つかりません: target='{target_file}', estimation='{estimation_file}'")
+								f"⚠�E�E警呁E 行をスキチE�Eします。ファイルパスが存在しなぁE��、ファイルが見つかりません: target='{target_file}', estimation='{estimation_file}'")
 					else:
-						print(f"⚠️ 警告: CSV内のパスが空です。行をスキップします: {row}")
+						print(f"⚠�E�E警呁E CSV冁E�Eパスが空です。行をスキチE�EしまぁE {row}")
 				else:
-					print(f"⚠️ 警告: 不正な形式の行をスキップします: {row}")
+					print(f"⚠�E�E警呁E 不正な形式�E行をスキチE�EしまぁE {row}")
 
 	except FileNotFoundError:
-		print(f"❌ エラー: 入力CSVファイルが見つかりません: {input_csv_path}")
+		print(f"❁Eエラー: 入力CSVファイルが見つかりません: {input_csv_path}")
 		return
 
 	if not file_pairs:
-		print("評価対象の有効なファイルペアが見つかりませんでした。")
+		print("評価対象の有効なファイルペアが見つかりませんでした、E)
 		return
 
-	# --- 2. 出力ファイルを作成し、ヘッダーを書き込む ---
+	# --- 2. 出力ファイルを作�Eし、�EチE��ーを書き込む ---
 	output_dir = os.path.dirname(out_path)
 	if output_dir:
 		os.makedirs(output_dir, exist_ok=True)
 
 	with open(out_path, "w", encoding="utf-8", newline="") as f:
-		# メタ情報の書き込み
+		# メタ惁E��の書き込み
 		f.write(f"input_csv,{input_csv_path}\n")
 		f.write(f"target_column,{target_column}\n")
 		f.write(f"estimation_column,{estimation_column}\n")
@@ -77,13 +77,13 @@ def main(input_csv_path, target_column, estimation_column, estimation_dir, out_p
 		# CSVヘッダーの書き込み
 		f.write("target_name,estimation_name,pesq,stoi,sisdr\n")
 
-	# --- 3. 評価指標の初期化 ---
+	# --- 3. 評価持E���E初期匁E---
 	pesq_scores = []
 	stoi_scores = []
 	sisdr_scores = []
 	evaluated_count = 0
 
-	# --- 4. 各ファイルペアを処理 ---
+	# --- 4. 吁E��ァイルペアを�E琁E---
 	for target_file, estimation_file in tqdm(file_pairs, desc="Evaluating files"):
 		try:
 			target_name, _ = my_func.get_file_name(target_file)
@@ -113,9 +113,9 @@ def main(input_csv_path, target_column, estimation_column, estimation_dir, out_p
 				writer.writerow([target_name, estimation_name, pesq_score, stoi_score, sisdr_score.item()])
 
 		except Exception as e:
-			print(f"ファイル処理中にエラーが発生しました {target_file}, {estimation_file}: {e}")
+			print(f"ファイル処琁E��にエラーが発生しました {target_file}, {estimation_file}: {e}")
 
-	# --- 5. 平均値を計算して書き込む ---
+	# --- 5. 平坁E��を計算して書き込む ---
 	if len(pesq_scores) > 0:
 		pesq_ave, pesq_var = np.mean(pesq_scores), np.var(pesq_scores)
 		stoi_ave, stoi_var = np.mean(stoi_scores), np.var(stoi_scores)
@@ -126,18 +126,18 @@ def main(input_csv_path, target_column, estimation_column, estimation_dir, out_p
 			writer.writerow(["average", "", pesq_ave, stoi_ave, sisdr_ave])
 			writer.writerow(["variance", "", pesq_var, stoi_var, sisdr_var])
 
-		print("\n--- スコア統計 ---")
+		print("\n--- スコア統訁E---")
 		print(f"PESQ   : Ave {pesq_ave:.3f}, Var {pesq_var:.3f}")
 		print(f"STOI   : Ave {stoi_ave:.3f}, Var {stoi_var:.3f}")
 		print(f"SI-SDR : Ave {sisdr_ave:.3f}, Var {sisdr_var:.3f}")
 	# ... 後略 ...
 	else:
-		print("評価されたファイルはありませんでした。")
+		print("評価されたファイルはありませんでした、E)
 
 
 if __name__ == "__main__":
 	parser = argparse.ArgumentParser(
-		description="""CSVファイルに基づいて音声評価（PESQ, STOI, SI-SDR）を実行します。 CSVファイルには、音声ファイルへのパスを含む列が必要です。""",
+		description="""CSVファイルに基づぁE��音声評価�E�EESQ, STOI, SI-SDR�E�を実行します、ECSVファイルには、E��声ファイルへのパスを含む列が忁E��です、E"",
 		formatter_class=argparse.RawTextHelpFormatter
 	)
 
@@ -155,15 +155,15 @@ if __name__ == "__main__":
 		estimation_dir = f"\\\\192.168.11.63\\io-data_nas\\morikawa\\RESULT\\output_wav\\Random_Dataset_VCTK_DEMAND_1ch\\{model_type}\\{model_type}_{estimation_column}"
 		out_path = f"\\\\192.168.11.63\\io-data_nas\\morikawa\\RESULT\\evaluation\\Random_Dataset_VCTK_DEMAND_1ch\\{model_type}\\{model_type}_{estimation_column}.csv"
 
-		# parser.add_argument("--input_csv", type=str, default=input_csv, help="入力CSVファイルのパス。例: 'C:/data/test.csv'")
+		# parser.add_argument("--input_csv", type=str, default=input_csv, help="入力CSVファイルのパス。侁E 'C:/data/test.csv'")
 		# parser.add_argument("--target_column", type=str, default="clean",
-		# 					help="ターゲット（クリーンな）音声ファイルへのパスを含む列の名前。(デフォルト: 'clean')")
+		# 					help="ターゲチE���E�クリーンな�E�音声ファイルへのパスを含む列�E名前、EチE��ォルチE 'clean')")
 		# parser.add_argument("--estimation_column", type=str, default=estimation_column,
-		# 					help="評価対象のファイル名が含まれる列の名前。例: 'noise_only'")
+		# 					help="評価対象のファイル名が含まれる列�E名前。侁E 'noise_only'")
 		# parser.add_argument("--estimation_dir", type=str, default=estimation_dir,
-		# 					help="評価対象の音声ファイルが格納されているディレクトリのパス。")
+		# 					help="評価対象の音声ファイルが格納されてぁE��チE��レクトリのパス、E)
 		# parser.add_argument("--out_path", type=str, default=out_path,
-		# 					help="出力評価CSVファイルを保存するパス。例: 'C:/results/evaluation.csv'")
+		# 					help="出力評価CSVファイルを保存するパス。侁E 'C:/results/evaluation.csv'")
 		#
 		# args = parser.parse_args()
 
@@ -188,7 +188,7 @@ if __name__ == "__main__":
 	# --target_column
 	# clean
 	# --estimation_column
-	# noise_reverbe
+	# noise_reverb
 	# --estimation_dir
 	# \\\\192.168.11.63\io-data_nas\morikawa\RESULT\output_wav\Random_Dataset_VCTK_DEMAND_1ch\AAA_SpeqGAT\AAA_SpeqGAT_noise_only_32node_temporal_random
 	# --out_path

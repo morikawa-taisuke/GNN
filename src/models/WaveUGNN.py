@@ -14,7 +14,17 @@ device = confirmation_GPU.get_device()
 class GNN_Bottleneck(nn.Module):
 	""" 3層のGNN構成 (GCN または GAT) """
 
-	def __init__(self, input_dim, hidden_dim, output_dim, gnn_type="GCN", heads=4, dropout=0.2):
+	def __init__(self, input_dim: int, hidden_dim: int, output_dim: int, gnn_type: str = "GCN", heads: int = 4, dropout: float = 0.2):
+		"""
+		初期化関数。3層のGNN(GCN または GAT)をボトルネック部に構築する。
+		Args:
+			input_dim (int): 入力特徴量の次元数
+			hidden_dim (int): 中間層の特徴量次元数
+			output_dim (int): 出力特徴量の次元数
+			gnn_type (str): 'GCN' または 'GAT'。デフォルトは 'GCN'
+			heads (int): GATのヘッド数。デフォルトは 4
+			dropout (float): ドロップアウト率。デフォルトは 0.2
+		"""
 		super().__init__()
 		self.gnn_type = gnn_type
 		self.dropout = dropout
@@ -32,7 +42,15 @@ class GNN_Bottleneck(nn.Module):
 			# 最終層は出力を結合せず平均化(concat=False)して元の次元に戻す
 			self.conv3 = GATConv(hidden_dim * heads, output_dim, heads=1, concat=False, dropout=dropout)
 
-	def forward(self, x, edge_index):
+	def forward(self, x: torch.Tensor, edge_index: torch.Tensor) -> torch.Tensor:
+		"""
+		順伝播処理
+		Args:
+			x (torch.Tensor): ノードの特徴量テンソル。形状は [num_nodes, input_dim] または [batch_size * num_nodes, input_dim]
+			edge_index (torch.Tensor): グラフのエッジ関係を示すインデックス [2, num_edges]
+		Returns:
+			torch.Tensor: GNN層適用後のノード特徴量テンソル
+		"""
 		if self.gnn_type == "GCN":
 			x = F.relu(self.conv1(x, edge_index))
 			x = F.relu(self.conv2(x, edge_index))
@@ -53,7 +71,17 @@ class Wave_UGNN(nn.Module):
 	原論文再現版 Wave-U-Net + GNNボトルネック
 	"""
 
-	def __init__(self, num_inputs=1, num_outputs=1, num_layers=12, initial_filter_size=24, gnn_type="GCN", graph_config=None):
+	def __init__(self, num_inputs: int = 1, num_outputs: int = 1, num_layers: int = 12, initial_filter_size: int = 24, gnn_type: str = "GCN", graph_config: GraphConfig = None):
+		"""
+		初期化関数。
+		Args:
+			num_inputs (int): 入力チャンネル数
+			num_outputs (int): 出力チャンネル数
+			num_layers (int): U-Netのエンコーダー/デコーダーの深さ（層数）
+			initial_filter_size (int): 最初の畳み込み層のフィルター数
+			gnn_type (str): ボトルネック部に使用するGNNのタイプ ('GCN' or 'GAT')
+			graph_config (GraphConfig): ボトルネック部のGNNにおけるグラフ構築用の設定オブジェクト
+		"""
 		super(Wave_UGNN, self).__init__()
 		self.num_layers = num_layers
 

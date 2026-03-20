@@ -13,55 +13,55 @@ import my_func
 
 def move_files(source_dir: str, destination_dir: str, search_str: str, is_remove: bool = False) -> None:
     """
-    ディレクトリから任意の文字列を含むファイル名を別のディレクトリにコピーする
+    チE��レクトリから任意�E斁E���Eを含むファイル名を別のチE��レクトリにコピ�Eする
 
     Parameters
     ----------
-    source_dir(str):移動元のディレクトリ名
-    destination_dir(str):移動先のディレクトリ名
-    search_str(str):検索する文字列
-    is_remove(bool):移動元から削除するかどうか (True:削除する, False:削除しない)
+    source_dir(str):移動�EのチE��レクトリ吁E
+    destination_dir(str):移動�EのチE��レクトリ吁E
+    search_str(str):検索する斁E���E
+    is_remove(bool):移動�Eから削除するかどぁE�� (True:削除する, False:削除しなぁE
 
     Returns
     -------
     None
     """
-    """ 出力先の作成 """
+    """ 出力�Eの作�E """
     print("source_dir:", source_dir)
     print("destination_dir:", destination_dir)
     my_func.make_dir(destination_dir)
-    """ 移動元ディレクトリ内のファイルをリストアップ """
+    """ 移動�EチE��レクトリ冁E�EファイルをリストアチE�E """
     file_list = os.listdir(source_dir)
 
-    """ 条件に合致するファイルを移動 """
+    """ 条件に合�Eするファイルを移勁E"""
     for file in tqdm(file_list):
         if search_str in file:
-            """パスの作成"""
-            source_file_path = os.path.join(source_dir, file)  # 移動元
-            destination_file_path = os.path.join(destination_dir, file)  # 移動先
-            """ ファイルのコピー """
+            """パスの作�E"""
+            source_file_path = os.path.join(source_dir, file)  # 移動�E
+            destination_file_path = os.path.join(destination_dir, file)  # 移動�E
+            """ ファイルのコピ�E """
             shutil.copy(source_file_path, destination_file_path)
-            if is_remove:  # 移動元から削除する場合
+            if is_remove:  # 移動�Eから削除する場吁E
                 os.remove(source_file_path)  # 削除
 
 
 def split_wav_file(source_dir: str, destination_dir: str, num_splits: int = 1) -> None:
     """
-    1つ音源ファイルを任意のファイルに分割する(pyroomacousticsで1chで録音した音源を分割するのに使用)
+    1つ音源ファイルを任意�Eファイルに刁E��する(pyroomacousticsで1chで録音した音源を刁E��するのに使用)
 
     Parameters
     ----------
-    source_dir(str):分割する前のディレクトリ
-    destination_dir(str):分割後のディレクトリ
-    num_splits(int):分割数
+    source_dir(str):刁E��する前�EチE��レクトリ
+    destination_dir(str):刁E��後�EチE��レクトリ
+    num_splits(int):刁E��数
 
     Returns
     -------
     None
     """
-    """ 出力先の作成 """
+    """ 出力�Eの作�E """
     my_func.make_dir(destination_dir)
-    # 移動元ディレクトリ内のwavファイルをリストアップ
+    # 移動�EチE��レクトリ冁E�EwavファイルをリストアチE�E
     wav_file_list = [f for f in os.listdir(source_dir) if f.endswith(".wav")]
 
     for wav_file in wav_file_list:
@@ -69,15 +69,15 @@ def split_wav_file(source_dir: str, destination_dir: str, num_splits: int = 1) -
 
         """読み込み"""
         with wave.open(source_file_path, "rb") as original_wav:
-            """分割後のサンプル数を算出"""
-            num_samples = original_wav.getnframes()  # 分割前のサンプル数
-            samples_per_split = num_samples // num_splits  # 分割後のサンプル数
+            """刁E��後�Eサンプル数を算�E"""
+            num_samples = original_wav.getnframes()  # 刁E��前�Eサンプル数
+            samples_per_split = num_samples // num_splits  # 刁E��後�Eサンプル数
 
             for i in range(num_splits):
-                """分割後のファイル名を生成"""
+                """刁E��後�Eファイル名を生�E"""
                 split_file_name = f"{os.path.splitext(wav_file)[0]}_split_{i + 1}.wav"
                 destination_file_path = os.path.join(destination_dir, split_file_name)
-                """ 保存 """
+                """ 保孁E"""
                 with wave.open(destination_file_path, "wb") as split_wav:
                     split_wav.setparams(original_wav.getparams())
                     start_sample = i * samples_per_split
@@ -87,17 +87,17 @@ def split_wav_file(source_dir: str, destination_dir: str, num_splits: int = 1) -
 
 
 def rename_files_in_directory(directory, search_string, new_string):
-    # ディレクトリ内のすべてのファイルを検索
+    # チE��レクトリ冁E�Eすべてのファイルを検索
     # directory=os.path.join(directory, "*")
     # print(directory)
     files = glob.glob(os.path.join(directory, "*"))
     print(files)
 
     for file in tqdm(files):
-        # ファイル名に検索文字列が含まれているかをチェック
+        # ファイル名に検索斁E���Eが含まれてぁE��かをチェチE��
         # print(file)
         if search_string in os.path.basename(file):
-            # 新しいファイル名を生成
+            # 新しいファイル名を生�E
             old_name, ext = my_func.get_file_name(file)
             # print(ext)
             old_name = f"{old_name}{ext}"
@@ -111,34 +111,34 @@ def rename_files_in_directory(directory, search_string, new_string):
 
 """
 if __name__ == "__main__":
-    # 移動元ディレクトリと移動先ディレクトリを指定
-    source_directory = "../../sound_data/ConvTasNet/separate/result" #"移動元ディレクトリのパス"
-    destination_directory = "../../sound_data/ConvTasNet/separate/split" #"移動先ディレクトリのパス"
-    # 分割数を指定
+    # 移動�EチE��レクトリと移動�EチE��レクトリを指宁E
+    source_directory = "../../sound_data/ConvTasNet/separate/result" #"移動�EチE��レクトリのパス"
+    destination_directory = "../../sound_data/ConvTasNet/separate/split" #"移動�EチE��レクトリのパス"
+    # 刁E��数を指宁E
     num_splits = 2
-    # wavファイルを分割して保存
+    # wavファイルを�E割して保孁E
     split_wav_file(source_directory, destination_directory, num_splits)
 """
 
 if __name__ == "__main__":
-    # 移動元ディレクトリと移動先ディレクトリを指定
-    """ 条件に合致するファイルの検索文字列を指定 """
-    search_string = "p232"  # "検索文字列"
+    # 移動�EチE��レクトリと移動�EチE��レクトリを指宁E
+    """ 条件に合�Eするファイルの検索斁E���Eを指宁E"""
+    search_string = "p232"  # "検索斁E���E"
     remove = True
-    """ ディレクトリ名の作成 """
-    source_directory = f"C:/Users/kataoka-lab/Desktop/sound_data/sample_data/speech/DEMAND/val"  # "移動元ディレクトリのパス"
+    """ チE��レクトリ名�E作�E """
+    source_directory = f"C:/Users/kataoka-lab/Desktop/sound_data/sample_data/speech/DEMAND/val"  # "移動�EチE��レクトリのパス"
     wave_type_list = [
         "clean",
         "noise_only",
-        "noise_reverbe",
+        "noise_reverb",
         "reverbe_only",
-    ]  # "noise_only", "noise_reverbe", "reverbe_only"
+    ]  # "noise_only", "noise_reverb", "reverbe_only"
 
-    speeker_list = my_func.get_subdir_list(source_directory)
-    for wave_type in speeker_list:
-        destination_directory = f"{source_directory}/"  # "移動先ディレクトリのパス"
+    speaker_list = my_func.get_subdir_list(source_directory)
+    for wave_type in speaker_list:
+        destination_directory = f"{source_directory}/"  # "移動�EチE��レクトリのパス"
         search_string = wave_type
-        """ ファイルを移動 """
+        """ ファイルを移勁E"""
         move_files(os.path.join(source_directory, wave_type), destination_directory, search_string, is_remove=remove)
 
     # sub_dir_list = my_func.get_subdir_list(source_directory)
@@ -148,11 +148,11 @@ if __name__ == "__main__":
     #     wav_path_list = random.sample(All_wav_list, 10)
     #     my_func.make_dir(destination_directory)
     #     for wav_path in wav_path_list:
-    #         """ ファイルのコピー """
+    #         """ ファイルのコピ�E """
     #         shutil.copy(wav_path, destination_directory)
 
-    """ 文字列の置換 """
-    # 使用例
+    """ 斁E���Eの置揁E"""
+    # 使用侁E
     # C:\Users\kataoka-lab\Desktop\sound_data\dataset\subset_DEMAND_hoth_1010dB_05sec_4ch_10cm\Front\noise_only
     # directory = "C:\\Users\\kataoka-lab\\Desktop\\sound_data\\dataset\\subset_DEMAND_hoth_1010dB_05sec_4ch_10cm\\"
     # # subdir_list = my_func.get_subdir_list(directory).remove("noise_only", "")

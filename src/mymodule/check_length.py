@@ -14,14 +14,14 @@ from mymodule import my_func, const
 
 def save_list_to_csv(data_list, filename, header=None):
     """
-    リストのリストをCSVファイルに保存します。
+    リスト�EリストをCSVファイルに保存します、E
 
     Args:
-        data_list (list): 保存したいデータを含むリストのリスト（二次元リスト）。
-                          各内部リストはCSVの1行に対応します。
-        filename (str): 保存するCSVファイルのパスとファイル名（例: 'output.csv'）。
-        header (list, optional): CSVファイルのヘッダー行として使用する文字列のリスト。
-                                 指定しない場合はヘッダーは書き込まれません。
+        data_list (list): 保存したいチE�Eタを含むリスト�Eリスト（二次允E��スト）、E
+                          吁E�E部リスト�ECSVの1行に対応します、E
+        filename (str): 保存するCSVファイルのパスとファイル名（侁E 'output.csv'�E�、E
+        header (list, optional): CSVファイルのヘッダー行として使用する斁E���Eのリスト、E
+                                 持E��しなぁE��合�Eヘッダーは書き込まれません、E
     """
     try:
         my_func.make_dir(filename)
@@ -31,8 +31,8 @@ def save_list_to_csv(data_list, filename, header=None):
             if header:
                 csv_writer.writerow(header)  # ヘッダーを書き込む
 
-            csv_writer.writerows(data_list)  # データ行を書き込む
-        # print(f"'{filename}' にデータを保存しました。")
+            csv_writer.writerows(data_list)  # チE�Eタ行を書き込む
+        # print(f"'{filename}' にチE�Eタを保存しました、E)
     except IOError as e:
         print(f"ファイル '{filename}' への書き込み中にエラーが発生しました: {e}")
     except Exception as e:
@@ -41,16 +41,16 @@ def save_list_to_csv(data_list, filename, header=None):
 # npzファイルの読み込み
 def load_dataset(dataset_path:str, out_dir:str):
     """
-    npzファイルから入力データと教師データを読み込む
+    npzファイルから入力データと教師チE�Eタを読み込む
 
     Parameters
     ----------
-    dataset_path(str):データセットのパス
+    dataset_path(str):チE�EタセチE��のパス
 
     Returns
     -------
     mix_list:入力信号
-    target_list:目的信号
+    target_list:目皁E��号
     """
     # print('\nload_dataset')
     dataset_list = find_files(dataset_path, ext="npz", case_sensitive=True)
@@ -70,7 +70,7 @@ def load_dataset(dataset_path:str, out_dir:str):
 
 def main():
     print("main")
-    dataset_path = f"{const.DATASET_DIR}/DEMAND_1ch/condition_4/noise_reverbe"
+    dataset_path = f"{const.DATASET_DIR}/DEMAND_1ch/condition_4/noise_reverb"
     out_path = f"{const.DATASET_DIR}/DEMAND_1ch/condition_4/edge_idx/"
     edge_idx = load_dataset(dataset_path, out_path)
     # print(len(edge_idx))

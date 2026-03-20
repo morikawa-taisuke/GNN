@@ -15,28 +15,28 @@ def main(target_dir, estimation_dir, out_path):
     print("target: ", target_dir)
     print("estimation: ", estimation_dir)
 
-    """ 出力ファイルの作成"""
+    """ 出力ファイルの作�E"""
     my_func.make_dir(out_path)
     with open(out_path, "w") as csv_file:
         csv_file.write(f"target_dir,{target_dir}\nestimation_dir,{estimation_dir}\n")
         csv_file.write(f"{out_path}\ntarget_name,estimation_name,pesq,stoi,sisdr\n")
 
-    """ ファイルリストの作成 """
+    """ ファイルリスト�E作�E """
     target_list = my_func.get_file_list(dir_path=target_dir, ext=".wav")
     estimation_list = my_func.get_file_list(dir_path=estimation_dir, ext=".wav")
     # print("target: ",len(target_list))
     # print("estimation: ",len(estimation_list))
 
-    """ 初期化 """
+    """ 初期匁E"""
     pesq_sum = 0
     stoi_sum = 0
     sisdr_sum = 0
 
     for target_file, estimation_file in tzip(target_list, estimation_list):
-        """ファイル名の取得"""
+        """ファイル名�E取征E""
         target_name, _ = my_func.get_file_name(target_file)
         estimation_name, _ = my_func.get_file_name(estimation_file)
-        """ 音源の読み込み """
+        """ 音源�E読み込み """
         target_data, _ = my_func.load_wav(target_file)
         estimation_data, _ = my_func.load_wav(estimation_file)
 
@@ -50,7 +50,7 @@ def main(target_dir, estimation_dir, out_path):
         target_data = np.nan_to_num(target_data, nan=0.0, posinf=0.0, neginf=0.0)
         estimation_data = np.nan_to_num(estimation_data, nan=0.0, posinf=0.0, neginf=0.0)
 
-        """ 客観評価の計算 """
+        """ 客観評価の計箁E"""
         pesq_score = pesq_evaluation(target_data, estimation_data)
         stoi_score = stoi_evaluation(target_data, estimation_data)
         sisdr_score = sisdr_evaluation(target_data, estimation_data)
@@ -58,17 +58,17 @@ def main(target_dir, estimation_dir, out_path):
         stoi_sum += stoi_score
         sisdr_sum += sisdr_score
 
-        """ 出力(ファイルへの書き込み) """
+        """ 出劁Eファイルへの書き込み) """
         with open(out_path, "a") as csv_file:  # ファイルオープン
-            text = f"{target_name},{estimation_name},{pesq_score},{stoi_score},{sisdr_score}\n"  # 書き込む内容の作成
+            text = f"{target_name},{estimation_name},{pesq_score},{stoi_score},{sisdr_score}\n"  # 書き込む冁E��の作�E
             csv_file.write(text)  # 書き込み
 
-    """ 平均の算出(ファイルへの書き込み) """
+    """ 平坁E�E算�E(ファイルへの書き込み) """
     pesq_ave = pesq_sum / len(estimation_list)
     stoi_ave = stoi_sum / len(estimation_list)
     sisdr_ave = sisdr_sum / len(estimation_list)
     with open(out_path, "a") as csv_file:  # ファイルオープン
-        text = f"average,,{pesq_ave},{stoi_ave},{sisdr_ave}\n"  # 書き込む内容の作成
+        text = f"average,,{pesq_ave},{stoi_ave},{sisdr_ave}\n"  # 書き込む冁E��の作�E
         csv_file.write(text)  # 書き込み
 
     print(f"PESQ : {pesq_ave:.3f}")
@@ -81,7 +81,7 @@ if __name__ == "__main__":
     print("evaluation")
 
     # model_type = ["SpeqGCN", "SpeqGAT", "SpeqGCN2", "SpeqGAT2"]
-    # wave_types = ["clean", "noise_only", "reverbe_only", "noise_reverbe"]
+    # wave_types = ["clean", "noise_only", "reverbe_only", "noise_reverb"]
     wave_types = ["noise_only"]
 
     # model = "subset_DEMAND_hoth_5dB_500msec"

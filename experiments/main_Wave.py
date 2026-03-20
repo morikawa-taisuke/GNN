@@ -64,6 +64,22 @@ def train(model: nn.Module,
 		  train_count: int = const.EPOCH,
 		  earlystopping_threshold: int = 5,
           accumulation_steps: int = 4):
+	"""
+	モデルの学習を行うメイン関数。
+	
+	Args:
+		model (nn.Module): 学習対象のPyTorchモデル
+		train_csv (str): 学習用データセットのCSVファイルパス
+		val_csv (str): 検証用データセットのCSVファイルパス
+		wave_type (str): 入力信号の種類 (例: 'noise_only', 'reverb_only', 'noise_reverb')
+		out_path (str): モデルの重みを保存するベースパス
+		loss_type (str): 使用する損失関数の種類 (例: 'stft_MSE', 'SISDR')
+		batchsize (int): バッチサイズ
+		checkpoint_path (str, optional): 学習再開用のチェックポイントパス
+		train_count (int): 最大エポック数
+		earlystopping_threshold (int): Early Stoppingの忍耐エポック数
+		accumulation_steps (int): 勾配累積のステップ数
+	"""
 	"""GPUの設定"""
 	device = confirmation_GPU.get_device()
 	""" その他の設定 """
@@ -229,6 +245,17 @@ def train(model: nn.Module,
 
 
 def test(model: nn.Module, test_csv: str, wave_type: str, out_dir: str, model_path: str, prm: int = const.SR):
+	"""
+	学習済みモデルを用いた推論と波形保存を行う。
+
+	Args:
+		model (nn.Module): 推論に使用するPyTorchモデル
+		test_csv (str): テスト用データセットのCSVファイルパス
+		wave_type (str): 入力信号の種類
+		out_dir (str): 推論結果の波形を自動保存するディレクトリパス
+		model_path (str): 読み込むベストモデル(.pth)のパス
+		prm (int): サンプリングレート(SR)
+	"""
 	# ディレクトリを作成
 	my_func.make_dir(out_dir)
 	model_path = Path(model_path)  # path型に変換

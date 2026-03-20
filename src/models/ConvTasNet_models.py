@@ -138,11 +138,11 @@ class DepthConv1d(nn.Module):
         """
         Parameters
         ----------
-        input_dim:入力の次元数
-        hidden_dim:隠れ層の次元数
+        input_dim:入力�E次允E��
+        hidden_dim:隠れ層の次允E��
         kernel:カーネルサイズ
-        padding:パティング量
-        dilation:ダイレーションの量
+        padding:パティング釁E
+        dilation:ダイレーションの釁E
         skip:skip connection有無
         causal
         """
@@ -152,7 +152,7 @@ class DepthConv1d(nn.Module):
         self.skip = skip        # skip connectionの有無
         
         self.conv1d = nn.Conv1d(input_dim, hidden_dim, 1)
-        """ パティング量の調整 """
+        """ パティング量�E調整 """
         if self.causal:
             self.padding = (kernel - 1) * dilation
         else:
@@ -183,7 +183,7 @@ class DepthConv1d(nn.Module):
 
         Returns
         -------
-        residual:出力(残留物)
+        residual:出劁E残留物)
         """
         # print('\nDepthConv1d')
         output = self.reg1(self.nonlinearity1(self.conv1d(input_data)))
@@ -282,49 +282,49 @@ class TCN(nn.Module):
 """ Conv-TasNetクラスの定義 """
 class enhance_ConvTasNet(nn.Module):    # 音源強調
     def __init__(self, encoder_dim=512, feature_dim=128, sampling_rate=16000, win=4, layer=8, stack=3,
-                 kernel=3, num_speeker=1, causal=False):    #num_speeker=1もともとのやつ
+                 kernel=3, num_speaker=1, causal=False):    #num_speaker=1もともとのめE��
         super(enhance_ConvTasNet, self).__init__()
 
         """hyper parameters"""
-        self.num_speeker = num_speeker              # 話者数
-        self.encoder_dim = encoder_dim              # エンコーダに入力する次元数
-        self.feature_dim = feature_dim              # 特徴次元数 (エンコーダの出力)
+        self.num_speaker = num_speaker              # 話老E��
+        self.encoder_dim = encoder_dim              # エンコーダに入力する次允E��
+        self.feature_dim = feature_dim              # 特徴次允E�� (エンコーダの出劁E
         self.win = int(sampling_rate * win / 1000)  # 窓長
-        self.stride = self.win // 2                 # 畳み込み処理におけるフィルタが移動する幅
+        self.stride = self.win // 2                 # 畳み込み処琁E��おけるフィルタが移動する幁E
         self.layer = layer                          # 層数
-        self.stack = stack                          # スタック数
+        self.stack = stack                          # スタチE��数
         self.kernel = kernel                        # カーネル
         self.causal = causal                        #
         self.channel = 1                            # チャンネル数
 
         """input encoder"""
-        self.encoder = nn.Conv1d(in_channels=self.channel,      # 入力データの次元数 #=1もともとのやつ
-                                 out_channels=self.encoder_dim, # 出力データの次元数
+        self.encoder = nn.Conv1d(in_channels=self.channel,      # 入力データの次允E�� #=1もともとのめE��
+                                 out_channels=self.encoder_dim, # 出力データの次允E��
                                  kernel_size=self.win,          # 畳み込みのサイズ(波形領域なので窓長なの?)
                                  bias=False,                    # バイアスの有無(出力に学習可能なバイアスの追加)
-                                 stride=self.stride)            # 畳み込み処理の移動幅
+                                 stride=self.stride)            # 畳み込み処琁E�E移動幁E
 
         """TCN separator"""
-        self.TCN = TCN(input_dim=self.encoder_dim,                       # 入力データの次元数
-                       output_dim=self.encoder_dim * self.num_speeker,   # 出力データの次元数
-                       BN_dim=self.feature_dim,                          # ボトルネック層の特徴次元数
+        self.TCN = TCN(input_dim=self.encoder_dim,                       # 入力データの次允E��
+                       output_dim=self.encoder_dim * self.num_speaker,   # 出力データの次允E��
+                       BN_dim=self.feature_dim,                          # ボトルネック層の特徴次允E��
                        hidden_dim=self.feature_dim * 4,
                        layer=self.layer,                                 # 層数
-                       stack=self.stack,                                 # スタック数
+                       stack=self.stack,                                 # スタチE��数
                        kernel=self.kernel,                               # カーネルサイズ
                        causal=self.causal)
         self.receptive_field = self.TCN.receptive_field
 
         """output decoder"""
-        self.decoder = nn.ConvTranspose1d(in_channels = self.encoder_dim,     # 入力次元数
-                                          out_channels=1,                    # 出力次元数 1もともとのやつ
+        self.decoder = nn.ConvTranspose1d(in_channels = self.encoder_dim,     # 入力次允E��
+                                          out_channels=1,                    # 出力次允E�� 1もともとのめE��
                                           kernel_size= self.win,             # カーネルサイズ
                                           bias=False,
-                                          stride=self.stride)   # 畳み込み処理の移動幅
+                                          stride=self.stride)   # 畳み込み処琁E�E移動幁E
 
     def patting_signal(self, input_data: torch.Tensor) -> tuple:
         """
-        入力データをパティング→畳み込み前の次元数と畳み込み後の次元数を同じにするために入力データを0で囲む操作
+        入力データをパチE��ング→畳み込み前�E次允E��と畳み込み後�E次允E��を同じにするために入力データめEで囲む操佁E
 
         Parameters
         ----------
@@ -332,26 +332,26 @@ class enhance_ConvTasNet(nn.Module):    # 音源強調
 
         Returns
         -------
-        output(tensor):出力
+        output(tensor):出劁E
         rest:
         """
         # input is the waveforms: (B, T) or (B, 1, T)
         """reshape and padding"""
-        if input_data.dim() not in [2, 3]:   # inputの次元数が2or3出ないとき
+        if input_data.dim() not in [2, 3]:   # inputの次允E��ぁEor3出なぁE��ぁE
             raise RuntimeError("Input can only be 2 or 3 dimensional.")
 
-        if input_data.dim() == 2:            # inputの次元数が2の時
-            input_data = input_data.unsqueeze(1)  # 形状のn番目が1になるように次元を追加(今回の場合n=1)
+        if input_data.dim() == 2:            # inputの次允E��ぁEの晁E
+            input_data = input_data.unsqueeze(1)  # 形状のn番目ぁEになるよぁE��次允E��追加(今回の場吁E=1)
 
         batch_size = input_data.size(0)
         channels = input_data.size(1)
         num_sample = input_data.size(2)
-        # print(f'input.size:{input.size()}') # 次元数の確認 [1,1,128000]
+        # print(f'input.size:{input.size()}') # 次允E��の確誁E[1,1,128000]
         rest = self.win - (self.stride + num_sample % self.win) % self.win
         # print(f'rest:{rest}')
 
         if rest > 0:
-            zero_tensor=torch.zeros(batch_size, channels, rest) # tensor型の3次元配列を作成[batch_size, 1, rest]
+            zero_tensor=torch.zeros(batch_size, channels, rest) # tensor型�E3次允E�E列を作�E[batch_size, 1, rest]
             # print(f'zero_tensor.size:{zero_tensor.size()}')
             # pad = Variable(torch.zeros(batch_size, 1, rest)).type(input.type())
             pad = Variable(zero_tensor).type(input_data.type())
@@ -367,7 +367,7 @@ class enhance_ConvTasNet(nn.Module):    # 音源強調
 
     def forward(self, input_data: torch.Tensor) -> torch.Tensor:
         """
-        学習の手順
+        学習�E手頁E
 
         Parameters
         ----------
@@ -390,71 +390,71 @@ class enhance_ConvTasNet(nn.Module):    # 音源強調
         # print(f'type(encoder_output):{type(encoder_output)}')
         # print(f'encoder_output.shape:{encoder_output.shape}')
         """generate masks (separation)"""
-        masks = torch.sigmoid(self.TCN(encoder_output)).view(batch_size, self.num_speeker, self.encoder_dim, -1)  # B, C, N, L
+        masks = torch.sigmoid(self.TCN(encoder_output)).view(batch_size, self.num_speaker, self.encoder_dim, -1)  # B, C, N, L
         # print(f'type(masks):{type(masks)}')
         # print(f'masks.shape:{masks.shape}')
         masked_output = encoder_output.unsqueeze(1) * masks  # B, C, N, L
         # print(f'type(masked_output):{type(masked_output)}')
         # print(f'masked_output.shape:{masked_output.shape}')
         """decoder"""
-        reshape_masked_output = masked_output.view(batch_size * self.num_speeker, self.encoder_dim, -1)
+        reshape_masked_output = masked_output.view(batch_size * self.num_speaker, self.encoder_dim, -1)
         decoder_output = self.decoder(reshape_masked_output)  # B*C, 1, L
         # print(f'0:type(decoder_output):{type(decoder_output)}')
         # print(f'0:decoder_output.shape:{decoder_output.shape}')
         decoder_output = decoder_output[:, :, self.stride:-(rest + self.stride)].contiguous()  # B*C, 1, L
         # print(f'1:type(decoder_output):{type(decoder_output)}')
         # print(f'1:decoder_output.shape:{decoder_output.shape}')
-        decoder_output = decoder_output.view(batch_size, self.num_speeker, -1)  # B, C, T
+        decoder_output = decoder_output.view(batch_size, self.num_speaker, -1)  # B, C, T
         # print(f'2:type(decoder_output):{type(decoder_output)}')
         # print(f'2:decoder_output.shape:{decoder_output.shape}')
         return decoder_output
 
-class separate_ConvTasNet(nn.Module): # 音源分離
+class separate_ConvTasNet(nn.Module): # 音源�E離
     def __init__(self, enc_dim=512, feature_dim=128, sampling_rate=16000, win=2, layer=8, stack=3,
-                 kernel=3, num_spk=2, causal=False):    #num_spk=1もともとのやつ
+                 kernel=3, num_spk=2, causal=False):    #num_spk=1もともとのめE��
         super(separate_ConvTasNet, self).__init__()
 
         """hyper parameters"""
-        self.num_spk = num_spk                      # 話者数 2or3
-        self.enc_dim = enc_dim                      # エンコーダに入力する次元数
-        self.feature_dim = feature_dim              # 特徴次元数
+        self.num_spk = num_spk                      # 話老E�� 2or3
+        self.enc_dim = enc_dim                      # エンコーダに入力する次允E��
+        self.feature_dim = feature_dim              # 特徴次允E��
         self.win = int(sampling_rate * win / 1000)  # 窓長
-        self.stride = self.win // 2                 # 畳み込み処理におけるフィルタが移動する幅
+        self.stride = self.win // 2                 # 畳み込み処琁E��おけるフィルタが移動する幁E
         self.layer = layer                          # 層数
-        self.stack = stack                          # スタック数
+        self.stack = stack                          # スタチE��数
         self.kernel = kernel                        # カーネル
         self.causal = causal                        #
         self.channel = 1                            # チャンネル数
 
         """input encoder"""
-        self.encoder = nn.Conv1d(in_channels=self.channel,  # 入力データの次元数 #=1もともとのやつ
-                                 out_channels=self.enc_dim, # 出力データの次元数
+        self.encoder = nn.Conv1d(in_channels=self.channel,  # 入力データの次允E�� #=1もともとのめE��
+                                 out_channels=self.enc_dim, # 出力データの次允E��
                                  kernel_size=self.win,      # 畳み込みのサイズ(波形領域なので窓長なの?)
                                  bias=False,                # バイアスの有無(出力に学習可能なバイアスの追加)
-                                 stride=self.stride)        # 畳み込み処理の移動幅
+                                 stride=self.stride)        # 畳み込み処琁E�E移動幁E
 
         """TCN separator"""
-        self.TCN = TCN(input_dim=self.enc_dim,                   # 入力データの次元数
-                       output_dim=self.enc_dim * self.num_spk,   # 出力データの次元数
+        self.TCN = TCN(input_dim=self.enc_dim,                   # 入力データの次允E��
+                       output_dim=self.enc_dim * self.num_spk,   # 出力データの次允E��
                        BN_dim=self.feature_dim,
                        hidden_dim=self.feature_dim * 4,
                        layer=self.layer,                         # 層数
-                       stack=self.stack,                         # スタック数
+                       stack=self.stack,                         # スタチE��数
                        kernel=self.kernel,                       # カーネルサイズ
                        causal=self.causal)
 
         self.receptive_field = self.TCN.receptive_field
 
         """output decoder"""
-        self.decoder = nn.ConvTranspose1d(self.enc_dim, # 入力次元数
-                                          1,    # 出力次元数 話者の人数分出力する [1,音声長×話者数]
+        self.decoder = nn.ConvTranspose1d(self.enc_dim, # 入力次允E��
+                                          1,    # 出力次允E�� 話老E�E人数刁E�E力すめE[1,音声長×話老E��]
                                           self.win, # カーネルサイズ
                                           bias=False,   # バイアスの有無(出力に学習可能なバイアスの追加)
-                                          stride=self.stride)   # 畳み込み処理の移動幅
+                                          stride=self.stride)   # 畳み込み処琁E�E移動幁E
 
     def patting_signal(self, input_data: torch.Tensor) -> tuple:
         """
-        入力データをパティング→畳み込み前の次元数と畳み込み後の次元数を同じにするために入力データを0で囲む操作
+        入力データをパチE��ング→畳み込み前�E次允E��と畳み込み後�E次允E��を同じにするために入力データめEで囲む操佁E
 
         Parameters
         ----------
@@ -462,26 +462,26 @@ class separate_ConvTasNet(nn.Module): # 音源分離
 
         Returns
         -------
-        output(tensor):出力
+        output(tensor):出劁E
         rest:
         """
         # input is the waveforms: (B, T) or (B, 1, T)
         """reshape and padding"""
-        if input_data.dim() not in [2, 3]:  # inputの次元数が2or3出ないとき
+        if input_data.dim() not in [2, 3]:  # inputの次允E��ぁEor3出なぁE��ぁE
             raise RuntimeError("Input can only be 2 or 3 dimensional.")
 
-        if input_data.dim() == 2:  # inputの次元数が2の時
-            input_data = input_data.unsqueeze(1)  # 形状のn番目が1になるように次元を追加(今回の場合n=1)
+        if input_data.dim() == 2:  # inputの次允E��ぁEの晁E
+            input_data = input_data.unsqueeze(1)  # 形状のn番目ぁEになるよぁE��次允E��追加(今回の場吁E=1)
 
         batch_size = input_data.size(0)
         channels = input_data.size(1)
         num_sample = input_data.size(2)
-        # print(f'input_data.size:{input_data.size()}') # 次元数の確認 [1,1,128000]
+        # print(f'input_data.size:{input_data.size()}') # 次允E��の確誁E[1,1,128000]
         rest = self.win - (self.stride + num_sample % self.win) % self.win
         # print(f'rest:{rest}')
 
         if rest > 0:
-            zero_tensor = torch.zeros(batch_size, channels, rest)  # tensor型の3次元配列を作成[batch_size, 1, rest]
+            zero_tensor = torch.zeros(batch_size, channels, rest)  # tensor型�E3次允E�E列を作�E[batch_size, 1, rest]
             # print(f'zero_tensor.size:{zero_tensor.size()}')
             # pad = Variable(torch.zeros(batch_size, 1, rest)).type(input_data.type())
             pad = Variable(zero_tensor).type(input_data.type())
@@ -497,7 +497,7 @@ class separate_ConvTasNet(nn.Module): # 音源分離
 
     def forward(self, input_data: torch.Tensor) -> torch.Tensor:
         """
-        学習の手順
+        学習�E手頁E
 
         Parameters
         ----------
@@ -505,7 +505,7 @@ class separate_ConvTasNet(nn.Module): # 音源分離
 
         Returns
         -------
-        decoder_output(tensor):ConvTasNetの出力(推測値)
+        decoder_output(tensor):ConvTasNetの出劁E推測値)
         """
         # print(f'type(input_data):{type(input_data)}')
         # print(f'input_data.shape:{input_data.shape}') #input_data.shape[1,チャンネル数,音声長]

@@ -1,4 +1,4 @@
-import numpy as np  # 必要ない場合もありますが、念のため残します
+import numpy as np  # 忁E��なぁE��合もありますが、念のため残しまぁE
 import os
 import torch
 import torchaudio
@@ -13,53 +13,53 @@ from mymodule import my_func, const
 
 
 def main(target_dir, estimation_dir, out_path, device=torch.device("cpu")):
-    """客観評価を全て実行する (torchmetricsベースの評価関数を使用)"""
+    """客観評価を�Eて実行すめE(torchmetricsベ�Eスの評価関数を使用)"""
     print("target: ", target_dir)
     print("estimation: ", estimation_dir)
 
-    """ 出力ファイルの作成"""
+    """ 出力ファイルの作�E"""
     my_func.make_dir(out_path)
     with open(out_path, "w") as csv_file:
         csv_file.write(f"target_dir,{target_dir}\nestimation_dir,{estimation_dir}\n")
         csv_file.write(f"{out_path}\ntarget_name,estimation_name,pesq,stoi,sisdr\n")
 
-    """ ファイルリストの作成 """
+    """ ファイルリスト�E作�E """
     target_list = my_func.get_file_list(dir_path=target_dir, ext=".wav")
     estimation_list = my_func.get_file_list(dir_path=estimation_dir, ext=".wav")
 
-    """ 初期化 """
+    """ 初期匁E"""
     pesq_sum = 0
     stoi_sum = 0
     sisdr_sum = 0
-    num_files = 0  # 評価対象ファイルの数を正確にカウント
+    num_files = 0  # 評価対象ファイルの数を正確にカウンチE
 
     for target_file, estimation_file in tzip(target_list, estimation_list):
-        """ファイル名の取得"""
+        """ファイル名�E取征E""
         target_name, _ = my_func.get_file_name(target_file)
         estimation_name, _ = my_func.get_file_name(estimation_file)
 
-        """ 音源の読み込み (torchaudioを使用) """
+        """ 音源�E読み込み (torchaudioを使用) """
         target_data_tensor, sr_target = torchaudio.load(target_file)
         estimation_data_tensor, sr_estimation = torchaudio.load(estimation_file)
 
-        # 評価関数のために単一チャネルに変換（もし複数チャネルの場合）
+        # 評価関数のために単一チャネルに変換�E�もし褁E��チャネルの場合！E
         if target_data_tensor.ndim > 1:
             target_data_tensor = target_data_tensor[0, :]
         if estimation_data_tensor.ndim > 1:
             estimation_data_tensor = estimation_data_tensor[0, :]
 
-        # 長さの最小値に合わせてテンソルをトリミング
-        # 各評価関数内でも長さ調整が行われるが、ここで一貫して行うことで冗長性を減らせる
+        # 長さ�E最小値に合わせてチE��ソルをトリミング
+        # 吁E��価関数冁E��も長さ調整が行われるが、ここで一貫して行うことで冗長性を減らせる
         min_length = min(target_data_tensor.shape[0], estimation_data_tensor.shape[0])
         target_data_tensor = target_data_tensor[:min_length]
         estimation_data_tensor = estimation_data_tensor[:min_length]
 
-        # NaN/Inf値を0.0に置き換え（PyTorchを使用）
+        # NaN/Inf値めE.0に置き換え！EyTorchを使用�E�E
         target_data_tensor = torch.nan_to_num(target_data_tensor, nan=0.0, posinf=0.0, neginf=0.0)
         estimation_data_tensor = torch.nan_to_num(estimation_data_tensor, nan=0.0, posinf=0.0, neginf=0.0)
 
-        """ 客観評価の計算 (torchmetricsベースの関数を呼び出し) """
-        # 各評価関数はPyTorchテンソルを受け取り、単一のfloat値を返します
+        """ 客観評価の計箁E(torchmetricsベ�Eスの関数を呼び出ぁE """
+        # 吁E��価関数はPyTorchチE��ソルを受け取り、単一のfloat値を返しまぁE
         pesq_score = pesq_evaluation(target_data_tensor, estimation_data_tensor, device=device)
         stoi_score = stoi_evaluation(target_data_tensor, estimation_data_tensor, device=device)
         sisdr_score = sisdr_evaluation(target_data_tensor, estimation_data_tensor, device=device)
@@ -69,18 +69,18 @@ def main(target_dir, estimation_dir, out_path, device=torch.device("cpu")):
         sisdr_sum += sisdr_score
         num_files += 1
 
-        """ 出力(ファイルへの書き込み) """
+        """ 出劁Eファイルへの書き込み) """
         with open(out_path, "a") as csv_file:
             text = f"{target_name},{estimation_name},{pesq_score:.4f},{stoi_score:.4f},{sisdr_score:.4f}\n"  # フォーマットを調整
             csv_file.write(text)
 
-    """ 平均の算出(ファイルへの書き込み) """
+    """ 平坁E�E算�E(ファイルへの書き込み) """
     if num_files > 0:
         pesq_ave = pesq_sum / num_files
         stoi_ave = stoi_sum / num_files
         sisdr_ave = sisdr_sum / num_files
     else:
-        pesq_ave = stoi_ave = sisdr_ave = 0.0  # ファイルがない場合
+        pesq_ave = stoi_ave = sisdr_ave = 0.0  # ファイルがなぁE��吁E
 
     with open(out_path, "a") as csv_file:
         text = f"average,,{pesq_ave:.4f},{stoi_ave:.4f},{sisdr_ave:.4f}\n"  # フォーマットを調整
@@ -94,7 +94,7 @@ def main(target_dir, estimation_dir, out_path, device=torch.device("cpu")):
 if __name__ == "__main__":
     print("evaluation")
 
-    wave_types = ["clean", "noise_only", "reverbe_only", "noise_reverbe"]
+    wave_types = ["clean", "noise_only", "reverbe_only", "noise_reverb"]
 
     model = "subset_DEMAND_hoth_5dB_500msec"
     for wave_type in wave_types:

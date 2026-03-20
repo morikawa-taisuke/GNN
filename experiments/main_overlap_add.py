@@ -26,22 +26,22 @@ from models.wave_unet import U_Net
 from mymodule import my_func, const
 from mymodule.confirmation_GPU import get_device
 
-# CUDAのメモリ管理設定
+# CUDAのメモリ管琁E��宁E
 # os.environ['PYTORCH_CUDA_ALLOC_CONF'] = 'expandable_segments:True'
 
-# CUDAの可用性をチェック
-device = get_device()  # 使用可能なデバイスを取得
+# CUDAの可用性をチェチE��
+device = get_device()  # 使用可能なチE��イスを取征E
 # device = "mps"
 print(f"Using device: {device}")
 
 
 def padding_tensor(tensor1, tensor2):
     """
-    最後の次元（例: 時系列長）が異なる2つのテンソルに対して、
-    短い方を末尾にゼロパディングして長さをそろえる。
+    最後�E次允E��侁E 時系列長�E�が異なめEつのチE��ソルに対して、E
+    短ぁE��を末尾にゼロパディングして長さをそろえる、E
 
     Args:
-        tensor1, tensor2 (torch.Tensor): 任意の次元数のテンソル
+        tensor1, tensor2 (torch.Tensor): 任意�E次允E��のチE��ソル
 
     Returns:
         padded_tensor1, padded_tensor2 (torch.Tensor)
@@ -50,7 +50,7 @@ def padding_tensor(tensor1, tensor2):
     len2 = tensor2.size(-1)
     max_len = max(len1, len2)
 
-    pad1 = [0, max_len - len1]  # 最後の次元だけパディング
+    pad1 = [0, max_len - len1]  # 最後�E次允E��けパチE��ング
     pad2 = [0, max_len - len2]
 
     padded_tensor1 = F.pad(tensor1, pad1)
@@ -70,14 +70,14 @@ def train(
     train_count: int = const.EPOCH,
     earlystopping_threshold: int = 5,
 ):
-    """GPUの設定"""
-    device = "cuda" if torch.cuda.is_available() else "cpu"  # GPUが使えれば使う
-    """ その他の設定 """
+    """GPUの設宁E""
+    device = "cuda" if torch.cuda.is_available() else "cpu"  # GPUが使えれば使ぁE
+    """ そ�E他�E設宁E"""
     out_path = Path(out_path)  # path型に変換
-    out_name, out_dir = out_path.stem, out_path.parent  # ファイル名とディレクトリを分離
+    out_name, out_dir = out_path.stem, out_path.parent  # ファイル名とチE��レクトリを�E離
     writer = SummaryWriter(
         log_dir=f"{const.LOG_DIR}\\{out_name}"
-    )  # logの保存先の指定("tensorboard --logdir ./logs"で確認できる)
+    )  # logの保存�Eの持E��E"tensorboard --logdir ./logs"で確認できる)
     now = my_func.get_now_time()
     csv_path = os.path.join(
         const.LOG_DIR, out_name, f"{out_name}_{now}.csv"
@@ -86,21 +86,21 @@ def train(
     with open(csv_path, "w") as csv_file:  # ファイルオープン
         csv_file.write(f"dataset,out_name,loss_func\n{mix_dir},{out_path},{loss_func}")
 
-    """ Early_Stoppingの設定 """
-    best_loss = np.inf  # 損失関数の最小化が目的の場合，初めのbest_lossを無限大にする
+    """ Early_Stoppingの設宁E"""
+    best_loss = np.inf  # 損失関数の最小化が目皁E�E場合，�Eめ�Ebest_lossを無限大にする
     earlystopping_count = 0
 
-    """ Load dataset データセットの読み込み """
+    """ Load dataset チE�EタセチE��の読み込み """
     dataset = AudioDataset(
         clean_audio_dir=clean_dir, noisy_audio_dir=mix_dir
-    )  # データセットの読み込み
+    )  # チE�EタセチE��の読み込み
     dataset_loader = DataLoader(
         dataset, batch_size=batchsize, shuffle=True, pin_memory=True
     )
 
-    # print(f"\nmodel:{model}\n")                           # モデルのアーキテクチャの出力
-    """ 最適化関数の設定 """
-    optimizer = optim.Adam(model.parameters(), lr=0.001)  # optimizerを選択(Adam)
+    # print(f"\nmodel:{model}\n")                           # モチE��のアーキチE��チャの出劁E
+    """ 最適化関数の設宁E"""
+    optimizer = optim.Adam(model.parameters(), lr=0.001)  # optimizerを選抁EAdam)
     if loss_func == "SISDR":
         loss_metric = SISDR().to(device)
     elif loss_func == "wave_MSE" or loss_func == "stft_MSE":
@@ -108,17 +108,17 @@ def train(
     else:
         raise ValueError(f"Unknown loss function: {loss_func}")
 
-    """ チェックポイントの設定 """
+    """ チェチE��ポイント�E設宁E"""
     if checkpoint_path != None:
         print("restart_training")
         checkpoint = torch.load(checkpoint_path)  # checkpointの読み込み
         model.load_state_dict(
             checkpoint["model_state_dict"]
-        )  # 学習途中のモデルの読み込み
+        )  # 学習途中のモチE��の読み込み
         optimizer.load_state_dict(
             checkpoint["optimizer_state_dict"]
         )  # オプティマイザの読み込み
-        # optimizerのstateを現在のdeviceに移す。これをしないと、保存前後でdeviceの不整合が起こる可能性がある。
+        # optimizerのstateを現在のdeviceに移す。これをしなぁE��、保存前後でdeviceの不整合が起こる可能性がある、E
         for state in optimizer.state.values():
             for k, v in state.items():
                 if isinstance(v, torch.Tensor):
@@ -128,7 +128,7 @@ def train(
     else:
         start_epoch = 1
 
-    """ 学習の設定を出力 """
+    """ 学習�E設定を出劁E"""
     print("====================")
     print("device: ", device)
     print("out_path: ", out_path)
@@ -137,31 +137,31 @@ def train(
     print("====================")
 
     my_func.make_dir(out_dir)
-    model.train()  # 学習モードに設定
+    model.train()  # 学習モードに設宁E
 
-    start_time = time.time()  # 時間を測定
+    start_time = time.time()  # 時間を測宁E
     epoch = 0
     for epoch in range(start_epoch, train_count + 1):  # 学習回数
         print("Train Epoch:", epoch)  # 学習回数の表示
-        model_loss_sum = 0  # 総損失の初期化
+        model_loss_sum = 0  # 総損失の初期匁E
         for _, (mix_data, target_data) in tenumerate(dataset_loader):
-            # データをGPUに移動
+            # チE�EタをGPUに移勁E
             mix_data, target_data = mix_data.to(device), target_data.to(device)
 
-            """ 勾配のリセット """
-            optimizer.zero_grad()  # optimizerの初期化
+            """ 勾配�EリセチE�� """
+            optimizer.zero_grad()  # optimizerの初期匁E
 
-            """ データの整形 """
+            """ チE�Eタの整形 """
             # タイプを変換 int16→float32
             mix_data = mix_data.to(torch.float32)
             target_data = target_data.to(torch.float32)
 
-            """ ↓↓↓ オーバーラップアドの導入 ↓↓↓ """
+            """ ↓�EↁEオーバ�EラチE�Eアド�E導�E ↓�EↁE"""
             batchsize, num_channels, signal_length = (
                 mix_data.shape
-            )  # データの形状を取得
-            flame_size = int(const.SR * 0.1)  # フレームサイズ（100ms）
-            hop_size = flame_size // 2  # ホップサイズはフィルタ長の半分
+            )  # チE�Eタの形状を取征E
+            flame_size = int(const.SR * 0.1)  # フレームサイズ�E�E00ms�E�E
+            hop_size = flame_size // 2  # ホップサイズはフィルタ長の半�E
             # ゼロパディング
             mix_padded = torch.cat(
                 (
@@ -177,22 +177,22 @@ def train(
                 ),
                 dim=2,
             ).requires_grad_(True)
-            estimation = torch.zeros(mix_padded.shape, device=device)  # 出力用の配列
-            num_flame = mix_padded.shape[-1] // hop_size  # フレーム数の計算
+            estimation = torch.zeros(mix_padded.shape, device=device)  # 出力用の配�E
+            num_flame = mix_padded.shape[-1] // hop_size  # フレーム数の計箁E
 
             for i in range(num_flame):
                 start = i * hop_size
                 end = start + flame_size
 
-                # ブロックを取得
+                # ブロチE��を取征E
                 flame = mix_padded[:, :, start:end]
 
-                # 窓かけ
+                # 窓かぁE
                 window = torch.hann_window(
                     flame_size, requires_grad=True, device=device
                 )
                 if flame.shape[-1] != flame_size:
-                    # フレームサイズが異なる場合は、フレームサイズに合わせて切り詰める
+                    # フレームサイズが異なる場合�E、フレームサイズに合わせて刁E��詰める
                     flame = F.pad(
                         flame,
                         (0, flame_size - flame.shape[-1]),
@@ -200,26 +200,26 @@ def train(
                         value=0,
                     )
                 flame_windowed = flame * window  # ハニング窓を適用
-                """ モデルに通す(予測値の計算) """
+                """ モチE��に通す(予測値の計箁E """
                 # print("model_input", mix_data.shape)
-                estimate_flame = model(flame_windowed)  # モデルに通す
+                estimate_flame = model(flame_windowed)  # モチE��に通す
 
-                # 出力に結果を加算
+                # 出力に結果を加箁E
                 end_index = min(
                     estimation.shape[-1], end
-                )  # 配列の長さを超えないように調整
+                )  # 配�Eの長さを趁E��なぁE��ぁE��調整
                 estimation[:, :, start:end_index] = (
                     estimation[:, :, start:end_index]
                     + estimate_flame[:, :, : end_index - start]
                 )
-            """ ↑↑↑ オーバーラップアドの導入 ↑↑↑ """
+            """ ↑�EↁEオーバ�EラチE�Eアド�E導�E ↑�EↁE"""
 
-            """ データの整形 """
+            """ チE�Eタの整形 """
             # print("estimation:", estimate_data.shape)
             # print("target:", target_data.shape)
             estimation, target_padded = padding_tensor(estimation, target_padded)
 
-            """ 損失の計算 """
+            """ 損失の計箁E"""
             model_loss = 0
             match loss_func:
                 case "SISDR":
@@ -227,7 +227,7 @@ def train(
                 case "wave_MSE":
                     model_loss = loss_metric(
                         estimation, target_padded
-                    )  # 時間波形上でMSEによる損失関数の計算
+                    )  # 時間波形上でMSEによる損失関数の計箁E
                 case "stft_MSE":
                     """周波数軸に変換"""
                     stft_estimate_data = torch.stft(
@@ -238,24 +238,24 @@ def train(
                     )
                     model_loss = loss_metric(
                         stft_estimate_data, stft_target_data
-                    )  # 時間周波数上MSEによる損失の計算
+                    )  # 時間周波数上MSEによる損失の計箁E
 
-            # print(f"model_loss: {model_loss.item()}")  # 損失の出力
-            model_loss_sum += model_loss  # 損失の加算
+            # print(f"model_loss: {model_loss.item()}")  # 損失の出劁E
+            model_loss_sum += model_loss  # 損失の加箁E
 
-            """ 後処理 """
-            model_loss.backward()  # 誤差逆伝搬
-            optimizer.step()  # 勾配の更新
+            """ 後�E琁E"""
+            model_loss.backward()  # 誤差送E��搬
+            optimizer.step()  # 勾配�E更新
 
             del (
                 mix_data,
                 target_data,
                 estimation,
                 model_loss,
-            )  # 使用していない変数の削除 estimate_data,
+            )  # 使用してぁE��ぁE��数の削除 estimate_data,
             torch.cuda.empty_cache()  # メモリの解放 1iterationごとに解放
 
-        """ チェックポイントの作成 """
+        """ チェチE��ポイント�E作�E """
         torch.save(
             {
                 "epoch": epoch,
@@ -267,19 +267,19 @@ def train(
         )
 
         writer.add_scalar(str(out_name[0]), model_loss_sum, epoch)
-        print(f"[{epoch}]model_loss_sum:{model_loss_sum}")  # 損失の出力
+        print(f"[{epoch}]model_loss_sum:{model_loss_sum}")  # 損失の出劁E
 
         torch.cuda.empty_cache()  # メモリの解放 1iterationごとに解放
         with open(csv_path, "a") as out_file:  # ファイルオープン
             out_file.write(f"{model_loss_sum}\n")  # 書き込み
 
         """ Early_Stopping の判断 """
-        # best_lossとmodel_loss_sumを比較
-        if model_loss_sum < best_loss:  # model_lossのほうが小さい場合
+        # best_lossとmodel_loss_sumを比輁E
+        if model_loss_sum < best_loss:  # model_lossのほぁE��小さぁE��吁E
             print(f"{epoch:3} [epoch] | {model_loss_sum:.6} <- {best_loss:.6}")
             torch.save(
                 model.to(device).state_dict(), f"{out_dir}/BEST_{out_name}.pth"
-            )  # 出力ファイルの保存
+            )  # 出力ファイルの保孁E
             best_loss = model_loss_sum  # best_lossの変更
             earlystopping_count = 0
             estimation = estimation.cpu()
@@ -294,21 +294,21 @@ def train(
         if epoch == 100:
             torch.save(
                 model.to(device).state_dict(), f"{out_dir}/{out_name}_{epoch}.pth"
-            )  # 出力ファイルの保存
+            )  # 出力ファイルの保孁E
 
-    """ 学習モデル(pthファイル)の出力 """
+    """ 学習モチE��(pthファイル)の出劁E"""
     print("model save")
     torch.save(
         model.to(device).state_dict(), f"{out_dir}/{out_name}_{epoch}.pth"
-    )  # 出力ファイルの保存
+    )  # 出力ファイルの保孁E
 
     writer.close()
 
-    """ 学習時間の計算 """
-    time_end = time.time()  # 現在時間の取得
-    time_sec = time_end - start_time  # 経過時間の計算(sec)
+    """ 学習時間�E計箁E"""
+    time_end = time.time()  # 現在時間の取征E
+    time_sec = time_end - start_time  # 経過時間の計箁Esec)
     time_h = float(time_sec) / 3600.0  # sec->hour
-    print(f"time：{str(time_h)}h")  # 出力
+    print(f"time�E�{str(time_h)}h")  # 出劁E
 
 
 def test(
@@ -317,13 +317,13 @@ def test(
     # filelist_mixdown = my_func.get_file_list(mix_dir)
     # print('number of mixdown file', len(filelist_mixdown))
 
-    # ディレクトリを作成
+    # チE��レクトリを作�E
     my_func.make_dir(out_dir)
     model_path = Path(model_path)  # path型に変換
     model_dir, model_name = (
         model_path.parent,
         model_path.stem,
-    )  # ファイル名とディレクトリを分離
+    )  # ファイル名とチE��レクトリを�E離
 
     model.load_state_dict(
         torch.load(
@@ -332,19 +332,19 @@ def test(
     )
     model.eval()
 
-    dataset = AudioDataset_test(mix_dir)  # データセットの読み込み
+    dataset = AudioDataset_test(mix_dir)  # チE�EタセチE��の読み込み
     dataset_loader = DataLoader(dataset, batch_size=1, shuffle=True, pin_memory=True)
 
     for mix_data, mix_name in tqdm(dataset_loader):
-        mix_data = mix_data.to(device)  # データをGPUに移動
-        mix_data = mix_data.to(torch.float32)  # データの型を変換 int16→float32
+        mix_data = mix_data.to(device)  # チE�EタをGPUに移勁E
+        mix_data = mix_data.to(torch.float32)  # チE�Eタの型を変換 int16→float32
 
-        mix_max = torch.max(mix_data)  # 最大値の取得
+        mix_max = torch.max(mix_data)  # 最大値の取征E
 
-        """ ↓↓↓ オーバーラップアドの導入 ↓↓↓ """
-        batchsize, num_channels, _ = mix_data.shape  # データの形状を取得
-        flame_size = int(const.SR * 0.1)  # フレームサイズ（100ms）
-        hop_size = flame_size // 2  # ホップサイズはフィルタ長の半分
+        """ ↓�EↁEオーバ�EラチE�Eアド�E導�E ↓�EↁE"""
+        batchsize, num_channels, _ = mix_data.shape  # チE�Eタの形状を取征E
+        flame_size = int(const.SR * 0.1)  # フレームサイズ�E�E00ms�E�E
+        hop_size = flame_size // 2  # ホップサイズはフィルタ長の半�E
         mix_padded = torch.cat(
             (
                 torch.zeros(batchsize, num_channels, hop_size, device=device),
@@ -354,20 +354,20 @@ def test(
         ).requires_grad_(
             True
         )  # 入力信号の前に0を追加
-        estimation = torch.zeros(mix_padded.shape, device=device)  # 出力用の配列
-        num_flame = mix_padded.shape[-1] // hop_size  # フレーム数の計算
+        estimation = torch.zeros(mix_padded.shape, device=device)  # 出力用の配�E
+        num_flame = mix_padded.shape[-1] // hop_size  # フレーム数の計箁E
 
         for i in range(num_flame):
             start = i * hop_size
             end = start + flame_size
 
-            # ブロックを取得
+            # ブロチE��を取征E
             flame = mix_padded[:, :, start:end]
 
-            # 窓かけ
+            # 窓かぁE
             window = torch.hann_window(flame_size, requires_grad=True, device=device)
             if flame.shape[-1] != flame_size:
-                # フレームサイズが異なる場合は、フレームサイズに合わせて切り詰める
+                # フレームサイズが異なる場合�E、フレームサイズに合わせて刁E��詰める
                 flame = F.pad(
                     flame,
                     (0, flame_size - flame.shape[-1]),
@@ -375,51 +375,51 @@ def test(
                     value=0,
                 )
             flame_windowed = (flame * window).to(device)  # ハニング窓を適用
-            """ モデルに通す(予測値の計算) """
+            """ モチE��に通す(予測値の計箁E """
             # print("model_input", mix_data.shape)
-            estimate_flame = model(flame_windowed)  # モデルに通す
+            estimate_flame = model(flame_windowed)  # モチE��に通す
 
-            # 出力に結果を加算
-            end_index = min(estimation.shape[-1], end)  # 配列の長さを超えないように調整
+            # 出力に結果を加箁E
+            end_index = min(estimation.shape[-1], end)  # 配�Eの長さを趁E��なぁE��ぁE��調整
             estimation[:, :, start:end_index] = (
                 estimation[:, :, start:end_index]
                 + estimate_flame[:, :, : end_index - start]
             )
-        """ ↑↑↑ オーバーラップアドの導入 ↑↑↑ """
+        """ ↑�EↁEオーバ�EラチE�Eアド�E導�E ↑�EↁE"""
 
         estimation = estimation.cpu()
         estimation = estimation.detach().numpy()
 
-        # モデルの出力が (1, 1, length) と仮定
+        # モチE��の出力が (1, 1, length) と仮宁E
         data_to_write = estimation.squeeze()
 
         # 正規化
-        mix_max = torch.max(mix_data)  # mix_waveの最大値を取得
+        mix_max = torch.max(mix_data)  # mix_waveの最大値を取征E
         data_to_write = (
             data_to_write / np.max(data_to_write) * mix_max.cpu().detach().numpy()
         )
 
-        # 保存
-        # ファイル名とフォルダ名を結合してパス文字列を作成
+        # 保孁E
+        # ファイル名とフォルダ名を結合してパス斁E���Eを作�E
         out_path = os.path.join(out_dir, (mix_name[0] + ".wav"))
-        # 混合データを保存
+        # 混合データを保孁E
         sf.write(out_path, data_to_write, prm)
         torch.cuda.empty_cache()  # メモリの解放 1音声ごとに解放
 
 
 if __name__ == "__main__":
-    """モデルの設定"""
+    """モチE��の設宁E""
     num_mic = 1  # マイクの数
-    num_node = 16  # ノードの数
+    num_node = 16  # ノ�Eド�E数
     model_list = [
         "GCNEncoder",
         "GATEncoder",
-    ]  # モデルの種類  "UGCN", "UGCN2", "UGAT", "UGAT2", "ConvTasNet", "UNet", "GCNEncoder", "GATEncoder"
+    ]  # モチE��の種顁E "UGCN", "UGCN2", "UGAT", "UGAT2", "ConvTasNet", "UNet", "GCNEncoder", "GATEncoder"
     wave_types = [
-        "noise_reverbe",
+        "noise_reverb",
         "reverbe_only",
         "noise_only",
-    ]  # 入力信号の種類 (noise_only, reverbe_only, noise_reverbe)
+    ]  # 入力信号の種顁E(noise_only, reverbe_only, noise_reverb)
 
     for model_type in model_list:
         if model_type == "UGCN":
@@ -456,7 +456,7 @@ if __name__ == "__main__":
             raise ValueError(f"Unknown model type: {model_type}")
 
         for wave_type in wave_types:
-            out_name = f"{model_type}_{wave_type}_{num_node}node"  # 出力ファイル名
+            out_name = f"{model_type}_{wave_type}_{num_node}node"  # 出力ファイル吁E
             # train(
             #     model=model,
             #     mix_dir=f"{const.MIX_DATA_DIR}/GNN/subset_DEMAND_hoth_5dB_500msec/train/{wave_type}",

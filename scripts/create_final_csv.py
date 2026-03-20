@@ -7,17 +7,17 @@ from pathlib import Path
 from tqdm import tqdm
 
 # ===================================================================
-# ▼▼▼ 設定項目 ▼▼▼
+# ▼▼▼ 設定頁E�� ▼▼▼
 # ===================================================================
 
-# --- 入力設定 ---
+# --- 入力設宁E---
 # サンプリング済みのJSONファイル
 DEFAULT_JSON_PATH = "sampled_vctk_file_list.json"
 
-# 拡張されたデータセットの親ディレクトリ
+# 拡張されたデータセチE��の親チE��レクトリ
 DEFAULT_DATASET_ROOT = Path("C:/Users/kataoka-lab/Desktop/sound_data/mix_data/DEMAND_DEMAND_5dB_500msec")
 
-# --- 出力設定 ---
+# --- 出力設宁E---
 # CSVファイルのヘッダー
 CSV_HEADER = [
     "clean",
@@ -26,44 +26,44 @@ CSV_HEADER = [
     "noise_reverb",
 ]
 
-# 各音声ファイルの種類に対応するディレクトリ名
-CONDITION_DIRS = ["clean", "noise_only", "reverbe_only", "noise_reverbe"]
+# 吁E��声ファイルの種類に対応するディレクトリ吁E
+CONDITION_DIRS = ["clean", "noise_only", "reverbe_only", "noise_reverb"]
 
 # ===================================================================
-# ▲▲▲ 設定項目 ▲▲▲
+# ▲▲▲ 設定頁E�� ▲▲▲
 # ===================================================================
 
 
 def create_final_csv_list_prefix(json_path: Path, dataset_root: Path):
     """
-    サンプリング済みJSONを基に、ファイル名の前方一致でデータセットを検索し、
-    最終的なファイルリストCSVを作成する。
+    サンプリング済みJSONを基に、ファイル名�E前方一致でチE�EタセチE��を検索し、E
+    最終的なファイルリスチESVを作�Eする、E
     """
-    # ---- 1. 入力ファイルのチェック ----
+    # ---- 1. 入力ファイルのチェチE�� ----
     if not json_path.is_file():
-        print(f"❌ エラー: 入力JSONファイルが見つかりません: {json_path}", file=sys.stderr)
+        print(f"❁Eエラー: 入力JSONファイルが見つかりません: {json_path}", file=sys.stderr)
         sys.exit(1)
     if not dataset_root.is_dir():
-        print(f"❌ エラー: データセットのルートディレクトリが見つかりません: {dataset_root}", file=sys.stderr)
+        print(f"❁Eエラー: チE�EタセチE��のルートディレクトリが見つかりません: {dataset_root}", file=sys.stderr)
         sys.exit(1)
 
-    print("✅ 入力ファイルのチェック完了。")
-    print(f"📖 JSON入力: {json_path}")
-    print(f"💽 データセットルート: {dataset_root}")
+    print("✁E入力ファイルのチェチE��完亁E��E)
+    print(f"📖 JSON入劁E {json_path}")
+    print(f"💽 チE�EタセチE��ルーチE {dataset_root}")
 
-    # ---- 2. JSONデータの読み込み ----
+    # ---- 2. JSONチE�Eタの読み込み ----
     with open(json_path, "r", encoding="utf-8") as f:
         all_splits_info = json.load(f)
 
-    # ---- 3. 各セット（train, val, test）ごとにCSVを作成 ----
+    # ---- 3. 吁E��チE���E�Erain, val, test�E�ごとにCSVを作�E ----
     for split_name, speakers_data in all_splits_info.items():
-        print(f"\n======== {split_name.upper()} セットの処理を開始 ========")
+        print(f"\n======== {split_name.upper()} セチE��の処琁E��開姁E========")
 
         output_csv_path = os.path.join(dataset_root, F"{split_name}.csv")
         all_rows = []
         missing_files_count = 0
 
-        # JSONから処理対象のファイル名リストを作成
+        # JSONから処琁E��象のファイル名リストを作�E
         file_list = []
         for _, data in speakers_data.items():
             file_list.extend(data["filenames"])
@@ -72,19 +72,19 @@ def create_final_csv_list_prefix(json_path: Path, dataset_root: Path):
         for base_filename in tqdm(file_list, desc=f"Processing {split_name}"):
             row_paths = []
 
-            # 4種類の音声ファイルのパスを構築
+            # 4種類�E音声ファイルのパスを構篁E
             for condition in CONDITION_DIRS:
-                # ★★★ 変更点 ★★★
-                # 検索対象のディレクトリパス
+                # ☁E�E☁E変更点 ☁E�E☁E
+                # 検索対象のチE��レクトリパス
                 search_dir = dataset_root / split_name / condition
                 # 前方一致でファイルを検索するためのパターン
                 glob_pattern = f"{base_filename}*.wav"
 
-                # パターンに一致するファイルのリストを取得
+                # パターンに一致するファイルのリストを取征E
                 # .glob()はジェネレータを返すため、リストに変換
                 found_files = list(search_dir.glob(glob_pattern))
 
-                # ファイルが見つかれば最初のファイルの絶対パスを、なければ空文字を追加
+                # ファイルが見つかれば最初�Eファイルの絶対パスを、なければ空斁E��を追加
                 if found_files:
                     row_paths.append(str(found_files[0].resolve()))
                 else:
@@ -95,7 +95,7 @@ def create_final_csv_list_prefix(json_path: Path, dataset_root: Path):
 
         # ---- 4. CSVファイルへの書き込み ----
         if not all_rows:
-            print(f"  - '{split_name}' セットには処理するデータがありませんでした。")
+            print(f"  - '{split_name}' セチE��には処琁E��るデータがありませんでした、E)
             continue
 
         try:
@@ -104,35 +104,35 @@ def create_final_csv_list_prefix(json_path: Path, dataset_root: Path):
                 writer.writerow(CSV_HEADER)
                 writer.writerows(all_rows)
 
-            print(f"✅ '{output_csv_path}' が正常に作成されました。総レコード数: {len(all_rows)}")
+            print(f"✁E'{output_csv_path}' が正常に作�Eされました。総レコード数: {len(all_rows)}")
             if missing_files_count > 0:
                 print(
-                    f"⚠️  注意: {missing_files_count} 個のファイルが見つかりませんでした。CSV内の空欄を確認してください。"
+                    f"⚠�E�E 注愁E {missing_files_count} 個�Eファイルが見つかりませんでした、ESV冁E�E空欁E��確認してください、E
                 )
 
         except IOError as e:
-            print(f"❌ エラー: '{output_csv_path}' の書き込みに失敗しました: {e}", file=sys.stderr)
+            print(f"❁Eエラー: '{output_csv_path}' の書き込みに失敗しました: {e}", file=sys.stderr)
 
-    print("\n🎉 全ての処理が完了しました。")
+    print("\n🎉 全ての処琁E��完亁E��ました、E)
 
 
 if __name__ == "__main__":
     import argparse
 
     parser = argparse.ArgumentParser(
-        description="JSONとデータセットディレクトリから前方一致で検索し、最終的なCSVファイルリストを作成します。"
+        description="JSONとチE�EタセチE��チE��レクトリから前方一致で検索し、最終的なCSVファイルリストを作�Eします、E
     )
     parser.add_argument(
         "--json_path",
         type=Path,
         default=DEFAULT_JSON_PATH,
-        help=f"入力となるサンプリング済みJSONファイルのパス (デフォルト: {DEFAULT_JSON_PATH})",
+        help=f"入力となるサンプリング済みJSONファイルのパス (チE��ォルチE {DEFAULT_JSON_PATH})",
     )
     parser.add_argument(
         "--dataset_root",
         type=Path,
         default=DEFAULT_DATASET_ROOT,
-        help=f"データセットの親ディレクトリのパス (デフォルト: {DEFAULT_DATASET_ROOT})",
+        help=f"チE�EタセチE��の親チE��レクトリのパス (チE��ォルチE {DEFAULT_DATASET_ROOT})",
     )
 
     args = parser.parse_args()
