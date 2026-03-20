@@ -95,6 +95,13 @@ class Wave_UGNN(nn.Module):
 		self.out_conv = nn.Conv1d(in_ch, num_outputs, kernel_size=1)
 
 	def forward(self, x):
+		"""
+		順伝播
+		Args:
+			x (torch.Tensor): 入力波形データ [BatchSize, Channels=1, TimeSteps]
+		Returns:
+			torch.Tensor: 強調・分離された波形データ [BatchSize, Channels=1, TimeSteps]
+		"""
 		skips = []
 
 		# print(x.shape)

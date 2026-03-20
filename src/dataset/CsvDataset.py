@@ -64,7 +64,10 @@ class CsvDataset(Dataset):
 
 	def __getitem__(self, index):
 		"""
-		指定されたインデックスのデータ（入力と教師）をロードし、STFTを適用して返す。
+		指定されたインデックスのデータ（入力と教師）をロードし、長さを調整して返す。
+		Returns:
+			noisy_waveform (torch.Tensor): 入力音声波形 [Channels=1, TimeSteps]
+			clean_waveform (torch.Tensor): 教師音声波形 [Channels=1, TimeSteps]
 		"""
 		# --- 1. ファイルパスの取得 ---
 		row = self.data_df.iloc[index]
