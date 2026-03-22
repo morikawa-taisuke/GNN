@@ -1,46 +1,51 @@
-# RelNet (Graph Neural Network) Implementation
+# GNN Base Audio Enhancement
 
-このプロジェクトは、PyTorchを使用したRelNet（グラフニューラルネットワーク）の実装です。
+本リポジトリは、グラフニューラルネットワーク（GNN）とU-Netを組み合わせた**音源強調およびノイズ除去モデルの開発・評価用リポジトリ**です。
+時間領域波形や周波数スペクトログラムを入力とし、空間・チャネル間の依存関係をGNNで捉えることで、高度な音響強調・分離（UGNN, SpeqGNN, WaveUGNN等）を実現します。
 
-## 必要条件
+## 🤖 RAG（AIアシスタント）を利用する際の手引き
+このリポジトリは、AI（LLM）に対してコードの仕様や動作を問い合わせ（RAG）しやすいように最適化されています。
+AIに質問する際は、「`src/models/WaveUGNN.py` のボトルネック部分の構造を教えて」や、「`experiments/main_Wave.py` の学習ループの流れを説明して」のように、**具体的なファイル名**を指定すると、より正確な回答が得られます。各主要モジュールには詳細なDocstringが記載されています。
 
-- Python 3.7以上
-- PyTorch 2.0.0以上
-- PyTorch Geometric 2.3.0以上
-- NumPy 1.21.0以上
-- Matplotlib 3.4.0以上
+## 📂 リポジトリの構成
 
-## インストール方法
+- **`src/`** : プロジェクトのコアアーキテクチャ
+  - `dataset/` : データローダーやDatasetクラス群（`CsvDataset.py`等）
+  - `models/` : モデルアーキテクチャ定義（`SpeqGNN.py`, `WaveUGNN.py`, `ConvTasNet_models.py` 等）
+  - `mymodule/` : カスタム損失関数（LossFunction）や共通関数群
+- **`scripts/`** : データセット作成や一時的な分析ツール
+  - 音声長の確認 (`check_audio_durations.py`) やデータサンプリング (`random_choice.py`) などのユーティリティ
+  - データセットの合成・生成用スクリプト（`make_mixdown.py`, `make_dataset.py`等）
+- **`experiments/`** : 学習・推論実行用エントリポイント
+  - `main_Speq.py` : **周波数領域（スペクトログラム）** の学習・推論。
+  - `main_Wave.py` : **時間領域（波形）** の学習・推論。
+  - `main_overlap_add.py` : 長尺音声に対するオーバーラップ・アド法を用いた推論用。
+  - `evaluation/` : SISDR, PESQ, STOIなどの客観評価用スクリプト群。
+- **`analysis/` & `check_node/`** : グラフ構造の詳細分析や、生成音声の品質分析ツール。
+- **`Document/`** : 詳細な設計仕様やアルゴリズム構想に関するドキュメント群。
 
-1. 必要なパッケージをインストール:
+## ⚙️ 動作環境・インストール
+
+`uv` を用いて、プロジェクトに完全に固定された依存関係を含めた仮想環境を構築します。
+
 ```bash
-pip install -r requirements.txt
+# プロジェクトディレクトリ直下で実行
+uv sync
+```
+※ PyTorchやPyTorch Geometric等の依存関係も、CUDAバージョン（例: cu121）に合わせて自動的に適したものが `uv.lock` からインストールされます。
+
+## 🚀 使用方法・実行手順
+
+### 1. データの準備
+`scripts/` 配下のスクリプトを使用して学習用データを作成します。音声長のチェックなどが必要な場合は適宜ユーティリティを使用してください。
+
+### 2. 学習の実行
+ルートディレクトリから、`experiments/` 内のスクリプトを実行します。`uv run` を使用することで、仮想環境のアクティベート忘れを防げます。
+```bash
+uv run python experiments/main_Speq.py
+# または
+uv run python experiments/main_Wave.py
 ```
 
-2. PyTorch Geometricの追加インストールが必要な場合:
-```bash
-pip install torch-geometric
-```
-
-## 使用方法
-
-プログラムを実行するには、以下のコマンドを実行してください：
-
-```bash
-python relnet.py
-```
-
-## 実装の詳細
-
-- `RelNet`クラスは3層のGCN（Graph Convolutional Network）を実装しています
-- 入力次元、隠れ層の次元、出力次元を指定可能です
-- ドロップアウトとReLU活性化関数を使用しています
-- 学習にはAdamオプティマイザーを使用しています
-
-## サンプルデータ
-
-現在の実装では、ランダムに生成されたグラフデータを使用しています：
-- 100ノード
-- 16次元の特徴量
-- 3つのクラス
-- 200のエッジ 
+### 3. 評価の実行
+客観評価やプロファイリングは `experiments/evaluation/` 配下のスクリプトを使用します。

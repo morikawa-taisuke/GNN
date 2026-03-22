@@ -258,8 +258,8 @@ if __name__ == "__main__":
 	# 1. モデルファイルの設定
 	model = "SpeqGAT"
 	wave_type = "noise_reverb"
-	speech_type = "DEMAND_hoth_10dB_500msec"
-	MODEL_BASE_DIR = f"{const.PTH_DIR}/{speech_type}/{model}"
+	speech_type = "DEMAND_DEMAND"
+	MODEL_BASE_DIR = f"{const.CHECKPOINT_DIR}/{speech_type}/{model}"
 	MODEL_NAME = f"{model}_{wave_type}"
 	# ★ 必要に応じてモデルパスを修正
 	MODEL_PATH = f"{MODEL_BASE_DIR}/BEST_new_{model}_{wave_type}e_16node_temporal_knn.pth" # BESTモデルを使うことを推奨
