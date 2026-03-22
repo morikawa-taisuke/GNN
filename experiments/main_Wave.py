@@ -31,14 +31,15 @@ print(f"main_Speq 使用デバイス: {device}")
 
 def padding_tensor(tensor1, tensor2):
 	"""
-	最後の次元（例: 時系列長）が異なる2つのテンソルに対して、
-	短い方を末尾にゼロパディングして長さをそろえる。
+	最後の次元（時間軸長など）が異なる2つのテンソルに対して、
+	短い方を末尾にゼロパディングして長さを揃える。
 
 	Args:
-		tensor1, tensor2 (torch.Tensor): 任意の次元数のテンソル
+		tensor1 (torch.Tensor): パディング対象のテンソル1
+		tensor2 (torch.Tensor): パディング対象のテンソル2
 
 	Returns:
-		padded_tensor1, padded_tensor2 (torch.Tensor)
+		tuple[torch.Tensor, torch.Tensor]: パディング処理後のテンソルのタプル (padded_tensor1, padded_tensor2)
 	"""
 	len1 = tensor1.size(-1)
 	len2 = tensor2.size(-1)
@@ -65,16 +66,20 @@ def train(model: nn.Module,
 		  earlystopping_threshold: int = 5,
           accumulation_steps: int = 4):
 	"""
-	モデルの学習を行うメイン関数。
+	時間領域（Wave）モデル用の学習処理を行う共通関数。
 	
+	指定されたCSVからデータを読み込み、モデルの訓練と検証（Validation）を行います。
+	エポックごとの損失はTensorBoard形式およびCSV形式で保存され、
+	Early Stoppingの条件を満たすか、完了するまで実行されます。
+
 	Args:
 		model (nn.Module): 学習対象のPyTorchモデル
 		train_csv (str): 学習用データセットのCSVファイルパス
 		val_csv (str): 検証用データセットのCSVファイルパス
-		wave_type (str): 入力信号の種類 (例: 'noise_only', 'reverb_only', 'noise_reverb')
+		wave_type (str): 入力信号の種類 (例: 'noise_only', 'reverb_only')
 		out_path (str): モデルの重みを保存するベースパス
 		loss_type (str): 使用する損失関数の種類 (例: 'stft_MSE', 'SISDR')
-		batchsize (int): バッチサイズ
+		batchsize (int): 1ステップあたりのバッチサイズ
 		checkpoint_path (str, optional): 学習再開用のチェックポイントパス
 		train_count (int): 最大エポック数
 		earlystopping_threshold (int): Early Stoppingの忍耐エポック数
@@ -246,15 +251,18 @@ def train(model: nn.Module,
 
 def test(model: nn.Module, test_csv: str, wave_type: str, out_dir: str, model_path: str, prm: int = const.SR):
 	"""
-	学習済みモデルを用いた推論と波形保存を行う。
+	学習済みモデルを用いた推論（テスト）と波形保存を行うメイン関数。
+
+	提供された推論用データセットに対してループを実行し、分離された結果の音声を
+	元の波形の振幅に合わせて正規化し、.wavファイルとして指定ディレクトリに出力します。
 
 	Args:
 		model (nn.Module): 推論に使用するPyTorchモデル
 		test_csv (str): テスト用データセットのCSVファイルパス
 		wave_type (str): 入力信号の種類
-		out_dir (str): 推論結果の波形を自動保存するディレクトリパス
-		model_path (str): 読み込むベストモデル(.pth)のパス
-		prm (int): サンプリングレート(SR)
+		out_dir (str): 推論結果の波形を自動保存する出力先ディレクトリ
+		model_path (str): 読み込むベースモデルのパス（BEST_付きモデルを探索します）
+		prm (int): 出力時のサンプリングレート(SR)
 	"""
 	# ディレクトリを作成
 	my_func.make_dir(out_dir)
@@ -302,6 +310,7 @@ def test(model: nn.Module, test_csv: str, wave_type: str, out_dir: str, model_pa
 
 
 if __name__ == "__main__":
+	my_func.seed_everything(42)
 	"""モデルの設定"""
 	num_mic = 1  # マイクの数
 	num_node = 32  # ノードの数
@@ -349,7 +358,7 @@ if __name__ == "__main__":
 			      train_csv=f"{const.MIX_DATA_DIR}/{dir_name}/train.csv",
 			      val_csv=f"{const.MIX_DATA_DIR}/{dir_name}/val.csv",
 			      wave_type=wave_type,
-			      out_path=f"{const.PTH_DIR}/{dir_name}/{model_type}/{out_name}.pth",
+			      out_path=f"{const.CHECKPOINT_DIR}/{dir_name}/{model_type}/{out_name}.pth",
 			      loss_type=loss_type,
 			      batchsize=2, checkpoint_path=None, train_count=500, earlystopping_threshold=10, accumulation_steps=8)
 
@@ -357,7 +366,7 @@ if __name__ == "__main__":
 			     test_csv=f"{const.MIX_DATA_DIR}/{dir_name}/test.csv",
 			     wave_type=wave_type,
 			     out_dir=f"{const.OUTPUT_WAV_DIR}/{dir_name}/{model_type}/{out_name}",
-			     model_path=f"{const.PTH_DIR}/{dir_name}/{model_type}/{out_name}.pth")
+			     model_path=f"{const.CHECKPOINT_DIR}/{dir_name}/{model_type}/{out_name}.pth")
 			#
 			# evaluation(
 			# 	target_dir=f"{const.MIX_DATA_DIR}/{dir_name}/test/clean",

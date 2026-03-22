@@ -73,13 +73,17 @@ class Wave_UGNN(nn.Module):
 
 	def __init__(self, num_inputs: int = 1, num_outputs: int = 1, num_layers: int = 12, initial_filter_size: int = 24, gnn_type: str = "GCN", graph_config: GraphConfig = None):
 		"""
-		初期化関数。
+		Wave-U-Net + GNNボトルネックモデルの初期化関数。
+
+		エンコーダによって抽出された時間領域の特徴マップに対して、最深部（ボトルネック）で
+		GNNを適用し、大局的で非局所的な特徴の相互作用を学習します。その後デコーダで波形を再構築します。
+
 		Args:
-			num_inputs (int): 入力チャンネル数
-			num_outputs (int): 出力チャンネル数
+			num_inputs (int): 入力チャンネル数（モノラルなら1）
+			num_outputs (int): 出力チャンネル数（モノラルなら1）
 			num_layers (int): U-Netのエンコーダー/デコーダーの深さ（層数）
 			initial_filter_size (int): 最初の畳み込み層のフィルター数
-			gnn_type (str): ボトルネック部に使用するGNNのタイプ ('GCN' or 'GAT')
+			gnn_type (str): ボトルネック部に使用するGNNのタイプ ('GCN' または 'GAT')
 			graph_config (GraphConfig): ボトルネック部のGNNにおけるグラフ構築用の設定オブジェクト
 		"""
 		super(Wave_UGNN, self).__init__()
@@ -124,11 +128,13 @@ class Wave_UGNN(nn.Module):
 
 	def forward(self, x):
 		"""
-		順伝播
+		順伝播。時間領域の入力波形を直接エンコーダに入力し、ボトルネックでグラフ特徴抽出を行います。
+
 		Args:
-			x (torch.Tensor): 入力波形データ [BatchSize, Channels=1, TimeSteps]
+			x (torch.Tensor): 入力音声波形データ [BatchSize, Channels, TimeSteps]
+		
 		Returns:
-			torch.Tensor: 強調・分離された波形データ [BatchSize, Channels=1, TimeSteps]
+			torch.Tensor: U-Netデコーダから出力される最終推定波形（分離・強調済み） [BatchSize, Channels, TimeSteps]
 		"""
 		skips = []
 

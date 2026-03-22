@@ -141,9 +141,21 @@ class GraphBuilder:
 			return_batch_indices: bool = False
 	) -> Tuple[torch.Tensor, Optional[torch.Tensor]]:
 		"""
-        バッチ処理用のグラフを作成。
-        入力 x_features_4d は [Batch, Channels, Height, Width] の形状を仮定。
-        """
+		モデル内部の4次元特徴マップから、バッチ単位で動的にグラフの接続情報（edge_index）を生成します。
+
+		入力特徴量 `x_features_4d` [Batch, Channels, Height, Width] からノード・エッジを構築します。
+		GRID指定の場合は固定された2D格子状にエッジを張り、
+		KNN/RANDOM指定の場合は各サンプルの特徴量に基づいてノードごとに接続先を決定・抽出します。
+
+		Args:
+			x_features_4d (torch.Tensor): CNN等の中間特徴マップ [B, C, H, W]
+			return_batch_indices (bool): グラフに加えて、各ノードがどのバッチに属するかを示すインデックス配列を返すかどうか
+
+		Returns:
+			Tuple[torch.Tensor, Optional[torch.Tensor]]: 
+				- edge_index [2, TotalEdges] の接続情報
+				- batch_indices [TotalNodes] のバッチ所属情報 (return_batch_indices=True の場合のみ)
+		"""
 
 		# ★ 1. 4Dテンソルから形状情報を推論
 		if x_features_4d.dim() != 4:

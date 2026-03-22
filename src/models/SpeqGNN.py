@@ -6,8 +6,8 @@ from torch import nn
 from torch_geometric.nn import GCNConv, GATConv
 from torchinfo import summary
 
-from models.graph_utils import GraphBuilder, GraphConfig, NodeSelectionType, EdgeSelectionType
-from mymodule import confirmation_GPU, const
+from src.models.graph_utils import GraphBuilder, GraphConfig, NodeSelectionType, EdgeSelectionType
+from src.mymodule import confirmation_GPU, const
 
 # PyTorchのCUDAメモリ管理設定。セグメントを拡張可能にすることで、断片化によるメモリ不足エラーを緩和します。
 os.environ['PYTORCH_CUDA_ALLOC_CONF'] = 'expandable_segments:True'
@@ -153,17 +153,19 @@ class SpeqGNN(nn.Module):
 	             hop_length=256,
 	             win_length=None):
 		"""
+		モデルの初期化関数。エンコーダ・デコーダの構造定義と、ISTFT用のパラメータ（窓関数など）を初期化します。
+
 		Args:
-			n_channels (int): 時間周波数領域の特徴マップの入力チャネル数 (例: マグニチュードスペクトログラムなら1)
-			n_classes (int): 出力マスクのチャネル数 (通常は1)
-			gnn_type (str): 使用するGNNの種類 ("GCN" or "GAT")。
-			graph_config (GraphConfig): グラフ作成の設定。
+			n_channels (int): 時間周波数領域の特徴マップの入力チャネル数 (マグニチュードスペクトログラムの場合は1)
+			n_classes (int): 出力マスクのチャネル数 (音源分離の場合は通常1)
+			gnn_type (str): 使用するGNNの種類 ("GCN" または "GAT")
+			graph_config (GraphConfig): GNN入力時のグラフ構築設定オブジェクト
 			hidden_dim (int): GNNの隠れ層の次元数
-			gat_heads (int): GATで使用するヘッド数
+			gat_heads (int): GATで使用するマルチヘッドアテンションのヘッド数
 			gat_dropout (float): GATのドロップアウト率
-			n_fft (int): STFT/ISTFTのFFTサイズ
+			n_fft (int): STFT/ISTFTのFFTサイズ（周波数解像度の決定）
 			hop_length (int): STFT/ISTFTのホップ長
-			win_length (int): STFT/ISTFTの窓長 (Noneの場合はn_fftと同じ)
+			win_length (int, optional): STFT/ISTFTの窓長 (Noneの場合はn_fftと同じ)
 		"""
 		super(SpeqGNN, self).__init__()
 		self.n_channels = n_channels
@@ -199,11 +201,21 @@ class SpeqGNN(nn.Module):
 
 	def forward(self, x_magnitude, complex_spec_input, original_length=None, export_name="graph_data.npz", out_dir=None):
 		"""
-		順伝播
+		周波数領域モデルの順伝播処理。
+
+		入力マグニチュードスペクトログラムをU-NetとGNNに渡し、推論されたソフトマスクを
+		元の複素スペクトログラムに乗算します。その後、組み込みのISTFT（逆短時間フーリエ変換）を
+		使用して時間領域の推定波形に戻してから出力します。
+
 		Args:
-			x_magnitude (torch.Tensor): 入力マグニチュードスペクトログラム [バッチ, チャネル数, 周波数ビン, 時間フレーム]
-			complex_spec_input (torch.Tensor): 元の混合信号の複素スペクトログラム [バッチ, 周波数ビン, 時間フレーム]
-			original_length (int, optional): 元の波形データの長さ。ISTFTのlength引数に使用されます。
+			x_magnitude (torch.Tensor): 入力マグニチュードスペクトログラム [Batch, Channels, FreqBins, TimeFrames]
+			complex_spec_input (torch.Tensor): 元の混合信号の複素スペクトログラム（位相復元・マスク乗算用）
+			original_length (int, optional): 推定波形のパディング調整フラグ（元の音声波形のサンプル長）
+			export_name (str): 解析結果グラフ構造の出力用ベースファイルネーム
+			out_dir (str, optional): 解析結果の出力先ディレクトリ
+
+		Returns:
+			torch.Tensor: STFT・ISTFTを経て分離・再構成された時間領域の音声波形 [Batch, TimeSteps]
 		"""
 		batch_size, _, input_freq_bins, input_time_frames = x_magnitude.size()
 

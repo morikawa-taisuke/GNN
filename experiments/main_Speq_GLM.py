@@ -22,21 +22,21 @@ from models.Speq_GLM import SpeqGNN  # ☁E変更点: SpeqGNN -> Speq_GLM
 from mymodule import my_func, const, LossFunction, confirmation_GPU
 from evaluation import CSV_eval
 
-# CUDAのメモリ管琁E��宁E
+# CUDAのメモリ管琁E��宁E
 # os.environ['PYTORCH_CUDA_ALLOC_CONF'] = 'expandable_segments:True'
 
-# CUDAの可用性をチェチE��
+# CUDAの可用性をチェチE��
 device = confirmation_GPU.get_device()
-print(f"main_Speq_GLM 使用チE��イス: {device}")
+print(f"main_Speq_GLM 使用チE��イス: {device}")
 
 
 def padding_tensor(tensor1, tensor2):
 	"""
-	最後�E次允E��侁E 時系列長�E�が異なめEつのチE��ソルに対して、E
-	短ぁE��を末尾にゼロパディングして長さをそろえる、E
+	最後�E次允E��侁E 時系列長�E�が異なめEつのチE��ソルに対して、E
+	短ぁE��を末尾にゼロパディングして長さをそろえる、E
 
 	Args:
-		tensor1, tensor2 (torch.Tensor): 任意�E次允E��のチE��ソル
+		tensor1, tensor2 (torch.Tensor): 任意�E次允E��のチE��ソル
 
 	Returns:
 		padded_tensor1, padded_tensor2 (torch.Tensor)
@@ -45,7 +45,7 @@ def padding_tensor(tensor1, tensor2):
 	len2 = tensor2.size(-1)
 	max_len = max(len1, len2)
 
-	pad1 = [0, max_len - len1]  # 最後�E次允E��けパチE��ング
+	pad1 = [0, max_len - len1]  # 最後�E次允E��けパチE��ング
 	pad2 = [0, max_len - len2]
 
 	padded_tensor1 = F.pad(tensor1, pad1)
@@ -65,13 +65,13 @@ def train(model: nn.Module,
           train_count: int = const.EPOCH,
           earlystopping_threshold: int = 5,
           accumulation_steps: int = 4,
-          graph_reg_lambda: float = 0.1):  # ☁E変更点: グラフ正剁E��損失の重みを追加
+          graph_reg_lambda: float = 0.1):  # ☁E変更点: グラフ正剁E��損失の重みを追加
 	"""GPUの設宁E""
 	device = confirmation_GPU.get_device()
-	""" そ�E他�E設宁E"""
+	""" そ�E他�E設宁E"""
 	out_path = Path(out_path)  # path型に変換
-	out_name, out_dir = out_path.stem, out_path.parent  # ファイル名とチE��レクトリを�E離
-	# logの保存�Eの持E��E"tensorboard --logdir ./logs"で確認できる)
+	out_name, out_dir = out_path.stem, out_path.parent  # ファイル名とチE��レクトリを�E離
+	# logの保存�Eの持E��E"tensorboard --logdir ./logs"で確認できる)
 	writer = SummaryWriter(log_dir=f"{const.LOG_DIR}\\{out_name}")
 
 	now = my_func.get_now_time()
@@ -81,13 +81,13 @@ def train(model: nn.Module,
 		# ☁E変更点: graph_reg_lambda をCSVヘッダに記録
 		csv_file.write(f"dataset,out_name,loss_func,graph_reg_lambda\n{train_csv},{out_path},{loss_type},{graph_reg_lambda}\n")
 		csv_file.write(
-			f"epoch,total_loss,model_loss,graph_loss,val_total_loss,val_model_loss,val_graph_loss\n")  # ☁E変更点: 損失の冁E��を記録
+			f"epoch,total_loss,model_loss,graph_loss,val_total_loss,val_model_loss,val_graph_loss\n")  # ☁E変更点: 損失の冁E��を記録
 
 	""" Early_Stoppingの設宁E"""
-	best_loss = np.inf  # 損失関数の最小化が目皁E�E場合，�Eめ�Ebest_lossを無限大にする
+	best_loss = np.inf  # 損失関数の最小化が目皁E�E場合，�Eめ�Ebest_lossを無限大にする
 	earlystopping_count = 0
 
-	""" Load dataset チE�EタセチE��の読み込み """
+	""" Load dataset チE�EタセチE��の読み込み """
 	train_dataset = CsvDataset(csv_path=train_csv, input_column_header=wave_type, max_length_sec=5)
 	train_loader = DataLoader(dataset=train_dataset, batch_size=batchsize, shuffle=True, pin_memory=True,
 	                          collate_fn=CsvDataset.collate_fn)
@@ -96,20 +96,20 @@ def train(model: nn.Module,
 	val_loader = DataLoader(dataset=val_dataset, batch_size=batchsize, shuffle=True, pin_memory=True,
 	                        collate_fn=CsvDataset.collate_fn)
 
-	# print(f"\nmodel:{model}\n")                           # モチE��のアーキチE��チャの出劁E
+	# print(f"\nmodel:{model}\n")                           # モチE��のアーキチE��チャの出劁E
 	""" 最適化関数の設宁E"""
 	optimizer = optim.Adam(model.parameters(), lr=0.001)  # optimizerを選抁EAdam)
 
-	# torchmetricsを用ぁE��損失関数の初期匁E
+	# torchmetricsを用ぁE��損失関数の初期匁E
 	loss_func = LossFunction.get_loss_computer(loss_type, device)
 
-	""" チェチE��ポイント�E設宁E"""
+	""" チェチE��ポイント�E設宁E"""
 	if checkpoint_path != None:
 		print("restart_training")
 		checkpoint = torch.load(checkpoint_path)  # checkpointの読み込み
-		model.load_state_dict(checkpoint["model_state_dict"])  # 学習途中のモチE��の読み込み
+		model.load_state_dict(checkpoint["model_state_dict"])  # 学習途中のモチE��の読み込み
 		optimizer.load_state_dict(checkpoint["optimizer_state_dict"])  # オプティマイザの読み込み
-		# optimizerのstateを現在のdeviceに移す。これをしなぁE��、保存前後でdeviceの不整合が起こる可能性がある、E
+		# optimizerのstateを現在のdeviceに移す。これをしなぁE��、保存前後でdeviceの不整合が起こる可能性がある、E
 		for state in optimizer.state.values():
 			for k, v in state.items():
 				if isinstance(v, torch.Tensor):
@@ -119,7 +119,7 @@ def train(model: nn.Module,
 	else:
 		start_epoch = 1
 
-	""" 学習�E設定を出劁E"""
+	""" 学習�E設定を出劁E"""
 	print("====================")
 	print("device: ", device)
 	print("out_path: ", out_path)
@@ -137,26 +137,26 @@ def train(model: nn.Module,
 	for epoch in range(start_epoch, train_count + 1):  # 学習回数
 		print("Train Epoch:", epoch)  # 学習回数の表示
 
-		# ☁E変更点: 損失を�Eけて雁E��E
+		# ☁E変更点: 損失を�Eけて雁E��E
 		total_loss_sum = 0.0
 		model_loss_sum = 0.0
 		graph_loss_sum = 0.0
 
 		optimizer.zero_grad()
 		for i, (mix_data, target_data) in tenumerate(train_loader):
-			mix_data, target_data = mix_data.to(device), target_data.to(device)  # チE�EタをGPUに移勁E
+			mix_data, target_data = mix_data.to(device), target_data.to(device)  # チE�EタをGPUに移勁E
 
-			""" チE�Eタの整形 """
+			""" チE�Eタの整形 """
 			mix_data = mix_data.to(torch.float32)  # target_dataのタイプを変換 int16→float32
 			target_data = target_data.to(torch.float32)  # target_dataのタイプを変換 int16→float32
 
-			""" モチE��に通す(予測値の計箁E """
+			""" モチE��に通す(予測値の計箁E """
 			# --- STFT ---
 			original_length = mix_data.shape[-1]
-			# torchaudio.stftは (batch, time) また�E (time) を期征E��るため、チャンネル次允E��削除
+			# torchaudio.stftは (batch, time) また�E (time) を期征E��るため、チャンネル次允E��削除
 			mix_data_squeezed = mix_data.squeeze(1)
 
-			# 褁E��スペクトログラムを計箁E
+			# 褁E��スペクトログラムを計箁E
 			mix_complex = torch.stft(
 				mix_data_squeezed,
 				n_fft=model.n_fft,
@@ -166,31 +166,31 @@ def train(model: nn.Module,
 				return_complex=True
 			)
 			mix_magnitude = torch.abs(mix_complex).unsqueeze(1)  # (B, 1, F, T)
-			estimate_data = model(mix_magnitude, mix_complex, original_length)  # モチE��に通す
+			estimate_data = model(mix_magnitude, mix_complex, original_length)  # モチE��に通す
 
-			""" チE�Eタの整形 """
+			""" チE�Eタの整形 """
 			estimate_data, target_data = padding_tensor(estimate_data, target_data)
 			target_data = target_data.squeeze(dim=1)  # (B, 1, length)
 			# estimate_data = estimate_data.unsqueeze(dim=1)  # (B, 1, length)
 
 			""" 損失の計箁E"""
-			# ☁E変更点: グラフ損失を老E�E
+			# ☁E変更点: グラフ損失を老E�E
 			model_loss_only = loss_func(estimate_data, target_data)
-			graph_loss = model.latest_graph_reg_loss  # モチE��からグラフ損失を取征E
+			graph_loss = model.latest_graph_reg_loss  # モチE��からグラフ損失を取征E
 			total_loss = model_loss_only + graph_reg_lambda * graph_loss
 
-			total_loss_acc = total_loss / accumulation_steps  # 勾配蓄積�Eために割めE
+			total_loss_acc = total_loss / accumulation_steps  # 勾配蓄積�Eために割めE
 
-			""" 後�E琁E"""
-			total_loss_acc.backward()  # 誤差送E��搬 (合計損失で)
+			""" 後�E琁E"""
+			total_loss_acc.backward()  # 誤差送E��搬 (合計損失で)
 
-			# ☁E変更点: 損失を�Eけて雁E��E(蓁E��前の値)
+			# ☁E変更点: 損失を�Eけて雁E��E(蓁E��前の値)
 			total_loss_sum += total_loss.item()
 			model_loss_sum += model_loss_only.item()
 			graph_loss_sum += graph_loss.item()
 
 			if (i + 1) % accumulation_steps == 0 or (i + 1) == len(train_loader):
-				optimizer.step()  # 勾配�E更新
+				optimizer.step()  # 勾配�E更新
 				optimizer.zero_grad()
 
 			del (
@@ -200,16 +200,16 @@ def train(model: nn.Module,
 				graph_loss,
 				total_loss,
 				total_loss_acc
-			)  # 使用してぁE��ぁE��数の削除
+			)  # 使用してぁE��ぁE��数の削除
 			torch.cuda.empty_cache()  # メモリの解放 1iterationごとに解放
 
-		""" チェチE��ポイント�E作�E """
+		""" チェチE��ポイント�E作�E """
 		torch.save(
 			{
 				"epoch": epoch,
 				"model_state_dict": model.state_dict(),
 				"optimizer_state_dict": optimizer.state_dict(),
-				"loss": total_loss_sum / len(train_loader),  # 平坁E��計損失
+				"loss": total_loss_sum / len(train_loader),  # 平坁E��計損失
 			},
 			f"{out_dir}/{out_name}_ckp.pth",
 		)
@@ -229,12 +229,12 @@ def train(model: nn.Module,
 
 		""" Early_Stopping の判断 """
 		model.eval()
-		# ☁E変更点: 検証損失も�Eけて雁E��E
+		# ☁E変更点: 検証損失も�Eけて雁E��E
 		val_total_loss_sum = 0.0
 		val_model_loss_sum = 0.0
 		val_graph_loss_sum = 0.0
 
-		# 勾配計算を無効化してメモリ効玁E��上げめE
+		# 勾配計算を無効化してメモリ効玁E��上げめE
 		with torch.no_grad():
 			progress_bar_val = tqdm(val_loader, desc="Validation")
 			for mix_data, target_data in progress_bar_val:
@@ -271,7 +271,7 @@ def train(model: nn.Module,
 
 				progress_bar_val.set_postfix({"loss": total_loss.item()})
 
-			# ☁E変更点: 平坁E��証損失の計算とロギング
+			# ☁E変更点: 平坁E��証損失の計算とロギング
 			avg_val_total_loss = val_total_loss_sum / len(val_loader)
 			avg_val_model_loss = val_model_loss_sum / len(val_loader)
 			avg_val_graph_loss = val_graph_loss_sum / len(val_loader)
@@ -289,9 +289,9 @@ def train(model: nn.Module,
 		if avg_val_total_loss < best_loss:
 			print(f"Validation loss improved ({best_loss:.6f} --> {avg_val_total_loss:.6f}). Saving model...")
 			best_loss = avg_val_total_loss
-			# 最良モチE��を保孁E
+			# 最良モチE��を保孁E
 			torch.save(model.state_dict(), f"{out_dir}/BEST_{out_name}.pth")
-			earlystopping_count = 0  # カウンターをリセチE��
+			earlystopping_count = 0  # カウンターをリセチE��
 		else:
 			earlystopping_count += 1
 			print(f"Validation loss did not improve. Patience: {earlystopping_count}/{earlystopping_threshold}")
@@ -300,39 +300,39 @@ def train(model: nn.Module,
 			print("Early stopping triggered. Training finished.")
 			break
 
-		model.train()  # 次のエポックのためにモチE��を訓練モードに戻ぁE
+		model.train()  # 次のエポックのためにモチE��を訓練モードに戻ぁE
 
 	torch.save(model.to(device).state_dict(), f"{out_dir}/{out_name}_{epoch}.pth")  # 出力ファイルの保孁E
 
-	""" 学習モチE��(pthファイル)の出劁E"""
+	""" 学習モチE��(pthファイル)の出劁E"""
 	print("model save")
 	torch.save(model.to(device).state_dict(), f"{out_dir}/{out_name}_{epoch}.pth")  # 出力ファイルの保孁E
 
 	writer.close()
 
-	""" 学習時間�E計箁E"""
+	""" 学習時間�E計箁E"""
 	time_end = time.time()  # 現在時間の取征E
 	time_sec = time_end - start_time  # 経過時間の計箁Esec)
 	time_h = float(time_sec) / 3600.0  # sec->hour
-	print(f"time�E�{str(time_h)}h")  # 出劁E
+	print(f"time�E�{str(time_h)}h")  # 出劁E
 
 
 def test(model: nn.Module, test_csv: str, wave_type: str, out_dir: str, model_path: str, prm: int = const.SR):
 	# (test関数は main_Speq.py と同一。変更不要E
 
-	# チE��レクトリを作�E
+	# チE��レクトリを作�E
 	my_func.make_dir(out_dir)
 	model_path = Path(model_path)  # path型に変換
 	model_dir, model_name = (
 		model_path.parent,
 		model_path.stem,
-	)  # ファイル名とチE��レクトリを�E離
+	)  # ファイル名とチE��レクトリを�E離
 
-	# ☁E変更点: BESTモチE��を読み込む
+	# ☁E変更点: BESTモチE��を読み込む
 	best_model_path = os.path.join(model_dir, f"BEST_{model_name}.pth")
 	if not os.path.exists(best_model_path):
 		print(f"Warning: BEST model not found at {best_model_path}. Falling back to latest checkpoint.")
-		best_model_path = os.path.join(model_dir, f"{model_name}.pth")  # .pth が�E、E�E名前
+		best_model_path = os.path.join(model_dir, f"{model_name}.pth")  # .pth が�E、E�E名前
 
 	model.load_state_dict(torch.load(best_model_path, map_location=device))
 	model.eval()
@@ -341,8 +341,8 @@ def test(model: nn.Module, test_csv: str, wave_type: str, out_dir: str, model_pa
 	dataset_loader = DataLoader(dataset, batch_size=1, shuffle=False, pin_memory=True)  # shuffle=False
 
 	for mix_data, mix_name in tqdm(dataset_loader):
-		mix_data = mix_data.to(device)  # チE�EタをGPUに移勁E
-		mix_data = mix_data.to(torch.float32)  # チE�Eタの型を変換 int16→float32
+		mix_data = mix_data.to(device)  # チE�EタをGPUに移勁E
+		mix_data = mix_data.to(torch.float32)  # チE�Eタの型を変換 int16→float32
 
 		# --- STFT ---
 		original_length = mix_data.shape[-1]
@@ -359,7 +359,7 @@ def test(model: nn.Module, test_csv: str, wave_type: str, out_dir: str, model_pa
 		mix_magnitude = torch.abs(mix_complex).unsqueeze(1)
 
 		with torch.no_grad():  # 推論時は勾配計算不要E
-			separate = model(mix_magnitude, mix_complex, original_length)  # モチE��の適用
+			separate = model(mix_magnitude, mix_complex, original_length)  # モチE��の適用
 
 		separate = separate.cpu()
 		separate = separate.detach().numpy()
@@ -370,20 +370,20 @@ def test(model: nn.Module, test_csv: str, wave_type: str, out_dir: str, model_pa
 		# mix_max = torch.max(mix_data)
 		# data_to_write = data_to_write / np.max(data_to_write) * mix_max.cpu().detach().numpy()
 
-		# 刁E��した speechを�E力ファイルとして保存する、E
+		# 刁E��した speechを�E力ファイルとして保存する、E
 		out_path = os.path.join(out_dir, (mix_name[0] + ".wav"))
 		sf.write(out_path, data_to_write, prm)
 		torch.cuda.empty_cache()  # メモリの解放 1音声ごとに解放
 
 
 if __name__ == "__main__":
-	"""モチE��の設宁E""
+	"""モチE��の設宁E""
 	num_mic = 1  # マイクの数
 
-	# ☁E変更点: Speq_GLM がサポ�EトするモチE��タイチE
+	# ☁E変更点: Speq_GLM がサポ�EトするモチE��タイチE
 	model_list = [
 		"GAT"
-	]  # モチE��の種顁E "GCN", "GAT"
+	]  # モチE��の種顁E "GCN", "GAT"
 
 	wave_types = [
 		# "noise_only",
@@ -393,10 +393,10 @@ if __name__ == "__main__":
 
 	# ☁E変更点: GLM用の設宁E
 	glm_k = 32  # Graph Learning Module の k (近傍)
-	graph_reg_lambda = 0.1  # グラフ正剁E��損失の重み
+	graph_reg_lambda = 0.1  # グラフ正剁E��損失の重み
 	hidden_dim = 32  # GNNの隠れ層の次允E
 	gat_heads = 4  # GATのヘッド数
-	gat_dropout = 0.6  # GATのドロチE�Eアウト率
+	gat_dropout = 0.6  # GATのドロチE�Eアウト率
 
 	stft_params = {
 		"n_fft": 512,
@@ -405,7 +405,7 @@ if __name__ == "__main__":
 	}
 
 	for model_type in model_list:
-		# ☁E変更点: Speq_GLM の SpeqGNN を�E期化
+		# ☁E変更点: Speq_GLM の SpeqGNN を�E期化
 		if model_type == "GCN":
 			model = SpeqGNN(n_channels=num_mic, n_classes=num_mic,
 			                gnn_type="GCN",
@@ -423,10 +423,10 @@ if __name__ == "__main__":
 		else:
 			raise ValueError(f"Unknown model type: {model_type}")
 
-		dir_name = "DEMAND_hoth_10dB_500msec"  # チE�EタセチE��のチE��レクトリ吁E
+		dir_name = "DEMAND_hoth_10dB_500msec"  # チE�EタセチE��のチE��レクトリ吁E
 		loss_type = "SISDR"  # 損失関数の種顁E("SISDR", "wave_MSE", "stft_MSE")
 
-		# ☁E変更点: モチE��名にGLMとkを追加
+		# ☁E変更点: モチE��名にGLMとkを追加
 		model_name_base = f"Speq_{model_type}_GLM_k{glm_k}"
 
 		for wave_type in wave_types:
@@ -438,7 +438,7 @@ if __name__ == "__main__":
 			      train_csv=f"{const.MIX_DATA_DIR}/{dir_name}/train.csv",
 			      val_csv=f"{const.MIX_DATA_DIR}/{dir_name}/val.csv",
 			      wave_type=wave_type,
-			      out_path=f"{const.PTH_DIR}/{dir_name}/{model_name_base}/{out_name}.pth",
+			      out_path=f"{const.CHECKPOINT_DIR}/{dir_name}/{model_name_base}/{out_name}.pth",
 			      loss_type=loss_type,
 			      batchsize=1,
 			      checkpoint_path=None,
@@ -453,12 +453,12 @@ if __name__ == "__main__":
 			     test_csv=f"{const.MIX_DATA_DIR}/{dir_name}/test.csv",
 			     wave_type=wave_type,
 			     out_dir=f"{const.OUTPUT_WAV_DIR}/{dir_name}/{model_name_base}/{out_name}",
-			     model_path=f"{const.PTH_DIR}/{dir_name}/{model_name_base}/{out_name}.pth")
+			     model_path=f"{const.CHECKPOINT_DIR}/{dir_name}/{model_name_base}/{out_name}.pth")
 
 			print(f"\n--- Starting Evaluation for {out_name} ---")
 
 			CSV_eval.main(input_csv_path=f"{const.MIX_DATA_DIR}/{dir_name}/test.csv",
 			              target_column="clean",
-			              estimation_column=wave_type,  # こ�E列�E実際には使われなぁE��、CsvInferenceDatasetとの互換性のため
+			              estimation_column=wave_type,  # こ�E列�E実際には使われなぁE��、CsvInferenceDatasetとの互換性のため
 			              estimation_dir=f"{const.OUTPUT_WAV_DIR}/{dir_name}/{model_name_base}/{out_name}",
 			              out_path=f"{const.EVALUATION_DIR}/{dir_name}/{model_name_base}/{out_name}_CSV.csv")

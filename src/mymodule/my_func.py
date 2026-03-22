@@ -7,6 +7,8 @@ import wave
 import array
 import datetime
 import torchaudio
+import random
+import torch
 
 # from mymodule import const
 # import const.SR as SR
@@ -54,15 +56,16 @@ def get_dir_name(path:str)->str:
 
 def make_dir(path:str)->None:
     """
-    目的のディレクトリを作成(ファイル名が含まれる場合,親ディレクトリを作成)
+    目的のディレクトリを安全に作成するユーティリティ関数。
+    
+    パスにファイル名と拡張子が含まれている場合は自動的に親ディレクトリを抽出し、
+    存在しない場合は必要に応じて中間ディレクトリ含めて再帰的に作成します。
 
-    Parameters
-    ----------
-    path(str):作成するディレクトリのパス
+    Args:
+        path (str): 作成先ディレクトリのパス、または保存先ファイルのパス
 
-    Returns
-    -------
-    None
+    Returns:
+        None
     """
     """ 作成するディレクトリが存在するかどうかを確認する """
     _, ext = os.path.splitext(path) # dir_pathの拡張子を取得
@@ -214,10 +217,17 @@ def record_loss(file_name, text):
         out_file.write(f'{text}\n')  # 書き込み
 
 def get_max_row(sheet):
-    """ 引数で受け取ったシートの最終行(空白行)を取得する
+    """
+    引数で受け取ったExcelシートの実際の最終行（値が入っている最後の行）を取得する。
     
-    :param sheet: 最終行を取得するシート
-    :return max_row: 最終行(値がない行 -> 書式設定されていても空白の場合，最終行として認識しないようにする)
+    書式設定だけが残っていて空白の場合など、`sheet.max_row` が本来より
+    大きくなってしまうケースを防ぐために、下から逆順にセルの値を確認します。
+
+    Args:
+        sheet (openpyxl.worksheet.worksheet.Worksheet): 最終行を取得するシートオブジェクト
+
+    Returns:
+        int: 最終空白行のインデックス（値がない行）
     """
     max_row = sheet.max_row + 1
     max_column = sheet.max_column + 1
@@ -235,6 +245,26 @@ def get_now_time():
     now = datetime.datetime.now()  # 今日の日付を取得
     now_text = f'{now.month}m{now.day}d{now.hour}h{now.minute}min'
     return now_text
+
+def seed_everything(seed=42):
+    """
+    全ての実装系における乱数シードを固定し、実験の再現性を確保する。
+
+    標準の `random`、`numpy`、および `PyTorch` (CPU/CUDA) の疑似乱数ジェネレータの
+    シードを統一して固定します。また、CUDAの非決定的アルゴリズムを無効化し、
+    複数回の実行や異なる環境での結果のブレを最小限に抑えます。
+
+    Args:
+        seed (int): 固定するシード値（デフォルト: 42）
+    """
+    random.seed(seed)
+    os.environ['PYTHONHASHSEED'] = str(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed_all(seed)
+        torch.backends.cudnn.deterministic = True
+        torch.backends.cudnn.benchmark = False
 
 if __name__ == '__main__':
     print('my_func')

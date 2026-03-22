@@ -28,7 +28,16 @@ from src.models.WaveUnet import Wave_UNet
 
 
 def padding_tensor(tensor1, tensor2):
-    """短い方のテンソルを末尾にゼロパディングして長さをそろえる"""
+    """
+    2つのテンソルの時間軸（最後の次元）の長さを比較し、短い方を末尾ゼロパディングして長さを揃える。
+
+    Args:
+        tensor1 (torch.Tensor): パディング対象のテンソル1
+        tensor2 (torch.Tensor): パディング対象のテンソル2
+
+    Returns:
+        tuple[torch.Tensor, torch.Tensor]: 長さが揃えられた (tensor1, tensor2) のタプル
+    """
     len1 = tensor1.size(-1)
     len2 = tensor2.size(-1)
     max_len = max(len1, len2)
@@ -50,7 +59,26 @@ def train(model: nn.Module,
           train_count: int = const.EPOCH,
           earlystopping_threshold: int = 5,
           accumulation_steps: int = 4):
-    """時間領域（Wave）モデル用の学習ループ"""
+    """
+    時間領域（Wave）モデル用の学習処理を実行する共通ループ。
+
+    この関数では、指定されたデータセットを用いてモデルを訓練し、
+    エポックごとに検証(Validation)を行ってベストモデルを保存します。
+    また、TensorBoard用のログやCSVログも自動生成されます。
+
+    Args:
+        model (nn.Module): 学習対象のPyTorchモデル (例: Wave_UGNN, Wave_UNet 等)
+        train_csv (str): 学習用データセットのCSVファイルパス
+        val_csv (str): 検証用データセットのCSVファイルパス
+        wave_type (str): 学習対象の波形タイプ (例: 'noise_only', 'reverb_only', 'noise_reverb')
+        out_path (str): ベストモデルなどの出力先ベースパス
+        loss_type (str): 最適化に使用する損失関数名（例: "SISDR", "wave_MSE"）
+        batchsize (int): 1ステップあたりのバッチサイズ
+        checkpoint_path (str, optional): 学習再開に使用するチェックポイント(.pth)のパス
+        train_count (int): 最大エポック数
+        earlystopping_threshold (int): Early Stoppingが発動するまでの忍耐エポック数
+        accumulation_steps (int): 勾配累積のステップ数。仮想バッチサイズは(batchsize * steps)倍になります
+    """
     device = confirmation_GPU.get_device()
     out_path = Path(out_path)
     out_name, out_dir = out_path.stem, out_path.parent
@@ -166,7 +194,20 @@ def train(model: nn.Module,
 
 
 def test(model: nn.Module, test_csv: str, wave_type: str, out_dir: str, model_path: str, prm: int = const.SR):
-    """時間領域（Wave）モデル用の推論・テストループ"""
+    """
+    学習済みモデルを用いた推論（テスト）と、分離された波形のファイル保存を行う処理。
+
+    指定されたモデルパスからベストモデル（BEST_*.pth）をロードし、テストデータセットに
+    対して推論を実行します。出力された波形は元の音声スケールに合致するよう正規化され、保存されます。
+
+    Args:
+        model (nn.Module): 推論に使用するPyTorchモデル
+        test_csv (str): テスト用データセットのCSVファイルパス
+        wave_type (str): 入力波形のタイプ (例: 'noise_only')
+        out_dir (str): 分離された音声ファイル(.wav)の保存先ディレクトリ
+        model_path (str): モデル保存時のベースパス（ここから BEST_*.pth の場所が推測されます）
+        prm (int): 出力ファイルのサンプリングレート（デフォルト: const.SR）
+    """
     device = confirmation_GPU.get_device()
     my_func.make_dir(out_dir)
     model_path = Path(model_path)
@@ -195,7 +236,13 @@ def test(model: nn.Module, test_csv: str, wave_type: str, out_dir: str, model_pa
 
 
 def main():
-    """時間領域（Wave）モデル実行エントリーポイント"""
+    """
+    時間領域（Wave）モデルの学習と推論を連続して実行するためのエントリーポイント。
+
+    この関数内で、どのアーキテクチャ（GCN, UNet等）を使用するか、グラフ接続の定義（GraphConfig）や
+    ノード数など、モデル駆動に必要なハイパーパラメータ群をコード上で定義して一括実行します。
+    """
+    my_func.seed_everything(42)
     device = confirmation_GPU.get_device()
     
     # 実行したいモデルをここで指定する
@@ -223,7 +270,7 @@ def main():
     else:
         raise ValueError(f"Unknown architecture: {model_architecture}")
 
-    dir_name = "Random_Dataset_VCTK_DEMAND_1ch"
+    dir_name = "JA_DEMAND"
     loss_type = "SISDR"
     prefix = f"Wave_{model_architecture}"
     
@@ -235,7 +282,7 @@ def main():
             train_csv=f"{const.MIX_DATA_DIR}/{dir_name}/train.csv",
             val_csv=f"{const.MIX_DATA_DIR}/{dir_name}/val.csv",
             wave_type=wave_type,
-            out_path=f"{const.PTH_DIR}/{dir_name}/{prefix}/{out_name}.pth",
+            out_path=f"{const.CHECKPOINT_DIR}/{dir_name}/{prefix}/{out_name}.pth",
             loss_type=loss_type,
             batchsize=2,
             accumulation_steps=8
@@ -246,7 +293,7 @@ def main():
             test_csv=f"{const.MIX_DATA_DIR}/{dir_name}/test.csv",
             wave_type=wave_type,
             out_dir=f"{const.OUTPUT_WAV_DIR}/{dir_name}/{prefix}/{out_name}",
-            model_path=f"{const.PTH_DIR}/{dir_name}/{prefix}/{out_name}.pth"
+            model_path=f"{const.CHECKPOINT_DIR}/{dir_name}/{prefix}/{out_name}.pth"
         )
 
 if __name__ == "__main__":

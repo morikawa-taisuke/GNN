@@ -253,7 +253,7 @@ if __name__ == "__main__":
 	model = "SpeqGAT"
 	wave_type = "noise_reverb"
 	speech_type = "DEMAND_DEMAND"
-	MODEL_BASE_DIR = f"{const.PTH_DIR}/{speech_type}/{model}"
+	MODEL_BASE_DIR = f"{const.CHECKPOINT_DIR}/{speech_type}/{model}"
 	MODEL_NAME = f"{model}_{wave_type}"
 	# ★ 必要に応じてモデルパスを修正
 	MODEL_PATH = f"{MODEL_BASE_DIR}/BEST_SISDR_{model}_{wave_type}_32node_all_knn.pth" # BESTモデルを使うことを推奨

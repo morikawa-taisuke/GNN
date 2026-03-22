@@ -26,11 +26,13 @@ AIに質問する際は、「`src/models/WaveUGNN.py` のボトルネック部�
 
 ## ⚙️ 動作環境・インストール
 
-必要なパッケージをインストールして環境を構築します。
+`uv` を用いて、プロジェクトに完全に固定された依存関係を含めた仮想環境を構築します。
+
 ```bash
-pip install -r requirements.txt
+# プロジェクトディレクトリ直下で実行
+uv sync
 ```
-※ PyTorch Geometric等については、PyTorchとCUDAのバージョンに合わせて適切なホイールを追加インストールしてください。
+※ PyTorchやPyTorch Geometric等の依存関係も、CUDAバージョン（例: cu121）に合わせて自動的に適したものが `uv.lock` からインストールされます。
 
 ## 🚀 使用方法・実行手順
 
@@ -38,11 +40,11 @@ pip install -r requirements.txt
 `scripts/` 配下のスクリプトを使用して学習用データを作成します。音声長のチェックなどが必要な場合は適宜ユーティリティを使用してください。
 
 ### 2. 学習の実行
-ルートディレクトリから、`experiments/` 内のスクリプトを実行します。モジュールパスを正しく解決するため、必ずルートディレクトリから実行してください。
+ルートディレクトリから、`experiments/` 内のスクリプトを実行します。`uv run` を使用することで、仮想環境のアクティベート忘れを防げます。
 ```bash
-python experiments/main_Speq.py
+uv run python experiments/main_Speq.py
 # または
-python experiments/main_Wave.py
+uv run python experiments/main_Wave.py
 ```
 
 ### 3. 評価の実行

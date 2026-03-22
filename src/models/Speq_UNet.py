@@ -4,7 +4,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torchinfo import summary
 
-from mymodule import confirmation_GPU
+from src.mymodule import confirmation_GPU
 
 # CUDAの可用性をチェック
 os.environ['PYTORCH_CUDA_ALLOC_CONF'] = 'expandable_segments:True'

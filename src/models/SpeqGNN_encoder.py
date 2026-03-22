@@ -4,10 +4,10 @@ import torch
 import torch.nn.functional as F
 from torch import nn
 from torch_geometric.nn import GCNConv, GATConv
-from models.graph_utils import GraphBuilder, GraphConfig, NodeSelectionType, EdgeSelectionType
+from src.models.graph_utils import GraphBuilder, GraphConfig, NodeSelectionType, EdgeSelectionType
 from torchinfo import summary  # モデルのサマリー表示用
 
-from mymodule import confirmation_GPU
+from src.mymodule import confirmation_GPU
 
 # PyTorchのCUDAメモリ管理設定。セグメントを拡張可能にすることで、断片化によるメモリ不足エラーを緩和します。
 os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "expandable_segments:True"

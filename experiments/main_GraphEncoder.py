@@ -337,7 +337,7 @@ if __name__ == "__main__":
 		val_csv=val_csv_path,
 		wave_type=wave_type,
 	    reverb_loss_weight=reverb_loss_weight, # ★追加
-		out_path=f"{const.PTH_DIR}/{dir_name}/{model_type}/{out_name}.pth",
+		out_path=f"{const.CHECKPOINT_DIR}/{dir_name}/{model_type}/{out_name}.pth",
 		main_loss_type="SISDR",
 		batchsize=4, checkpoint_path=None, train_count=500, earlystopping_threshold=10, accumulation_steps=4
 	)
@@ -349,7 +349,7 @@ if __name__ == "__main__":
 		test_csv=test_csv_path,
 		wave_type=wave_type,
 		out_dir=test_out_dir,
-		model_path=f"{const.PTH_DIR}/{dir_name}/{model_type}/{out_name}.pth"
+		model_path=f"{const.CHECKPOINT_DIR}/{dir_name}/{model_type}/{out_name}.pth"
 	)
 
 	# --- 評価の実行 ---

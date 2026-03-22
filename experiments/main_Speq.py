@@ -32,14 +32,15 @@ print(f"main_Speq 使用デバイス: {device}")
 
 def padding_tensor(tensor1, tensor2):
 	"""
-	最後の次元（例: 時系列長）が異なる2つのテンソルに対して、
-	短い方を末尾にゼロパディングして長さをそろえる。
+	短時間フーリエ変換後などの、最後の次元（時間軸や周波数軸）が異なる
+	2つのテンソルに対して、短い方を末尾ゼロパディングして長さを揃える。
 
 	Args:
-		tensor1, tensor2 (torch.Tensor): 任意の次元数のテンソル
+		tensor1 (torch.Tensor): パディング対象のテンソル1
+		tensor2 (torch.Tensor): パディング対象のテンソル2
 
 	Returns:
-		padded_tensor1, padded_tensor2 (torch.Tensor)
+		tuple[torch.Tensor, torch.Tensor]: パディング処理後のテンソルのタプル (padded_tensor1, padded_tensor2)
 	"""
 	len1 = tensor1.size(-1)
 	len2 = tensor2.size(-1)
@@ -65,6 +66,25 @@ def train(model: nn.Module,
 		  train_count: int = const.EPOCH,
 		  earlystopping_threshold: int = 5,
           accumulation_steps: int = 4):
+	"""
+	周波数領域（STFT）モデル用の学習処理を行う共通関数。
+	
+	時間領域のバッチを入力として受け取り、動的にSTFTによる複素スペクトログラム変換を
+	行ったうえでモデルに学習させます。エポックごとの損失はTensorBoard等に保存されます。
+
+	Args:
+		model (nn.Module): 学習対象のPyTorchモデル (例: SpeqGNN等)
+		train_csv (str): 学習用データセットのCSVファイルパス
+		val_csv (str): 検証用データセットのCSVファイルパス
+		wave_type (str): 入力信号の種類 (例: 'noise_only', 'reverb_only')
+		out_path (str): モデルの重みを保存するベースパス
+		loss_type (str): 使用する損失関数の種類 (例: 'stft_MSE', 'SISDR')
+		batchsize (int): 1ステップあたりのバッチサイズ
+		checkpoint_path (str, optional): 学習再開用のチェックポイントパス
+		train_count (int): 最大エポック数
+		earlystopping_threshold (int): Early Stoppingの忍耐エポック数
+		accumulation_steps (int): 勾配累積のステップ数
+	"""
 	"""GPUの設定"""
 	device = confirmation_GPU.get_device()
 	""" その他の設定 """
@@ -263,6 +283,21 @@ def train(model: nn.Module,
 
 
 def test(model: nn.Module, test_csv: str, wave_type: str, out_dir: str, model_path: str, prm: int = const.SR, out_name: str = "output"):
+	"""
+	学習済みモデルを用いた推論（テスト）と波形保存を行うメイン関数。
+
+	提供されたテスト用データに対してループを実行し、STFT変換後にモデルの推論を適用し、
+	最終出力された音声波形を正規化した上で指定ディレクトリに出力します。
+
+	Args:
+		model (nn.Module): 推論に使用するPyTorchモデル
+		test_csv (str): テスト用データセットのCSVファイルパス
+		wave_type (str): 入力信号の種類
+		out_dir (str): 推論結果の波形を自動保存する出力先ディレクトリ
+		model_path (str): 読み込むベースモデルのパス（BEST_付きモデルを探索します）
+		prm (int): 出力時のサンプリングレート(SR)
+		out_name (str): モデル内部等でエクスポートされる際の名前空間
+	"""
 	# ディレクトリを作成
 	my_func.make_dir(out_dir)
 	model_path = Path(model_path)  # path型に変換
@@ -389,7 +424,7 @@ if __name__ == "__main__":
 					#       train_csv=f"{const.MIX_DATA_DIR}/{dir_name}/train.csv",
 					#       val_csv=f"{const.MIX_DATA_DIR}/{dir_name}/val.csv",
 					#       wave_type=wave_type,
-					#       out_path=f"{const.PTH_DIR}/{dir_name}/{model_type}/{out_name}.pth",
+					#       out_path=f"{const.CHECKPOINT_DIR}/{dir_name}/{model_type}/{out_name}.pth",
 					#       loss_type=loss_type,
 					#       batchsize=4, checkpoint_path=None, train_count=500, earlystopping_threshold=10, accumulation_steps=4)
 
@@ -397,7 +432,7 @@ if __name__ == "__main__":
 						test_csv=f"{const.MIX_DATA_DIR}/{dir_name}/test.csv",
 						wave_type=wave_type,
 						out_dir=f"{const.OUTPUT_WAV_DIR}/{dir_name}/{model_type}/{out_name}",
-						model_path=f"{const.PTH_DIR}/{dir_name}/{model_type}/{out_name}.pth",
+						model_path=f"{const.CHECKPOINT_DIR}/{dir_name}/{model_type}/{out_name}.pth",
 						out_name=out_dir)
 					#
 					# evaluation(

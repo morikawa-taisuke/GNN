@@ -6,15 +6,17 @@ from torchmetrics.regression import MeanSquaredError as MSE
 
 def get_loss_computer(loss_func_name: str, device: torch.device):
 	"""
-	損失関数名に基づいて、損失を計算する関数（callable）を返す。
-	ループ内の分岐をなくし、コードをクリーンにする。
+	損失関数名に基づいて、損失を計算する関数（callable）を生成し返却するファクトリ関数。
+
+	学習ループ内の `if` 文による無駄な分岐呼び出しをなくし、コード実行のオーバーヘッドを削減します。
+	STFTを用いた独自の周波数領域向け損失（stft_MSE）などにも対応しています。
 
 	Args:
-		loss_func_name (str): 損失関数の名前 ("SISDR", "wave_MSE", "stft_MSE")
-		device (torch.device): 計算に使用するデバイス
+		loss_func_name (str): 損失関数の種類を示す文字列（例: "SISDR", "wave_MSE", "stft_MSE"）
+		device (torch.device): メトリクスの計算に使用するデバイス（GPU/CPU）
 
 	Returns:
-		callable: (preds, target) -> loss を計算する関数
+		callable: 予測値テンソル(preds)と目標値テンソル(target)を受け取り、スカラーの損失を計算する関数
 	"""
 	if loss_func_name == "SISDR":
 		metric = SISDR().to(device)
@@ -34,7 +36,8 @@ def get_loss_computer(loss_func_name: str, device: torch.device):
 			# モデルの出力が (batch, 1, length) であることを想定
 			stft_preds = torch.stft(preds.squeeze(1), n_fft=1024, return_complex=False)
 			stft_target = torch.stft(target.squeeze(1), n_fft=1024, return_complex=False)
-			return metric(stft_preds, stft_target)
+			# return metric(stft_preds, stft_target)
+			return metric(stft_preds.reshape(-1), stft_target.reshape(-1))
 
 		return stft_mse_computer
 	else:

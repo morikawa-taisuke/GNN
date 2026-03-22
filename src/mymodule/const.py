@@ -14,7 +14,7 @@ DIR_KEY_NOISE = "noise"
 DIR_KEY_MIX = "mix"
 
 # SAUND_DATA_DIR = 'C:\\Users\\kataoka-lab\\Desktop\\sound_data\\'    # Windows用
-SAUND_DATA_DIR = "/Users/a/Documents/sound_data/"  # Mac用
+SAUND_DATA_DIR = "D:/sound_data/"  # Windows用
 SAMPLE_DATA_DIR = os.path.join(SAUND_DATA_DIR, "sample_data")
 MIX_DATA_DIR = os.path.join(SAUND_DATA_DIR, "mix_data")
 DATASET_DIR = os.path.join(SAUND_DATA_DIR, "dataset")
@@ -32,4 +32,4 @@ H = 256  # 窓長
 
 BATCHSIZE = 1  # バッチサイズ
 PATCHLEN = 16  # パッチサイズ
-EPOCH = 100  # 学習回数
+EPOCH = 10  # 学習回数
